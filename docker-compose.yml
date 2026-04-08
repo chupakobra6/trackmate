@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: trackmate
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d trackmate"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build: .
+    restart: "no"
+    env_file:
+      - .env
+    environment:
+      TRACKMATE__DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/trackmate
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TRACKMATE__DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/trackmate
+    command: ["uv", "run", "python", "-m", "trackmate.entrypoints.api"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-m", "trackmate.entrypoints.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  worker:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      TRACKMATE__DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/trackmate
+    command: ["uv", "run", "python", "-m", "trackmate.entrypoints.worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-m", "trackmate.entrypoints.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres-data:

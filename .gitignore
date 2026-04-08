@@ -1,0 +1,44 @@
+# Local environment
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.python-version
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.hypothesis/
+
+# Packaging and coverage
+build/
+dist/
+*.egg-info/
+.eggs/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local data and logs
+*.log
+*.pid
+*.sqlite3
+*.db
+tmp/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
