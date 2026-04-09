@@ -151,7 +151,7 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text="Первая заметка",
+        text='<b>Первая</b> <a href="https://example.com">заметка</a>',
         is_applied=False,
     )
 
@@ -159,3 +159,4 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
 
     assert created is True
     assert events[0].payload["material_link"] == "https://t.me/c/1234567890/319?thread=281"
+    assert events[0].payload["text"] == '<b>Первая</b> <a href="https://example.com">заметка</a>'

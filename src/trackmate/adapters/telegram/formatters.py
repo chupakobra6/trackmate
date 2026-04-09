@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from html import escape
 
+from trackmate.adapters.telegram.rich_text import render_rich_text
 from trackmate.db.models import DailyTask, MaterialBatch, ProgressEvent
 from trackmate.domain.enums import DailyTaskStatus, ProgressEventType
 
@@ -177,12 +178,18 @@ def format_daily_task_card(
     lines = [
         f"🎯 <b>Задача дня</b> {person}:",
         "",
-        f"<blockquote>{escape(task.text)}</blockquote>",
+        f"<blockquote>{render_rich_text(task.text)}</blockquote>",
         "",
         f"<b>Статус:</b> {_task_status_label(task.status)}",
     ]
     if task.report_text:
-        lines.extend(["", "<b>Результат:</b>", f"<blockquote>{escape(task.report_text)}</blockquote>"])
+        lines.extend(
+            [
+                "",
+                "<b>Результат:</b>",
+                f"<blockquote>{render_rich_text(task.report_text)}</blockquote>",
+            ]
+        )
     return "\n".join(_append_notice(lines, notice))
 
 
@@ -197,7 +204,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"📝 <b>{person} добавил заметку к {material}</b>",
                 "",
                 "<b>Текст заметки:</b>",
-                f"<blockquote>{escape(payload.get('text', ''))}</blockquote>",
+                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
             ]
         )
     if event_type is ProgressEventType.MATERIAL_APPLIED:
@@ -207,7 +214,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"🚀 <b>{person} внедрил по {material}</b>",
                 "",
                 "<b>Что внедрил:</b>",
-                f"<blockquote>{escape(payload.get('text', ''))}</blockquote>",
+                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_CLOSED:
@@ -218,10 +225,10 @@ def format_progress_event(event: ProgressEvent) -> str:
                 title,
                 "",
                 "<b>Что планировал:</b>",
-                f"<blockquote>{escape(payload.get('task_text', ''))}</blockquote>",
+                f"<blockquote>{render_rich_text(payload.get('task_text'))}</blockquote>",
                 "",
                 "<b>Результат:</b>",
-                f"<blockquote>{escape(payload.get('text', ''))}</blockquote>",
+                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_AUTO_FAILED:
@@ -230,7 +237,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"⏰ <b>{person} не выполнил задачу дня вовремя</b>",
                 "",
                 "<b>Что планировал:</b>",
-                f"<blockquote>{escape(payload.get('task_text', ''))}</blockquote>",
+                f"<blockquote>{render_rich_text(payload.get('task_text'))}</blockquote>",
             ]
         )
     return "\n".join(

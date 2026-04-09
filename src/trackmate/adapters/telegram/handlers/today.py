@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from html import escape
 
 from aiogram import F, Router
 from aiogram.dispatcher.event.bases import UNHANDLED
@@ -22,6 +23,7 @@ from trackmate.adapters.telegram.message_ops import (
     reply_message_logged,
     send_message_logged,
 )
+from trackmate.adapters.telegram.rich_text import message_rich_text
 from trackmate.application.today import create_daily_task, local_task_date, submit_daily_task_report
 from trackmate.db.models import DailyTaskAlert
 from trackmate.domain.enums import DailyTaskStatus, PendingInputKind
@@ -52,11 +54,18 @@ def _content_type_label(message: Message) -> str:
 
 
 def _pending_input_text(message: Message) -> str | None:
-    if message.text:
-        return message.text
-    if message.caption:
-        return message.caption
+    plain_text, _ = message_rich_text(message)
+    if plain_text:
+        return plain_text
     return _content_type_label(message)
+
+
+def _pending_input_html(message: Message) -> str | None:
+    _, html_text = message_rich_text(message)
+    if html_text:
+        return html_text
+    fallback = _pending_input_text(message)
+    return escape(fallback) if fallback else None
 
 
 def _report_confirmation_text() -> str:
@@ -170,7 +179,7 @@ async def today_pending_input_handler(
     }:
         return UNHANDLED
     if pending.kind == PendingInputKind.DAILY_TASK_TEXT.value:
-        task_text = _pending_input_text(message)
+        task_text = _pending_input_html(message)
         await delete_message_safe(
             bot=message.bot,
             chat_id=message.chat.id,
@@ -210,7 +219,7 @@ async def today_pending_input_handler(
         return
 
     if pending.kind == PendingInputKind.DAILY_TASK_REPORT.value:
-        report_text = _pending_input_text(message)
+        report_text = _pending_input_html(message)
         prompt_message_id = pending.payload.get("prompt_message_id")
         task_id = int(pending.payload["task_id"])
         status = DailyTaskStatus(pending.payload["status"])

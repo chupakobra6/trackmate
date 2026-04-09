@@ -89,3 +89,34 @@ async def test_transition_to_awaiting_report_does_not_create_progress_event(sess
     assert task.status is DailyTaskStatus.AWAITING_REPORT
     assert len(alerts) == 1
     assert all(event.event_type is not ProgressEventType.SYSTEM_ALERT for event in events)
+
+
+@pytest.mark.asyncio
+async def test_submit_daily_task_report_preserves_rich_text_payloads(session) -> None:
+    workspace_repo = WorkspaceRepository(session)
+    workspace = await workspace_repo.get_or_create_workspace(4006, "Group", "UTC")
+    participant = await workspace_repo.register_participant(workspace.id, 204, "owner", "Owner")
+    task = await TodayRepository(session).create_daily_task(
+        workspace_id=workspace.id,
+        participant_id=participant.id,
+        owner_user_id=participant.user_id,
+        task_date=workspace.created_at.date(),
+        text='Сходить в <a href="https://platform.openai.com/docs">docs</a>',
+        today_card_message_id=12,
+    )
+
+    submitted = await submit_daily_task_report(
+        session,
+        task_id=task.id,
+        owner_user_id=participant.user_id,
+        status=DailyTaskStatus.DONE,
+        text='Изучил <b>раздел API</b>',
+        display_name="Owner",
+    )
+
+    events = await ProgressRepository(session).list_pending_events()
+
+    assert submitted is True
+    assert task.report_text == 'Изучил <b>раздел API</b>'
+    assert events[0].payload["task_text"] == 'Сходить в <a href="https://platform.openai.com/docs">docs</a>'
+    assert events[0].payload["text"] == 'Изучил <b>раздел API</b>'

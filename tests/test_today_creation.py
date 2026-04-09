@@ -2,9 +2,10 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
+from aiogram.types import MessageEntity
 
 from trackmate.adapters.persistence.repositories import TodayRepository, WorkspaceRepository
-from trackmate.adapters.telegram.handlers.today import _pending_input_text
+from trackmate.adapters.telegram.handlers.today import _pending_input_html, _pending_input_text
 from trackmate.application.today import create_daily_task, local_task_date
 from trackmate.domain.enums import DailyTaskStatus
 
@@ -27,6 +28,26 @@ def test_pending_input_text_supports_voice_and_documents() -> None:
 
     assert _pending_input_text(voice_message) == "Голосовое сообщение"
     assert _pending_input_text(document_message) == "Документ: report.pdf"
+
+
+def test_pending_input_html_preserves_telegram_entities() -> None:
+    text_message = SimpleNamespace(
+        text="OpenAI",
+        html_text='<a href="https://openai.com">OpenAI</a>',
+        caption=None,
+        caption_entities=None,
+    )
+    caption_message = SimpleNamespace(
+        text=None,
+        html_text="",
+        caption="read docs",
+        caption_entities=[
+            MessageEntity(type="text_link", offset=5, length=4, url="https://platform.openai.com/docs")
+        ],
+    )
+
+    assert _pending_input_html(text_message) == '<a href="https://openai.com">OpenAI</a>'
+    assert _pending_input_html(caption_message) == 'read <a href="https://platform.openai.com/docs">docs</a>'
 
 
 @pytest.mark.asyncio

@@ -14,7 +14,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
             "username": "Pheik13",
             "display_name": "Pheik13",
             "material_link": "https://t.me/c/123/319?thread=281",
-            "text": "текст",
+            "text": '<b>текст</b> <a href="https://example.com">с ссылкой</a>',
         },
     )
 
@@ -22,6 +22,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
 
     assert '🚀 <b>@Pheik13 внедрил по <a href="https://t.me/c/123/319?thread=281">материалу</a></b>' in formatted
     assert "<b>Что внедрил:</b>" in formatted
+    assert '<b>текст</b> <a href="https://example.com">с ссылкой</a>' in formatted
     assert "По материалу:" not in formatted
 
 
@@ -86,3 +87,16 @@ def test_format_daily_task_card_uses_consistent_status_labels() -> None:
     formatted = format_daily_task_card(task, "Pheik13", "Pheik13")
 
     assert "<b>Статус:</b> выполнена частично" in formatted
+
+
+def test_format_daily_task_card_prefers_saved_html_text() -> None:
+    task = DailyTask(
+        text='Сходить в <a href="https://platform.openai.com/docs">docs</a>',
+        report_text='Итог: <b>готово</b>',
+        status=DailyTaskStatus.DONE,
+    )
+
+    formatted = format_daily_task_card(task, "Pheik13", "Pheik13")
+
+    assert 'Сходить в <a href="https://platform.openai.com/docs">docs</a>' in formatted
+    assert "Итог: <b>готово</b>" in formatted
