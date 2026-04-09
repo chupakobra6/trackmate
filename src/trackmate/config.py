@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     database_url: str
     default_timezone: str = Field(default="Europe/Moscow")
     worker_tick_seconds: int = Field(default=5)
-    material_batch_timeout_seconds: int = Field(default=5)
+    material_batch_timeout_seconds: int = Field(default=15)
     log_level: str = Field(default="INFO")
 
 

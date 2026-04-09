@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import structlog
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +9,8 @@ from trackmate.adapters.persistence.repositories import ProgressRepository, Work
 from trackmate.adapters.telegram.formatters import format_progress_event
 from trackmate.adapters.telegram.message_ops import send_message_logged
 from trackmate.domain.enums import TopicKey
+
+logger = structlog.get_logger(__name__)
 
 
 async def publish_pending_progress_events(session: AsyncSession, bot: Bot) -> None:
@@ -39,6 +42,11 @@ async def publish_pending_progress_events(session: AsyncSession, bot: Bot) -> No
         except TelegramBadRequest:
             await progress_repo.mark_event_failed(event)
             await session.commit()
+            continue
+        except Exception:
+            await progress_repo.requeue_event_for_publish(event)
+            await session.commit()
+            logger.exception("telegram.progress_event_publish_failed", event_id=event.id)
             continue
         await progress_repo.mark_event_published(
             event,

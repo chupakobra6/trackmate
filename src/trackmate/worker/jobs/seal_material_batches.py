@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import structlog
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from trackmate.adapters.persistence.repositories import MaterialRepository, WorkspaceRepository
@@ -47,10 +48,14 @@ async def run(session: AsyncSession, bot: Bot, *, batch_timeout_seconds: int) ->
         await session.commit()
         workspace = await workspace_repo.get_workspace_by_id(batch.workspace_group_id)
         if workspace is None:
+            await materials_repo.reopen_batch_for_publish(batch)
+            await session.commit()
             continue
         bindings = await workspace_repo.list_topic_bindings(workspace.id)
         materials_binding = bindings.get(TopicKey.MATERIALS)
         if materials_binding is None:
+            await materials_repo.reopen_batch_for_publish(batch)
+            await session.commit()
             continue
         progresses = await materials_repo.list_progresses(batch.id)
         logger.info(
@@ -60,13 +65,24 @@ async def run(session: AsyncSession, bot: Bot, *, batch_timeout_seconds: int) ->
             workspace_id=batch.workspace_group_id,
             thread_id=materials_binding.thread_id,
         )
-        message = await send_message_logged(
-            bot=bot,
-            chat_id=workspace.chat_id,
-            message_thread_id=materials_binding.thread_id,
-            text=format_material_card(batch, progresses),
-            reply_to_message_id=batch.source_anchor_message_id,
-            reply_markup=material_progress_keyboard(batch.id),
-        )
+        try:
+            message = await send_message_logged(
+                bot=bot,
+                chat_id=workspace.chat_id,
+                message_thread_id=materials_binding.thread_id,
+                text=format_material_card(batch, progresses),
+                reply_to_message_id=batch.source_anchor_message_id,
+                reply_markup=material_progress_keyboard(batch.id),
+            )
+        except TelegramBadRequest:
+            await materials_repo.reopen_batch_for_publish(batch)
+            await session.commit()
+            logger.exception("telegram.material_batch_publish_failed", batch_id=batch.id)
+            continue
+        except Exception:
+            await materials_repo.reopen_batch_for_publish(batch)
+            await session.commit()
+            logger.exception("telegram.material_batch_publish_failed", batch_id=batch.id)
+            continue
         await materials_repo.seal_batch(batch, message.message_id)
         await session.commit()

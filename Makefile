@@ -7,6 +7,12 @@ db-reset:
 docker-reset:
 	sh scripts/reset_docker_db.sh
 
+docker-up:
+	docker compose up -d --build
+
+docker-update:
+	sh scripts/update_docker_app.sh
+
 lint:
 	uv run ruff check .
 

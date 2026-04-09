@@ -47,11 +47,19 @@ def _append_notice(lines: list[str], notice: str | None) -> list[str]:
     return lines
 
 
-def _material_link(payload: dict, label: str) -> str:
-    link = payload.get("material_link")
+def _payload_link(payload: dict, key: str, label: str) -> str:
+    link = payload.get(key)
     if not link:
         return label
     return f'<a href="{escape(link)}">{label}</a>'
+
+
+def _render_section_html(html: str | None) -> str:
+    if not html:
+        return "<i>—</i>"
+    if "<blockquote" in html:
+        return html
+    return f"<blockquote>{html}</blockquote>"
 
 
 def format_setup_checklist(
@@ -107,8 +115,7 @@ def format_material_card(batch: MaterialBatch, progresses: list, notice: str | N
             events.append(f"<blockquote>{person} внедрил.</blockquote>")
 
     if events:
-        if len(lines) > 1:
-            lines.append("")
+        lines.append("")
         lines.extend(events)
     return "\n".join(_append_notice(lines, notice))
 
@@ -141,7 +148,7 @@ def format_daily_task_card(
     lines = [
         f"🎯 <b>Задача дня</b> {person}:",
         "",
-        task.text,
+        _render_section_html(task.text),
         "",
         f"<b>Статус:</b> {_task_status_label(task.status)}",
     ]
@@ -150,7 +157,7 @@ def format_daily_task_card(
             [
                 "",
                 "<b>Результат:</b>",
-                task.report_text,
+                _render_section_html(task.report_text),
             ]
         )
     return "\n".join(_append_notice(lines, notice))
@@ -161,46 +168,53 @@ def format_progress_event(event: ProgressEvent) -> str:
     payload = event.payload or {}
     person = _person_label(payload.get("username"), payload.get("display_name", "Без имени"))
     if event_type is ProgressEventType.MATERIAL_NOTE_ADDED:
-        material = _material_link(payload, "материалу")
+        material = _payload_link(payload, "material_link", "материалу")
         return "\n".join(
             [
                 f"📝 <b>{person} добавил заметку к {material}</b>",
                 "",
                 "<b>Текст заметки:</b>",
-                payload.get("html", ""),
+                "",
+                _render_section_html(payload.get("html")),
             ]
         )
     if event_type is ProgressEventType.MATERIAL_APPLIED:
-        material = _material_link(payload, "материалу")
+        material = _payload_link(payload, "material_link", "материал")
         return "\n".join(
             [
-                f"🚀 <b>{person} внедрил по {material}</b>",
+                f"🚀 <b>{person} внедрил {material}</b>",
                 "",
                 "<b>Что внедрил:</b>",
-                payload.get("html", ""),
+                "",
+                _render_section_html(payload.get("html")),
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_CLOSED:
         status = payload.get("status", "")
-        title = _daily_task_closed_title(status, person)
+        task = _payload_link(payload, "task_link", "задачу дня")
+        title = _daily_task_closed_title(status, person).replace("задачу дня", task)
         return "\n".join(
             [
                 title,
                 "",
                 "<b>Что планировал:</b>",
-                payload.get("task_html", ""),
+                "",
+                _render_section_html(payload.get("task_html")),
                 "",
                 "<b>Результат:</b>",
-                payload.get("report_html", ""),
+                "",
+                _render_section_html(payload.get("report_html")),
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_AUTO_FAILED:
+        task = _payload_link(payload, "task_link", "задачу дня")
         return "\n".join(
             [
-                f"⏰ <b>{person} не выполнил задачу дня вовремя</b>",
+                f"⏰ <b>{person} не выполнил {task} вовремя</b>",
                 "",
                 "<b>Что планировал:</b>",
-                payload.get("task_html", ""),
+                "",
+                _render_section_html(payload.get("task_html")),
             ]
         )
     return "\n".join(

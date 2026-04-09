@@ -5,12 +5,12 @@ import structlog
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from trackmate.application.progress import publish_pending_progress_events
 from trackmate.application.today import run_daily_task_transitions
 from trackmate.config import get_settings
-from trackmate.db.session import create_engine
+from trackmate.db.session import create_session_factory
 from trackmate.logging import configure_logging
 from trackmate.worker.jobs.dispatch_alerts import run as dispatch_alerts_run
 from trackmate.worker.jobs.seal_material_batches import run as seal_material_batches_run
@@ -19,34 +19,25 @@ logger = structlog.get_logger(__name__)
 WORKER_LOCK_KEY = 3_842_001
 
 
-async def _try_acquire_worker_lock(connection) -> bool:
+async def _try_acquire_worker_lock(connection: AsyncConnection) -> bool:
     if connection.dialect.name != "postgresql":
         return True
     result = await connection.execute(
-        text("SELECT pg_try_advisory_lock(:lock_key)"),
+        text("SELECT pg_try_advisory_xact_lock(:lock_key)"),
         {"lock_key": WORKER_LOCK_KEY},
     )
     return bool(result.scalar())
 
 
-async def _release_worker_lock(connection) -> None:
-    if connection.dialect.name != "postgresql":
-        return
-    await connection.execute(
-        text("SELECT pg_advisory_unlock(:lock_key)"),
-        {"lock_key": WORKER_LOCK_KEY},
-    )
-
-
 async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
-    engine = create_engine(settings)
+    session_factory = create_session_factory(settings)
     bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     while True:
-        async with engine.connect() as connection:
+        async with session_factory() as session:
+            connection = await session.connection()
             lock_acquired = False
-            session = AsyncSession(bind=connection, expire_on_commit=False)
             try:
                 lock_acquired = await _try_acquire_worker_lock(connection)
                 if not lock_acquired:
@@ -64,10 +55,6 @@ async def main() -> None:
             except Exception:
                 await session.rollback()
                 logger.exception("worker.tick_failed")
-            finally:
-                if lock_acquired:
-                    await _release_worker_lock(connection)
-                await session.close()
         await asyncio.sleep(settings.worker_tick_seconds)
 
 

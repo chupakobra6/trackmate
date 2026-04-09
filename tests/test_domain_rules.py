@@ -40,6 +40,16 @@ def test_daily_task_goes_to_failed_after_midday() -> None:
     assert transition.new_status is DailyTaskStatus.FAILED
 
 
+def test_active_daily_task_goes_directly_to_failed_after_long_worker_downtime() -> None:
+    transition = next_daily_task_transition(
+        task_date=date(2026, 4, 7),
+        workspace_timezone="UTC",
+        current_status=DailyTaskStatus.ACTIVE,
+        now_utc=datetime(2026, 4, 8, 12, 0, 1, tzinfo=UTC),
+    )
+    assert transition.new_status is DailyTaskStatus.FAILED
+
+
 def test_material_batch_seals_after_timeout() -> None:
     assert should_seal_material_batch(
         last_message_at=datetime(2026, 4, 8, 10, 0, 0, tzinfo=UTC),

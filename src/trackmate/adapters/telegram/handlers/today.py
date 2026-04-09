@@ -78,6 +78,20 @@ def _today_task_conflict_text(*, same_day: bool) -> str:
     return "Сначала закрой предыдущую задачу."
 
 
+def _today_task_conflict_notice(*, today_task_exists: bool, open_task_exists: bool) -> str | None:
+    if today_task_exists:
+        return _today_task_conflict_text(same_day=True)
+    if open_task_exists:
+        return _today_task_conflict_text(same_day=False)
+    return None
+
+
+def _report_rejected_text(task_status: DailyTaskStatus | None) -> str:
+    if task_status in {DailyTaskStatus.DONE, DailyTaskStatus.PARTIAL, DailyTaskStatus.FAILED}:
+        return "Отчет не принят: задача уже закрыта."
+    return "Отчет не принят."
+
+
 @router.callback_query(F.data == "today:add")
 async def add_today_task_callback(
     callback: CallbackQuery,
@@ -99,11 +113,12 @@ async def add_today_task_callback(
     today_date = local_task_date(workspace.timezone)
     today_task = await today_repo.get_task_for_date(workspace.id, participant.id, today_date)
     open_task = await today_repo.get_open_task(workspace.id, participant.id)
-    if open_task is not None:
-        await callback.answer(text=_today_task_conflict_text(same_day=False))
-        return
-    if today_task is not None:
-        await callback.answer(text=_today_task_conflict_text(same_day=True))
+    conflict_notice = _today_task_conflict_notice(
+        today_task_exists=today_task is not None,
+        open_task_exists=open_task is not None,
+    )
+    if conflict_notice is not None:
+        await callback.answer(text=conflict_notice)
         return
     existing_pending = await pending_repo.get(workspace.id, callback.from_user.id)
     if existing_pending and existing_pending.kind == PendingInputKind.DAILY_TASK_TEXT.value:
@@ -214,7 +229,21 @@ async def today_pending_input_handler(
             display_name=display_name(message.from_user),
         )
         if not submitted:
+            task = await TodayRepository(session).get_task(task_id)
             await pending_repo.clear(workspace.id, message.from_user.id)
+            rejection_text = _report_rejected_text(task.status if task is not None else None)
+            edited = await edit_message_like_safe(
+                message=message,
+                message_id=prompt_message_id,
+                text=rejection_text,
+            )
+            if not edited:
+                await send_message_logged(
+                    bot=message.bot,
+                    chat_id=message.chat.id,
+                    message_thread_id=message.message_thread_id,
+                    text=rejection_text,
+                )
             return
         task = await TodayRepository(session).get_task(task_id)
         if task:

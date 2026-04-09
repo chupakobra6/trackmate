@@ -7,8 +7,9 @@ from trackmate.adapters.persistence.repositories import (
     TodayRepository,
     WorkspaceRepository,
 )
+from trackmate.adapters.telegram.handlers.today import _report_rejected_text
 from trackmate.application.today import run_daily_task_transitions, submit_daily_task_report
-from trackmate.domain.enums import DailyTaskStatus, ProgressEventType
+from trackmate.domain.enums import DailyTaskStatus, ProgressEventType, TopicKey
 
 
 @pytest.mark.asyncio
@@ -94,7 +95,13 @@ async def test_transition_to_awaiting_report_does_not_create_progress_event(sess
 @pytest.mark.asyncio
 async def test_submit_daily_task_report_preserves_rich_text_payloads(session) -> None:
     workspace_repo = WorkspaceRepository(session)
-    workspace = await workspace_repo.get_or_create_workspace(4006, "Group", "UTC")
+    workspace = await workspace_repo.get_or_create_workspace(-1001234567890, "Group", "UTC")
+    await workspace_repo.upsert_topic_binding(
+        workspace.id,
+        TopicKey.TODAY,
+        thread_id=281,
+        topic_title="Сегодня",
+    )
     participant = await workspace_repo.register_participant(workspace.id, 204, "owner", "Owner")
     task = await TodayRepository(session).create_daily_task(
         workspace_id=workspace.id,
@@ -120,3 +127,8 @@ async def test_submit_daily_task_report_preserves_rich_text_payloads(session) ->
     assert task.report_text == 'Изучил <b>раздел API</b>'
     assert events[0].payload["task_html"] == 'Сходить в <a href="https://platform.openai.com/docs">docs</a>'
     assert events[0].payload["report_html"] == 'Изучил <b>раздел API</b>'
+    assert events[0].payload["task_link"] == "https://t.me/c/1234567890/12?thread=281"
+
+
+def test_report_rejected_text_is_informative_for_closed_task() -> None:
+    assert _report_rejected_text(DailyTaskStatus.FAILED) == "Отчет не принят: задача уже закрыта."

@@ -44,6 +44,11 @@ def next_daily_task_transition(
         tzinfo=local_now.tzinfo,
     )
 
+    if current_status is DailyTaskStatus.ACTIVE and local_now >= midday_after_task:
+        return DailyTaskTransition(
+            new_status=DailyTaskStatus.FAILED,
+            should_emit_auto_fail=True,
+        )
     if current_status is DailyTaskStatus.ACTIVE and local_now >= midnight_after_task:
         return DailyTaskTransition(
             new_status=DailyTaskStatus.AWAITING_REPORT,

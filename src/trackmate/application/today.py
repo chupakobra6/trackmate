@@ -12,8 +12,20 @@ from trackmate.adapters.persistence.repositories import (
     WorkspaceRepository,
 )
 from trackmate.db.models import Participant
-from trackmate.domain.enums import AlertKind, DailyTaskStatus, ProgressEventType
+from trackmate.domain.enums import AlertKind, DailyTaskStatus, ProgressEventType, TopicKey
 from trackmate.domain.rules import next_daily_task_transition
+
+
+def _message_link(*, chat_id: int, message_id: int | None, thread_id: int | None) -> str | None:
+    if message_id is None:
+        return None
+    chat_id_text = str(chat_id)
+    if not chat_id_text.startswith("-100"):
+        return None
+    link = f"https://t.me/c/{chat_id_text[4:]}/{message_id}"
+    if thread_id is not None:
+        return f"{link}?thread={thread_id}"
+    return link
 
 
 def local_task_date(timezone_name: str, now_utc: datetime | None = None):
@@ -68,6 +80,7 @@ async def submit_daily_task_report(
 ) -> bool:
     today_repo = TodayRepository(session)
     progress_repo = ProgressRepository(session)
+    workspace_repo = WorkspaceRepository(session)
     task = await today_repo.get_task(task_id)
     if task is None:
         return False
@@ -78,6 +91,8 @@ async def submit_daily_task_report(
     if status not in {DailyTaskStatus.DONE, DailyTaskStatus.PARTIAL, DailyTaskStatus.FAILED}:
         return False
     participant = await session.get(Participant, task.participant_id)
+    workspace = await workspace_repo.get_workspace_by_id(task.workspace_group_id)
+    today_binding = await workspace_repo.get_topic_binding(task.workspace_group_id, TopicKey.TODAY)
     task.status = status
     task.report_status = status
     task.report_text = report_html
@@ -93,6 +108,13 @@ async def submit_daily_task_report(
             "display_name": display_name,
             "username": participant.username if participant else None,
             "task_html": task.text,
+            "task_link": _message_link(
+                chat_id=workspace.chat_id,
+                message_id=task.today_card_message_id,
+                thread_id=today_binding.thread_id if today_binding is not None else None,
+            )
+            if workspace is not None
+            else None,
         },
     )
     await session.flush()
@@ -128,6 +150,7 @@ async def run_daily_task_transitions(session: AsyncSession, *, now_utc: datetime
         elif transition.new_status is DailyTaskStatus.FAILED:
             task.failed_at = now_utc
             await today_repo.get_or_create_alert(task.id, AlertKind.OVERDUE_TASK_FAILED)
+            today_binding = await workspace_repo.get_topic_binding(task.workspace_group_id, TopicKey.TODAY)
             await progress_repo.create_event(
                 workspace_group_id=task.workspace_group_id,
                 participant_id=task.participant_id,
@@ -137,6 +160,11 @@ async def run_daily_task_transitions(session: AsyncSession, *, now_utc: datetime
                     "task_html": task.text,
                     "display_name": participant.display_name if participant else str(task.owner_user_id),
                     "username": participant.username if participant else None,
+                    "task_link": _message_link(
+                        chat_id=workspace.chat_id,
+                        message_id=task.today_card_message_id,
+                        thread_id=today_binding.thread_id if today_binding is not None else None,
+                    ),
                 },
             )
     await session.flush()

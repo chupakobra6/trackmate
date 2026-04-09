@@ -288,6 +288,10 @@ class MaterialRepository:
         batch.batch_status = MaterialBatchStatus.PUBLISHING
         await self.session.flush()
 
+    async def reopen_batch_for_publish(self, batch: MaterialBatch) -> None:
+        batch.batch_status = MaterialBatchStatus.OPEN
+        await self.session.flush()
+
     async def seal_batch(self, batch: MaterialBatch, tracking_card_message_id: int) -> None:
         batch.batch_status = MaterialBatchStatus.SEALED
         batch.tracking_card_message_id = tracking_card_message_id
@@ -414,6 +418,10 @@ class TodayRepository:
         alert.dispatch_status = AlertDispatchStatus.DISPATCHING
         await self.session.flush()
 
+    async def requeue_alert_dispatch(self, alert: DailyTaskAlert) -> None:
+        alert.dispatch_status = AlertDispatchStatus.PENDING
+        await self.session.flush()
+
     async def mark_alert_sent(self, alert: DailyTaskAlert, telegram_message_id: int) -> None:
         alert.dispatch_status = AlertDispatchStatus.SENT
         alert.telegram_message_id = telegram_message_id
@@ -456,6 +464,10 @@ class ProgressRepository:
 
     async def claim_event_for_publish(self, event: ProgressEvent) -> None:
         event.publish_status = ProgressPublishStatus.PUBLISHING
+        await self.session.flush()
+
+    async def requeue_event_for_publish(self, event: ProgressEvent) -> None:
+        event.publish_status = ProgressPublishStatus.PENDING
         await self.session.flush()
 
     async def mark_event_published(

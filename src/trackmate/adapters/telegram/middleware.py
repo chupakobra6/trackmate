@@ -45,12 +45,13 @@ class DbSessionMiddleware(BaseMiddleware):
         event: Any,
         data: dict[str, Any],
     ) -> Any:
+        logged_event = event
         if isinstance(event, Update):
-            event = event.message or event.callback_query
-        if isinstance(event, Message):
-            _log_message_event(event)
-        elif isinstance(event, CallbackQuery):
-            _log_callback_event(event)
+            logged_event = event.message or event.callback_query or event
+        if isinstance(logged_event, Message):
+            _log_message_event(logged_event)
+        elif isinstance(logged_event, CallbackQuery):
+            _log_callback_event(logged_event)
         async with self.session_factory() as session:
             data["session"] = session
             try:

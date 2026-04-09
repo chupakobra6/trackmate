@@ -32,7 +32,22 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+For Docker you usually only need to set `TRACKMATE__BOT_TOKEN` in `.env`. `docker-compose.yml` overrides the database URL for containers.
+
 `migrate` runs `alembic upgrade head` before `api` and `worker` start.
+
+## One-command update
+
+On the machine where the bot is already running:
+
+```bash
+make docker-update
+```
+
+It will:
+- run `git pull --ff-only` if the branch has an upstream;
+- rebuild and restart the Docker services;
+- wait until `postgres`, `api`, and `worker` are ready.
 
 ## Development helpers
 

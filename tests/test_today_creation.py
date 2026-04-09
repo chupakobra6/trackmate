@@ -5,7 +5,11 @@ import pytest
 from aiogram.types import MessageEntity
 
 from trackmate.adapters.persistence.repositories import TodayRepository, WorkspaceRepository
-from trackmate.adapters.telegram.handlers.today import _pending_input_html, _pending_input_text
+from trackmate.adapters.telegram.handlers.today import (
+    _pending_input_html,
+    _pending_input_text,
+    _today_task_conflict_notice,
+)
 from trackmate.application.today import create_daily_task, local_task_date
 from trackmate.domain.enums import DailyTaskStatus
 
@@ -48,6 +52,13 @@ def test_pending_input_html_preserves_telegram_entities() -> None:
 
     assert _pending_input_html(text_message) == '<a href="https://openai.com">OpenAI</a>'
     assert _pending_input_html(caption_message) == 'read <a href="https://platform.openai.com/docs">docs</a>'
+
+
+def test_today_task_conflict_notice_prefers_same_day_task_over_generic_open_task() -> None:
+    assert (
+        _today_task_conflict_notice(today_task_exists=True, open_task_exists=True)
+        == "Задача на сегодня уже зафиксирована."
+    )
 
 
 @pytest.mark.asyncio
