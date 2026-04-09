@@ -17,11 +17,8 @@ async def test_submit_material_artifact_rejects_duplicate_note(session) -> None:
     batch = await MaterialRepository(session).create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=participant.user_id,
         media_group_id=None,
-        upload_session_key="batch",
     )
-    batch.preview_text = "Полезный материал"
 
     first = await submit_material_artifact(
         session,
@@ -30,7 +27,7 @@ async def test_submit_material_artifact_rejects_duplicate_note(session) -> None:
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text="Первая заметка",
+        artifact_html="Первая заметка",
         is_applied=False,
     )
     second = await submit_material_artifact(
@@ -40,7 +37,7 @@ async def test_submit_material_artifact_rejects_duplicate_note(session) -> None:
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text="Вторая заметка",
+        artifact_html="Вторая заметка",
         is_applied=False,
     )
 
@@ -60,11 +57,8 @@ async def test_submit_material_artifact_rejects_duplicate_applied(session) -> No
     batch = await MaterialRepository(session).create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=participant.user_id,
         media_group_id=None,
-        upload_session_key="batch",
     )
-    batch.preview_text = "Полезный материал"
 
     first = await submit_material_artifact(
         session,
@@ -73,7 +67,7 @@ async def test_submit_material_artifact_rejects_duplicate_applied(session) -> No
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text="Первое внедрение",
+        artifact_html="Первое внедрение",
         is_applied=True,
     )
     second = await submit_material_artifact(
@@ -83,7 +77,7 @@ async def test_submit_material_artifact_rejects_duplicate_applied(session) -> No
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text="Второе внедрение",
+        artifact_html="Второе внедрение",
         is_applied=True,
     )
 
@@ -103,9 +97,7 @@ async def test_mark_material_read_reports_repeat_reads(session) -> None:
     batch = await MaterialRepository(session).create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=participant.user_id,
         media_group_id=None,
-        upload_session_key="batch",
     )
 
     _, first_created = await mark_material_read(
@@ -138,9 +130,7 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
     batch = await MaterialRepository(session).create_batch(
         workspace_id=workspace.id,
         materials_thread_id=281,
-        sender_id=participant.user_id,
         media_group_id=None,
-        upload_session_key="batch",
     )
     batch.tracking_card_message_id = 319
 
@@ -151,7 +141,7 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
         username=participant.username,
         display_name=participant.display_name,
         batch_id=batch.id,
-        text='<b>Первая</b> <a href="https://example.com">заметка</a>',
+        artifact_html='<b>Первая</b> <a href="https://example.com">заметка</a>',
         is_applied=False,
     )
 
@@ -159,4 +149,4 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
 
     assert created is True
     assert events[0].payload["material_link"] == "https://t.me/c/1234567890/319?thread=281"
-    assert events[0].payload["text"] == '<b>Первая</b> <a href="https://example.com">заметка</a>'
+    assert events[0].payload["html"] == '<b>Первая</b> <a href="https://example.com">заметка</a>'

@@ -62,7 +62,7 @@ async def test_create_daily_task_rejects_second_task_for_same_day_even_if_first_
         user_id=77,
         username="igor",
         display_name="Igor",
-        text="Первая задача",
+        task_html="Первая задача",
         today_card_message_id=1,
     )
 
@@ -79,7 +79,7 @@ async def test_create_daily_task_rejects_second_task_for_same_day_even_if_first_
         user_id=77,
         username="igor",
         display_name="Igor",
-        text="Вторая задача",
+        task_html="Вторая задача",
         today_card_message_id=2,
     )
 

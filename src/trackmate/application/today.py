@@ -29,7 +29,7 @@ async def create_daily_task(
     user_id: int,
     username: str | None,
     display_name: str,
-    text: str,
+    task_html: str,
     today_card_message_id: int,
 ) -> tuple[bool, int | None]:
     workspace_repo = WorkspaceRepository(session)
@@ -46,7 +46,7 @@ async def create_daily_task(
             participant_id=participant.id,
             owner_user_id=user_id,
             task_date=task_date,
-            text=text,
+            text=task_html,
             today_card_message_id=today_card_message_id,
         )
     except IntegrityError:
@@ -63,7 +63,7 @@ async def submit_daily_task_report(
     task_id: int,
     owner_user_id: int,
     status: DailyTaskStatus,
-    text: str,
+    report_html: str,
     display_name: str,
 ) -> bool:
     today_repo = TodayRepository(session)
@@ -80,7 +80,7 @@ async def submit_daily_task_report(
     participant = await session.get(Participant, task.participant_id)
     task.status = status
     task.report_status = status
-    task.report_text = text
+    task.report_text = report_html
     task.reported_at = datetime.now(UTC)
     await progress_repo.create_event(
         workspace_group_id=task.workspace_group_id,
@@ -89,10 +89,10 @@ async def submit_daily_task_report(
         event_type=ProgressEventType.DAILY_TASK_CLOSED,
         payload={
             "status": status.value,
-            "text": text,
+            "report_html": report_html,
             "display_name": display_name,
             "username": participant.username if participant else None,
-            "task_text": task.text,
+            "task_html": task.text,
         },
     )
     await session.flush()
@@ -134,7 +134,7 @@ async def run_daily_task_transitions(session: AsyncSession, *, now_utc: datetime
                 daily_task_id=task.id,
                 event_type=ProgressEventType.DAILY_TASK_AUTO_FAILED,
                 payload={
-                    "task_text": task.text,
+                    "task_html": task.text,
                     "display_name": participant.display_name if participant else str(task.owner_user_id),
                     "username": participant.username if participant else None,
                 },

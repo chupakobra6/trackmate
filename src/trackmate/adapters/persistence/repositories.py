@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
-from secrets import token_urlsafe
 
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -177,9 +176,7 @@ class MaterialRepository:
         *,
         workspace_id: int,
         materials_thread_id: int,
-        sender_id: int,
         media_group_id: str | None,
-        upload_session_key: str | None,
         timeout_seconds: int,
         now_utc: datetime,
     ) -> MaterialBatch | None:
@@ -203,17 +200,12 @@ class MaterialRepository:
         *,
         workspace_id: int,
         materials_thread_id: int,
-        sender_id: int,
         media_group_id: str | None,
-        upload_session_key: str,
     ) -> MaterialBatch:
         batch = MaterialBatch(
             workspace_group_id=workspace_id,
             materials_thread_id=materials_thread_id,
-            created_by_user_id=sender_id,
-            sender_id=sender_id,
             media_group_id=media_group_id,
-            upload_session_key=upload_session_key or media_group_id or token_urlsafe(8),
         )
         self.session.add(batch)
         await self.session.flush()
@@ -227,7 +219,6 @@ class MaterialRepository:
         source_chat_id: int,
         source_thread_id: int | None,
         content_type: str,
-        text_preview: str | None,
         forwarded_from_chat_id: int | None,
         forwarded_from_message_id: int | None,
     ) -> None:
@@ -238,14 +229,12 @@ class MaterialRepository:
             source_thread_id=source_thread_id,
             position=batch.batch_size + 1,
             content_type=content_type,
-            text_preview=text_preview,
             forwarded_from_chat_id=forwarded_from_chat_id,
             forwarded_from_message_id=forwarded_from_message_id,
         )
         self.session.add(item)
         batch.batch_size += 1
         batch.last_message_at = datetime.now(UTC)
-        batch.preview_text = batch.preview_text or text_preview
         batch.source_anchor_message_id = batch.source_anchor_message_id or source_message_id
         await self.session.flush()
 
@@ -290,7 +279,6 @@ class MaterialRepository:
                 item.material_batch_id = primary.id
                 item.position = next_position
             primary.batch_size += len(items)
-            primary.preview_text = primary.preview_text or source.preview_text
             primary.source_anchor_message_id = primary.source_anchor_message_id or source.source_anchor_message_id
             primary.last_message_at = max(primary.last_message_at, source.last_message_at)
             await self.session.delete(source)

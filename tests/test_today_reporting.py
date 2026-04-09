@@ -30,7 +30,7 @@ async def test_submit_daily_task_report_rejects_wrong_owner(session) -> None:
         task_id=task.id,
         owner_user_id=999,
         status=DailyTaskStatus.DONE,
-        text="done",
+        report_html="done",
         display_name="Intruder",
     )
 
@@ -57,7 +57,7 @@ async def test_submit_daily_task_report_rejects_already_closed_task(session) -> 
         task_id=task.id,
         owner_user_id=participant.user_id,
         status=DailyTaskStatus.DONE,
-        text="done again",
+        report_html="done again",
         display_name="Owner",
     )
 
@@ -110,7 +110,7 @@ async def test_submit_daily_task_report_preserves_rich_text_payloads(session) ->
         task_id=task.id,
         owner_user_id=participant.user_id,
         status=DailyTaskStatus.DONE,
-        text='Изучил <b>раздел API</b>',
+        report_html='Изучил <b>раздел API</b>',
         display_name="Owner",
     )
 
@@ -118,5 +118,5 @@ async def test_submit_daily_task_report_preserves_rich_text_payloads(session) ->
 
     assert submitted is True
     assert task.report_text == 'Изучил <b>раздел API</b>'
-    assert events[0].payload["task_text"] == 'Сходить в <a href="https://platform.openai.com/docs">docs</a>'
-    assert events[0].payload["text"] == 'Изучил <b>раздел API</b>'
+    assert events[0].payload["task_html"] == 'Сходить в <a href="https://platform.openai.com/docs">docs</a>'
+    assert events[0].payload["report_html"] == 'Изучил <b>раздел API</b>'

@@ -15,11 +15,12 @@ from trackmate.adapters.telegram.formatters import format_material_card
 from trackmate.adapters.telegram.handlers.helpers import display_name
 from trackmate.adapters.telegram.keyboards import material_progress_keyboard
 from trackmate.adapters.telegram.message_ops import (
+    edit_message_like_safe,
     edit_message_text_safe,
     reply_message_logged,
     send_message_logged,
 )
-from trackmate.adapters.telegram.rich_text import message_rich_text
+from trackmate.adapters.telegram.rich_text import message_text_and_html
 from trackmate.application.materials import (
     mark_material_read,
     register_material_message,
@@ -60,17 +61,6 @@ async def _refresh_material_card(
         message_id=batch.tracking_card_message_id,
         text=format_material_card(batch, progresses, notice=notice),
         reply_markup=material_progress_keyboard(batch_id),
-    )
-
-
-async def _edit_message_safely(message: Message, message_id: int | None, text: str) -> bool:
-    if message_id is None:
-        return False
-    return await edit_message_text_safe(
-        bot=message.bot,
-        chat_id=message.chat.id,
-        message_id=message_id,
-        text=text,
     )
 
 
@@ -151,7 +141,7 @@ async def material_or_pending_input_handler(
         else:
             prompt_message_id = pending.payload.get("prompt_message_id")
             is_applied = pending.kind == PendingInputKind.MATERIAL_APPLIED.value
-            artifact_text, artifact_text_html = message_rich_text(message)
+            artifact_text, artifact_html = message_text_and_html(message)
             logger.info(
                 "telegram.material_artifact_received",
                 chat_id=message.chat.id,
@@ -169,7 +159,7 @@ async def material_or_pending_input_handler(
                 username=message.from_user.username,
                 display_name=display_name(message.from_user),
                 batch_id=int(pending.payload["batch_id"]),
-                text=artifact_text_html or artifact_text or "",
+                artifact_html=artifact_html or artifact_text or "",
                 is_applied=is_applied,
             )
             await pending_repo.clear(workspace.id, message.from_user.id)
@@ -180,10 +170,10 @@ async def material_or_pending_input_handler(
                     batch_id=int(pending.payload["batch_id"]),
                     materials_repo=MaterialRepository(session),
                 )
-            edited = await _edit_message_safely(
-                message,
-                prompt_message_id,
-                _artifact_feedback_text(is_applied=is_applied, submitted=submitted),
+            edited = await edit_message_like_safe(
+                message=message,
+                message_id=prompt_message_id,
+                text=_artifact_feedback_text(is_applied=is_applied, submitted=submitted),
             )
             if not edited:
                 await send_message_logged(
@@ -200,14 +190,11 @@ async def material_or_pending_input_handler(
         session,
         workspace_id=workspace.id,
         materials_thread_id=materials_binding.thread_id,
-        sender_id=message.from_user.id,
         media_group_id=message.media_group_id,
         source_message_id=message.message_id,
         source_chat_id=message.chat.id,
         source_thread_id=message.message_thread_id,
         content_type=message.content_type,
-        text=message.text,
-        caption=message.caption,
         forwarded_from_chat_id=forwarded_from_chat_id,
         forwarded_from_message_id=forwarded_from_message_id,
         batch_timeout_seconds=settings.material_batch_timeout_seconds,

@@ -1,19 +1,19 @@
 import asyncio
+from datetime import UTC, datetime
 
 import structlog
+from aiogram import Bot
+from aiogram.client.default import DefaultBotProperties
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from trackmate.bootstrap.app import create_bot
+from trackmate.application.progress import publish_pending_progress_events
+from trackmate.application.today import run_daily_task_transitions
 from trackmate.config import get_settings
 from trackmate.db.session import create_engine
 from trackmate.logging import configure_logging
-from trackmate.worker.jobs import (
-    dispatch_alerts,
-    publish_progress,
-    seal_material_batches,
-    transition_daily_tasks,
-)
+from trackmate.worker.jobs.dispatch_alerts import run as dispatch_alerts_run
+from trackmate.worker.jobs.seal_material_batches import run as seal_material_batches_run
 
 logger = structlog.get_logger(__name__)
 WORKER_LOCK_KEY = 3_842_001
@@ -42,7 +42,7 @@ async def main() -> None:
     settings = get_settings()
     configure_logging(settings.log_level)
     engine = create_engine(settings)
-    bot = create_bot(settings)
+    bot = Bot(token=settings.bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     while True:
         async with engine.connect() as connection:
             lock_acquired = False
@@ -52,10 +52,10 @@ async def main() -> None:
                 if not lock_acquired:
                     logger.info("worker.tick_skipped_lock_not_acquired")
                 else:
-                    await transition_daily_tasks.run(session)
-                    await dispatch_alerts.run(session, bot)
-                    await publish_progress.run(session, bot)
-                    await seal_material_batches.run(
+                    await run_daily_task_transitions(session, now_utc=datetime.now(UTC))
+                    await dispatch_alerts_run(session, bot)
+                    await publish_pending_progress_events(session, bot)
+                    await seal_material_batches_run(
                         session,
                         bot,
                         batch_timeout_seconds=settings.material_batch_timeout_seconds,

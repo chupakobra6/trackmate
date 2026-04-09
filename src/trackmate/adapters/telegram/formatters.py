@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from html import escape
 
-from trackmate.adapters.telegram.rich_text import render_rich_text
 from trackmate.db.models import DailyTask, MaterialBatch, ProgressEvent
 from trackmate.domain.enums import DailyTaskStatus, ProgressEventType
 
@@ -20,48 +19,12 @@ def _task_status_label(status: DailyTaskStatus) -> str:
         DailyTaskStatus.FAILED: "не выполнена",
     }[status]
 
-
-def _task_status_value_label(raw_status: str) -> str:
-    return {
-        "done": "выполнена",
-        "partial": "выполнена частично",
-        "failed": "не выполнена",
-    }.get(raw_status, "без статуса")
-
-
 def _daily_task_closed_title(status: str, person: str) -> str:
     return {
         "done": f"✅ <b>{person} выполнил задачу дня</b>",
         "partial": f"🔸 <b>{person} частично выполнил задачу дня</b>",
         "failed": f"❌ <b>{person} не выполнил задачу дня</b>",
     }.get(status, f"✅ <b>{person} завершил задачу дня</b>")
-
-
-def _russian_date(value) -> str:
-    months = {
-        1: "января",
-        2: "февраля",
-        3: "марта",
-        4: "апреля",
-        5: "мая",
-        6: "июня",
-        7: "июля",
-        8: "августа",
-        9: "сентября",
-        10: "октября",
-        11: "ноября",
-        12: "декабря",
-    }
-    weekdays = {
-        0: "понедельник",
-        1: "вторник",
-        2: "среда",
-        3: "четверг",
-        4: "пятница",
-        5: "суббота",
-        6: "воскресенье",
-    }
-    return f"{value.day} {months[value.month]}, {weekdays[value.weekday()]}"
 
 
 def _person_label(username: str | None, display_name: str) -> str:
@@ -178,7 +141,7 @@ def format_daily_task_card(
     lines = [
         f"🎯 <b>Задача дня</b> {person}:",
         "",
-        f"<blockquote>{render_rich_text(task.text)}</blockquote>",
+        task.text,
         "",
         f"<b>Статус:</b> {_task_status_label(task.status)}",
     ]
@@ -187,7 +150,7 @@ def format_daily_task_card(
             [
                 "",
                 "<b>Результат:</b>",
-                f"<blockquote>{render_rich_text(task.report_text)}</blockquote>",
+                task.report_text,
             ]
         )
     return "\n".join(_append_notice(lines, notice))
@@ -204,7 +167,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"📝 <b>{person} добавил заметку к {material}</b>",
                 "",
                 "<b>Текст заметки:</b>",
-                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
+                payload.get("html", ""),
             ]
         )
     if event_type is ProgressEventType.MATERIAL_APPLIED:
@@ -214,7 +177,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"🚀 <b>{person} внедрил по {material}</b>",
                 "",
                 "<b>Что внедрил:</b>",
-                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
+                payload.get("html", ""),
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_CLOSED:
@@ -225,10 +188,10 @@ def format_progress_event(event: ProgressEvent) -> str:
                 title,
                 "",
                 "<b>Что планировал:</b>",
-                f"<blockquote>{render_rich_text(payload.get('task_text'))}</blockquote>",
+                payload.get("task_html", ""),
                 "",
                 "<b>Результат:</b>",
-                f"<blockquote>{render_rich_text(payload.get('text'))}</blockquote>",
+                payload.get("report_html", ""),
             ]
         )
     if event_type is ProgressEventType.DAILY_TASK_AUTO_FAILED:
@@ -237,7 +200,7 @@ def format_progress_event(event: ProgressEvent) -> str:
                 f"⏰ <b>{person} не выполнил задачу дня вовремя</b>",
                 "",
                 "<b>Что планировал:</b>",
-                f"<blockquote>{render_rich_text(payload.get('task_text'))}</blockquote>",
+                payload.get("task_html", ""),
             ]
         )
     return "\n".join(

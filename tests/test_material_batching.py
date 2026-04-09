@@ -15,16 +15,12 @@ from trackmate.db.models import MaterialBatch
 async def test_get_open_batch_reuses_recent_batch_even_with_different_sender(session) -> None:
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_or_create_workspace(8008, "Group", "Europe/Moscow")
-    first_participant = await workspace_repo.register_participant(workspace.id, 99, "igor", "Igor")
-    second_participant = await workspace_repo.register_participant(workspace.id, 100, "ira", "Ira")
 
     repo = MaterialRepository(session)
     batch = await repo.create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=first_participant.user_id,
         media_group_id=None,
-        upload_session_key="first-key",
     )
     batch.last_message_at = datetime.now(UTC) - timedelta(seconds=2)
     await session.flush()
@@ -32,9 +28,7 @@ async def test_get_open_batch_reuses_recent_batch_even_with_different_sender(ses
     reopened = await repo.get_open_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=second_participant.user_id,
         media_group_id=None,
-        upload_session_key="second-key",
         timeout_seconds=5,
         now_utc=datetime.now(UTC),
     )
@@ -47,23 +41,17 @@ async def test_get_open_batch_reuses_recent_batch_even_with_different_sender(ses
 async def test_merge_batches_combines_parallel_open_batches(session) -> None:
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_or_create_workspace(8009, "Group", "Europe/Moscow")
-    first_participant = await workspace_repo.register_participant(workspace.id, 100, "igor", "Igor")
-    second_participant = await workspace_repo.register_participant(workspace.id, 101, "ira", "Ira")
 
     repo = MaterialRepository(session)
     first = await repo.create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=first_participant.user_id,
         media_group_id=None,
-        upload_session_key="first-key",
     )
     second = await repo.create_batch(
         workspace_id=workspace.id,
         materials_thread_id=10,
-        sender_id=second_participant.user_id,
         media_group_id=None,
-        upload_session_key="second-key",
     )
 
     await repo.append_item(
@@ -72,7 +60,6 @@ async def test_merge_batches_combines_parallel_open_batches(session) -> None:
         source_chat_id=workspace.chat_id,
         source_thread_id=10,
         content_type="text",
-        text_preview="Первое сообщение",
         forwarded_from_chat_id=None,
         forwarded_from_message_id=None,
     )
@@ -82,7 +69,6 @@ async def test_merge_batches_combines_parallel_open_batches(session) -> None:
         source_chat_id=workspace.chat_id,
         source_thread_id=10,
         content_type="text",
-        text_preview="Второе сообщение",
         forwarded_from_chat_id=None,
         forwarded_from_message_id=None,
     )
@@ -94,7 +80,6 @@ async def test_merge_batches_combines_parallel_open_batches(session) -> None:
 
     assert merged is not None
     assert merged.batch_size == 2
-    assert merged.preview_text == "Первое сообщение"
     assert await repo.get_batch(second.id) is None
 
 
@@ -117,14 +102,11 @@ async def test_register_material_message_serializes_parallel_batch_updates(tmp_p
                 session,
                 workspace_id=workspace.id,
                 materials_thread_id=10,
-                sender_id=99,
                 media_group_id=None,
                 source_message_id=1000 + index,
                 source_chat_id=workspace.chat_id,
                 source_thread_id=10,
                 content_type="text",
-                text=f"message {index}",
-                caption=None,
                 forwarded_from_chat_id=None,
                 forwarded_from_message_id=None,
                 batch_timeout_seconds=30,

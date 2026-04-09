@@ -19,11 +19,11 @@ from trackmate.adapters.telegram.handlers.helpers import display_name
 from trackmate.adapters.telegram.keyboards import daily_task_keyboard, daily_task_status_keyboard
 from trackmate.adapters.telegram.message_ops import (
     delete_message_safe,
-    edit_message_text_safe,
+    edit_message_like_safe,
     reply_message_logged,
     send_message_logged,
 )
-from trackmate.adapters.telegram.rich_text import message_rich_text
+from trackmate.adapters.telegram.rich_text import message_text_and_html
 from trackmate.application.today import create_daily_task, local_task_date, submit_daily_task_report
 from trackmate.db.models import DailyTaskAlert
 from trackmate.domain.enums import DailyTaskStatus, PendingInputKind
@@ -54,14 +54,14 @@ def _content_type_label(message: Message) -> str:
 
 
 def _pending_input_text(message: Message) -> str | None:
-    plain_text, _ = message_rich_text(message)
+    plain_text, _ = message_text_and_html(message)
     if plain_text:
         return plain_text
     return _content_type_label(message)
 
 
 def _pending_input_html(message: Message) -> str | None:
-    _, html_text = message_rich_text(message)
+    _, html_text = message_text_and_html(message)
     if html_text:
         return html_text
     fallback = _pending_input_text(message)
@@ -76,24 +76,6 @@ def _today_task_conflict_text(*, same_day: bool) -> str:
     if same_day:
         return "Задача на сегодня уже зафиксирована."
     return "Сначала закрой предыдущую задачу."
-
-
-async def _edit_message_safely(
-    message: Message,
-    message_id: int | None,
-    text: str,
-    *,
-    reply_markup=None,
-) -> bool:
-    if message_id is None:
-        return False
-    return await edit_message_text_safe(
-        bot=message.bot,
-        chat_id=message.chat.id,
-        message_id=message_id,
-        text=text,
-        reply_markup=reply_markup,
-    )
 
 
 @router.callback_query(F.data == "today:add")
@@ -179,7 +161,7 @@ async def today_pending_input_handler(
     }:
         return UNHANDLED
     if pending.kind == PendingInputKind.DAILY_TASK_TEXT.value:
-        task_text = _pending_input_html(message)
+        task_html = _pending_input_html(message)
         await delete_message_safe(
             bot=message.bot,
             chat_id=message.chat.id,
@@ -196,7 +178,7 @@ async def today_pending_input_handler(
             user_id=message.from_user.id,
             username=message.from_user.username,
             display_name=display_name(message.from_user),
-            text=task_text or "Сообщение",
+            task_html=task_html or "Сообщение",
             today_card_message_id=placeholder.message_id,
         )
         if not created:
@@ -206,20 +188,20 @@ async def today_pending_input_handler(
                 if task is not None and task.task_date == local_task_date(workspace.timezone)
                 else "⚠️ <b>Сначала закрой предыдущую задачу.</b>"
             )
-            await _edit_message_safely(message, placeholder.message_id, text)
+            await edit_message_like_safe(message=message, message_id=placeholder.message_id, text=text)
         else:
             task = await TodayRepository(session).get_task(task_id)
-            await _edit_message_safely(
-                message,
-                placeholder.message_id,
-                format_daily_task_card(task, display_name(message.from_user), message.from_user.username),
+            await edit_message_like_safe(
+                message=message,
+                message_id=placeholder.message_id,
+                text=format_daily_task_card(task, display_name(message.from_user), message.from_user.username),
                 reply_markup=daily_task_keyboard(task.id),
             )
         await pending_repo.clear(workspace.id, message.from_user.id)
         return
 
     if pending.kind == PendingInputKind.DAILY_TASK_REPORT.value:
-        report_text = _pending_input_html(message)
+        report_html = _pending_input_html(message)
         prompt_message_id = pending.payload.get("prompt_message_id")
         task_id = int(pending.payload["task_id"])
         status = DailyTaskStatus(pending.payload["status"])
@@ -228,7 +210,7 @@ async def today_pending_input_handler(
             task_id=task_id,
             owner_user_id=message.from_user.id,
             status=status,
-            text=report_text or "Сообщение",
+            report_html=report_html or "Сообщение",
             display_name=display_name(message.from_user),
         )
         if not submitted:
@@ -236,16 +218,16 @@ async def today_pending_input_handler(
             return
         task = await TodayRepository(session).get_task(task_id)
         if task:
-            await _edit_message_safely(
-                message,
-                task.today_card_message_id,
-                format_daily_task_card(task, display_name(message.from_user), message.from_user.username),
+            await edit_message_like_safe(
+                message=message,
+                message_id=task.today_card_message_id,
+                text=format_daily_task_card(task, display_name(message.from_user), message.from_user.username),
             )
         await pending_repo.clear(workspace.id, message.from_user.id)
-        edited = await _edit_message_safely(
-            message,
-            prompt_message_id,
-            _report_confirmation_text(),
+        edited = await edit_message_like_safe(
+            message=message,
+            message_id=prompt_message_id,
+            text=_report_confirmation_text(),
         )
         if not edited:
             await send_message_logged(

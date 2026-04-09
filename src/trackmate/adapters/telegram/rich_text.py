@@ -4,7 +4,7 @@ from aiogram.types import Message
 from aiogram.utils.text_decorations import html_decoration
 
 
-def message_rich_text(message: Message) -> tuple[str | None, str | None]:
+def message_text_and_html(message: Message) -> tuple[str | None, str | None]:
     if message.text:
         return message.text, message.html_text
     if message.caption:
@@ -13,7 +13,3 @@ def message_rich_text(message: Message) -> tuple[str | None, str | None]:
             entities=message.caption_entities,
         )
     return None, None
-
-
-def render_rich_text(text: str | None) -> str:
-    return text or ""

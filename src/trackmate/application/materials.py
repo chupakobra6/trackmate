@@ -19,15 +19,6 @@ from trackmate.domain.rules import derive_material_highest_state
 logger = structlog.get_logger(__name__)
 _MATERIAL_BATCH_LOCKS: dict[tuple[int, int, str | None], asyncio.Lock] = {}
 
-
-def _message_preview(text: str | None, caption: str | None) -> str | None:
-    value = text or caption
-    if not value:
-        return None
-    compact = " ".join(value.split())
-    return compact[:280]
-
-
 def _fallback_upload_session_key(
     *,
     workspace_id: int,
@@ -96,14 +87,11 @@ async def register_material_message(
     *,
     workspace_id: int,
     materials_thread_id: int,
-    sender_id: int,
     media_group_id: str | None,
     source_message_id: int,
     source_chat_id: int,
     source_thread_id: int | None,
     content_type: str,
-    text: str | None,
-    caption: str | None,
     forwarded_from_chat_id: int | None,
     forwarded_from_message_id: int | None,
     batch_timeout_seconds: int,
@@ -134,9 +122,7 @@ async def register_material_message(
         batch = await repo.get_open_batch(
             workspace_id=workspace_id,
             materials_thread_id=materials_thread_id,
-            sender_id=sender_id,
             media_group_id=media_group_id,
-            upload_session_key=upload_session_key,
             timeout_seconds=batch_timeout_seconds,
             now_utc=now_utc,
         )
@@ -145,9 +131,7 @@ async def register_material_message(
             batch = await repo.create_batch(
                 workspace_id=workspace_id,
                 materials_thread_id=materials_thread_id,
-                sender_id=sender_id,
                 media_group_id=media_group_id,
-                upload_session_key=upload_session_key,
             )
         await repo.append_item(
             batch=batch,
@@ -155,7 +139,6 @@ async def register_material_message(
             source_chat_id=source_chat_id,
             source_thread_id=source_thread_id,
             content_type=content_type,
-            text_preview=_message_preview(text, caption),
             forwarded_from_chat_id=forwarded_from_chat_id,
             forwarded_from_message_id=forwarded_from_message_id,
         )
@@ -165,11 +148,9 @@ async def register_material_message(
         created_new_batch=created_new_batch,
         workspace_id=workspace_id,
         thread_id=materials_thread_id,
-        sender_id=sender_id,
         source_message_id=source_message_id,
         media_group_id=media_group_id,
         batch_size=batch.batch_size,
-        preview=batch.preview_text,
     )
     return batch.id
 
@@ -209,7 +190,7 @@ async def submit_material_artifact(
     username: str | None,
     display_name: str,
     batch_id: int,
-    text: str,
+    artifact_html: str,
     is_applied: bool,
 ) -> bool:
     workspace_repo = WorkspaceRepository(session)
@@ -238,7 +219,7 @@ async def submit_material_artifact(
         material_batch_id=batch_id,
         event_type=event_type,
         payload={
-            "text": text,
+            "html": artifact_html,
             "display_name": participant.display_name,
             "username": participant.username,
             "material_link": _material_message_link(

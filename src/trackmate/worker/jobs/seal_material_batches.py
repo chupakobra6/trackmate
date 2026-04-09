@@ -41,7 +41,6 @@ async def run(session: AsyncSession, bot: Bot, *, batch_timeout_seconds: int) ->
                 batch_size=primary_batch.batch_size,
                 workspace_id=primary_batch.workspace_group_id,
                 thread_id=primary_batch.materials_thread_id,
-                sender_id=primary_batch.sender_id,
             )
         batch = primary_batch
         await materials_repo.claim_batch_for_publish(batch)
@@ -60,7 +59,6 @@ async def run(session: AsyncSession, bot: Bot, *, batch_timeout_seconds: int) ->
             batch_size=batch.batch_size,
             workspace_id=batch.workspace_group_id,
             thread_id=materials_binding.thread_id,
-            sender_id=batch.sender_id,
         )
         message = await send_message_logged(
             bot=bot,

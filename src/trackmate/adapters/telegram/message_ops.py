@@ -53,6 +53,24 @@ async def edit_message_text_safe(
         return False
 
 
+async def edit_message_like_safe(
+    *,
+    message: Message,
+    message_id: int | None,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> bool:
+    if message_id is None:
+        return False
+    return await edit_message_text_safe(
+        bot=message.bot,
+        chat_id=message.chat.id,
+        message_id=message_id,
+        text=text,
+        reply_markup=reply_markup,
+    )
+
+
 async def send_message_logged(
     *,
     bot: Bot,

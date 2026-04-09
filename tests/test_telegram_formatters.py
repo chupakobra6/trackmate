@@ -14,7 +14,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
             "username": "Pheik13",
             "display_name": "Pheik13",
             "material_link": "https://t.me/c/123/319?thread=281",
-            "text": '<b>текст</b> <a href="https://example.com">с ссылкой</a>',
+            "html": '<b>текст</b> <a href="https://example.com">с ссылкой</a>',
         },
     )
 
@@ -33,8 +33,8 @@ def test_format_progress_event_formats_daily_task_with_actor_first_title() -> No
             "username": "Pheik13",
             "display_name": "Pheik13",
             "status": "done",
-            "task_text": "сделать бота",
-            "text": "сделал",
+            "task_html": "сделать бота",
+            "report_html": "сделал",
         },
     )
 
@@ -52,8 +52,8 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
             "username": "Pheik13",
             "display_name": "Pheik13",
             "status": "partial",
-            "task_text": "сделать бота",
-            "text": "частично сделал",
+            "task_html": "сделать бота",
+            "report_html": "частично сделал",
         },
     )
     auto_failed_event = ProgressEvent(
@@ -61,7 +61,7 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
         payload={
             "username": "Pheik13",
             "display_name": "Pheik13",
-            "task_text": "сделать бота",
+            "task_html": "сделать бота",
         },
     )
 
@@ -73,7 +73,7 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
 
 
 def test_format_material_card_hides_preview_text() -> None:
-    batch = MaterialBatch(batch_size=3, preview_text="Ненужное превью")
+    batch = MaterialBatch(batch_size=3)
 
     formatted = format_material_card(batch, [])
 
@@ -91,7 +91,7 @@ def test_format_daily_task_card_uses_consistent_status_labels() -> None:
 
 def test_format_daily_task_card_prefers_saved_html_text() -> None:
     task = DailyTask(
-        text='Сходить в <a href="https://platform.openai.com/docs">docs</a>',
+        text='Сходить в <a href="https://platform.openai.com/docs">docs</a>\n<blockquote>цитата</blockquote>',
         report_text='Итог: <b>готово</b>',
         status=DailyTaskStatus.DONE,
     )
@@ -99,4 +99,5 @@ def test_format_daily_task_card_prefers_saved_html_text() -> None:
     formatted = format_daily_task_card(task, "Pheik13", "Pheik13")
 
     assert 'Сходить в <a href="https://platform.openai.com/docs">docs</a>' in formatted
+    assert formatted.count("<blockquote>") == 1
     assert "Итог: <b>готово</b>" in formatted

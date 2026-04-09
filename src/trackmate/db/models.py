@@ -97,15 +97,11 @@ class MaterialBatch(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     workspace_group_id: Mapped[int] = mapped_column(ForeignKey("workspace_groups.id", ondelete="CASCADE"), index=True)
     materials_thread_id: Mapped[int] = mapped_column(index=True)
-    created_by_user_id: Mapped[int] = mapped_column(BigInteger, index=True)
-    sender_id: Mapped[int] = mapped_column(BigInteger, index=True)
     media_group_id: Mapped[str | None] = mapped_column(String(255), index=True)
-    upload_session_key: Mapped[str | None] = mapped_column(String(255), index=True)
     batch_status: Mapped[MaterialBatchStatus] = mapped_column(
         enum_column(MaterialBatchStatus),
         default=MaterialBatchStatus.OPEN,
     )
-    preview_text: Mapped[str | None] = mapped_column(Text)
     batch_size: Mapped[int] = mapped_column(default=0)
     source_anchor_message_id: Mapped[int | None] = mapped_column(Integer)
     tracking_card_message_id: Mapped[int | None] = mapped_column(Integer)
@@ -127,7 +123,6 @@ class MaterialItem(Base):
     source_thread_id: Mapped[int | None] = mapped_column(Integer)
     position: Mapped[int] = mapped_column(Integer)
     content_type: Mapped[str] = mapped_column(String(64))
-    text_preview: Mapped[str | None] = mapped_column(Text)
     forwarded_from_chat_id: Mapped[int | None] = mapped_column(BigInteger)
     forwarded_from_message_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
