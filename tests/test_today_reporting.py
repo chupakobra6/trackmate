@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import UTC, date, datetime
 
 import pytest
 
@@ -74,14 +74,14 @@ async def test_transition_to_awaiting_report_does_not_create_progress_event(sess
         workspace_id=workspace.id,
         participant_id=participant.id,
         owner_user_id=participant.user_id,
-        task_date=workspace.created_at.date(),
+        task_date=date(2026, 4, 9),
         text="Task",
         today_card_message_id=11,
     )
 
     await run_daily_task_transitions(
         session,
-        now_utc=workspace.created_at + timedelta(days=1, seconds=1),
+        now_utc=datetime(2026, 4, 10, 9, 0, 0, tzinfo=UTC),
     )
 
     events = await ProgressRepository(session).list_pending_events()

@@ -2,11 +2,12 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from aiogram.exceptions import TelegramBadRequest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from trackmate.adapters.persistence.repositories import MaterialRepository, WorkspaceRepository
-from trackmate.application.materials import register_material_message
+from trackmate.application.materials import _material_batch_db_lock_key, register_material_message
 from trackmate.db.base import Base
 from trackmate.db.models import MaterialBatch
 from trackmate.domain.enums import MaterialBatchStatus, TopicKey
@@ -128,6 +129,15 @@ async def test_register_material_message_serializes_parallel_batch_updates(tmp_p
     await engine.dispose()
 
 
+def test_material_batch_db_lock_key_stays_in_postgres_int32_range() -> None:
+    key = _material_batch_db_lock_key(
+        materials_thread_id=10,
+        upload_session_key="workspace:10:2198117288",
+    )
+
+    assert -(2**31) <= key <= (2**31) - 1
+
+
 @pytest.mark.asyncio
 async def test_seal_material_batches_reopens_batch_when_send_fails(session, monkeypatch) -> None:
     workspace_repo = WorkspaceRepository(session)
@@ -162,3 +172,40 @@ async def test_seal_material_batches_reopens_batch_when_send_fails(session, monk
     refreshed_batch = await repo.get_batch(batch.id)
     assert refreshed_batch is not None
     assert refreshed_batch.batch_status is MaterialBatchStatus.OPEN
+
+
+@pytest.mark.asyncio
+async def test_seal_material_batches_reopens_batch_when_telegram_rejects_reply(session, monkeypatch) -> None:
+    workspace_repo = WorkspaceRepository(session)
+    workspace = await workspace_repo.get_or_create_workspace(-1002002002003, "Group", "UTC")
+    await workspace_repo.upsert_topic_binding(workspace.id, TopicKey.MATERIALS, 10, "РњР°С‚РµСЂРёР°Р»С‹")
+
+    repo = MaterialRepository(session)
+    batch = await repo.create_batch(
+        workspace_id=workspace.id,
+        materials_thread_id=10,
+        media_group_id=None,
+    )
+    await repo.append_item(
+        batch=batch,
+        source_message_id=999,
+        source_chat_id=workspace.chat_id,
+        source_thread_id=10,
+        content_type="text",
+        forwarded_from_chat_id=None,
+        forwarded_from_message_id=None,
+    )
+    batch.last_message_at = datetime.now(UTC) - timedelta(seconds=30)
+    await session.commit()
+
+    async def raising_send_message_logged(**kwargs):
+        raise TelegramBadRequest(method="sendMessage", message="Bad Request: message to be replied not found")
+
+    monkeypatch.setattr(seal_material_batches, "send_message_logged", raising_send_message_logged)
+
+    await seal_material_batches.run(session, bot=object(), batch_timeout_seconds=15)
+
+    refreshed_batch = await repo.get_batch(batch.id)
+    assert refreshed_batch is not None
+    assert refreshed_batch.batch_status is MaterialBatchStatus.OPEN
+    assert refreshed_batch.tracking_card_message_id is None

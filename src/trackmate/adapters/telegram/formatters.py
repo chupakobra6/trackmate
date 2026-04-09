@@ -19,6 +19,7 @@ def _task_status_label(status: DailyTaskStatus) -> str:
         DailyTaskStatus.FAILED: "не выполнена",
     }[status]
 
+
 def _daily_task_closed_title(status: str, person: str) -> str:
     return {
         "done": f"✅ <b>{person} выполнил задачу дня</b>",
@@ -60,6 +61,13 @@ def _render_section_html(html: str | None) -> str:
     if "<blockquote" in html:
         return html
     return f"<blockquote>{html}</blockquote>"
+
+
+def _material_artifact_section_title(payload: dict, *, is_applied: bool) -> str:
+    content_kind = payload.get("content_kind", "text")
+    if is_applied:
+        return "Подтверждение внедрения:" if content_kind != "text" else "Что внедрил:"
+    return "Формат заметки:" if content_kind != "text" else "Текст заметки:"
 
 
 def format_setup_checklist(
@@ -173,7 +181,7 @@ def format_progress_event(event: ProgressEvent) -> str:
             [
                 f"📝 <b>{person} добавил заметку к {material}</b>",
                 "",
-                "<b>Текст заметки:</b>",
+                f"<b>{_material_artifact_section_title(payload, is_applied=False)}</b>",
                 "",
                 _render_section_html(payload.get("html")),
             ]
@@ -184,7 +192,7 @@ def format_progress_event(event: ProgressEvent) -> str:
             [
                 f"🚀 <b>{person} внедрил {material}</b>",
                 "",
-                "<b>Что внедрил:</b>",
+                f"<b>{_material_artifact_section_title(payload, is_applied=True)}</b>",
                 "",
                 _render_section_html(payload.get("html")),
             ]

@@ -19,6 +19,15 @@ from trackmate.domain.rules import derive_material_highest_state
 logger = structlog.get_logger(__name__)
 _MATERIAL_BATCH_LOCKS: dict[tuple[int, int, str | None], asyncio.Lock] = {}
 
+
+def _material_batch_db_lock_key(*, materials_thread_id: int, upload_session_key: str) -> int:
+    digest = hashlib.blake2b(
+        f"{materials_thread_id}:{upload_session_key}".encode(),
+        digest_size=4,
+    ).digest()
+    return int.from_bytes(digest, byteorder="big", signed=True)
+
+
 def _fallback_upload_session_key(
     *,
     workspace_id: int,
@@ -54,14 +63,15 @@ async def _acquire_material_batch_db_lock(
     bind = session.get_bind()
     if bind.dialect.name != "postgresql":
         return
-    digest = hashlib.blake2b(
-        f"{materials_thread_id}:{upload_session_key}".encode(),
-        digest_size=4,
-    ).digest()
-    key = int.from_bytes(digest, byteorder="big", signed=False)
     await session.execute(
         sql_text("SELECT pg_advisory_xact_lock(:workspace_id, :lock_key)"),
-        {"workspace_id": workspace_id, "lock_key": key},
+        {
+            "workspace_id": workspace_id,
+            "lock_key": _material_batch_db_lock_key(
+                materials_thread_id=materials_thread_id,
+                upload_session_key=upload_session_key,
+            ),
+        },
     )
 
 
@@ -191,6 +201,7 @@ async def submit_material_artifact(
     display_name: str,
     batch_id: int,
     artifact_html: str,
+    artifact_content_kind: str = "text",
     is_applied: bool,
 ) -> bool:
     workspace_repo = WorkspaceRepository(session)
@@ -220,6 +231,7 @@ async def submit_material_artifact(
         event_type=event_type,
         payload={
             "html": artifact_html,
+            "content_kind": artifact_content_kind,
             "display_name": participant.display_name,
             "username": participant.username,
             "material_link": _material_message_link(

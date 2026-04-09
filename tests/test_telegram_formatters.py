@@ -15,6 +15,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
             "display_name": "Pheik13",
             "material_link": "https://t.me/c/123/319?thread=281",
             "html": '<b>текст</b> <a href="https://example.com">с ссылкой</a>',
+            "content_kind": "text",
         },
     )
 
@@ -23,6 +24,25 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
     assert '🚀 <b>@Pheik13 внедрил <a href="https://t.me/c/123/319?thread=281">материал</a></b>' in formatted
     assert "<b>Что внедрил:</b>\n\n<blockquote><b>текст</b> <a href=\"https://example.com\">с ссылкой</a></blockquote>" in formatted
     assert "По материалу:" not in formatted
+
+
+def test_format_progress_event_uses_non_text_material_labels() -> None:
+    event = ProgressEvent(
+        event_type=ProgressEventType.MATERIAL_NOTE_ADDED,
+        payload={
+            "username": "Pheik13",
+            "display_name": "Pheik13",
+            "material_link": "https://t.me/c/123/319?thread=281",
+            "html": "Фото",
+            "content_kind": "non_text",
+        },
+    )
+
+    formatted = format_progress_event(event)
+
+    assert '📝 <b>@Pheik13 добавил заметку к <a href="https://t.me/c/123/319?thread=281">материалу</a></b>' in formatted
+    assert "<b>Формат заметки:</b>\n\n<blockquote>Фото</blockquote>" in formatted
+    assert "Текст заметки" not in formatted
 
 
 def test_format_progress_event_formats_daily_task_with_actor_first_title() -> None:

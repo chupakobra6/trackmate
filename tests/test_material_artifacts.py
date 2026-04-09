@@ -150,3 +150,4 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
     assert created is True
     assert events[0].payload["material_link"] == "https://t.me/c/1234567890/319?thread=281"
     assert events[0].payload["html"] == '<b>Первая</b> <a href="https://example.com">заметка</a>'
+    assert events[0].payload["content_kind"] == "text"

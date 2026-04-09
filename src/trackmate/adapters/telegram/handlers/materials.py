@@ -20,7 +20,7 @@ from trackmate.adapters.telegram.message_ops import (
     reply_message_logged,
     send_message_logged,
 )
-from trackmate.adapters.telegram.rich_text import message_text_and_html
+from trackmate.adapters.telegram.rich_text import message_input_html, message_input_kind, message_input_text
 from trackmate.application.materials import (
     mark_material_read,
     register_material_message,
@@ -82,31 +82,10 @@ def _looks_like_new_material(
     return is_materials_topic and (
         forwarded_from_chat_id is not None
         or message.media_group_id is not None
-        or message.content_type in {
-            "photo",
-            "document",
-            "video",
-            "audio",
-            "voice",
-            "video_note",
-            "animation",
-            "sticker",
-        }
     )
 
 
-@router.message(
-    F.text
-    | F.caption
-    | F.photo
-    | F.document
-    | F.video
-    | F.audio
-    | F.voice
-    | F.video_note
-    | F.animation
-    | F.sticker
-)
+@router.message()
 async def material_or_pending_input_handler(
     message: Message,
     session: AsyncSession,
@@ -136,12 +115,14 @@ async def material_or_pending_input_handler(
             forwarded_from_chat_id=forwarded_from_chat_id,
         ):
             await pending_repo.clear(workspace.id, message.from_user.id)
-        elif not (message.text or message.caption):
-            return UNHANDLED
         else:
             prompt_message_id = pending.payload.get("prompt_message_id")
             is_applied = pending.kind == PendingInputKind.MATERIAL_APPLIED.value
-            artifact_text, artifact_html = message_text_and_html(message)
+            artifact_text = message_input_text(message)
+            artifact_html = message_input_html(message)
+            artifact_content_kind = message_input_kind(message)
+            if artifact_text is None and artifact_html is None:
+                return UNHANDLED
             logger.info(
                 "telegram.material_artifact_received",
                 chat_id=message.chat.id,
@@ -160,6 +141,7 @@ async def material_or_pending_input_handler(
                 display_name=display_name(message.from_user),
                 batch_id=int(pending.payload["batch_id"]),
                 artifact_html=artifact_html or artifact_text or "",
+                artifact_content_kind=artifact_content_kind,
                 is_applied=is_applied,
             )
             await pending_repo.clear(workspace.id, message.from_user.id)
@@ -295,9 +277,9 @@ async def material_progress_callback(
         },
     )
     prompt = (
-        "📝 <b>Напиши короткую заметку одним сообщением.</b>"
+        "📝 <b>Добавь заметку одним сообщением. Можно текстом, голосовым или любым медиа.</b>"
         if action == "note"
-        else "🚀 <b>Опиши одним сообщением, что именно удалось внедрить.</b>"
+        else "🚀 <b>Опиши одним сообщением, что удалось внедрить. Можно текстом, голосовым или любым медиа.</b>"
     )
     prompt_message_id = (
         existing_pending.payload.get("prompt_message_id")

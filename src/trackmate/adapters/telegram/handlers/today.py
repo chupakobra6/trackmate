@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from contextlib import suppress
-from html import escape
 
 from aiogram import F, Router
 from aiogram.dispatcher.event.bases import UNHANDLED
@@ -23,7 +22,7 @@ from trackmate.adapters.telegram.message_ops import (
     reply_message_logged,
     send_message_logged,
 )
-from trackmate.adapters.telegram.rich_text import message_text_and_html
+from trackmate.adapters.telegram.rich_text import message_input_html, message_input_text
 from trackmate.application.today import create_daily_task, local_task_date, submit_daily_task_report
 from trackmate.db.models import DailyTaskAlert
 from trackmate.domain.enums import DailyTaskStatus, PendingInputKind
@@ -32,40 +31,15 @@ router = Router(name="today")
 
 
 def _content_type_label(message: Message) -> str:
-    if message.content_type == "voice":
-        return "Голосовое сообщение"
-    if message.content_type == "video_note":
-        return "Видео-кружок"
-    if message.content_type == "video":
-        return "Видео"
-    if message.content_type == "photo":
-        return "Фото"
-    if message.content_type == "audio":
-        return "Аудио"
-    if message.content_type == "document":
-        file_name = getattr(message.document, "file_name", None)
-        return f"Документ: {file_name}" if file_name else "Документ"
-    if message.content_type == "animation":
-        return "Анимация"
-    if message.content_type == "sticker":
-        emoji = getattr(message.sticker, "emoji", None)
-        return f"Стикер {emoji}" if emoji else "Стикер"
-    return "Сообщение"
+    return message_input_text(message) or "Сообщение"
 
 
 def _pending_input_text(message: Message) -> str | None:
-    plain_text, _ = message_text_and_html(message)
-    if plain_text:
-        return plain_text
-    return _content_type_label(message)
+    return message_input_text(message)
 
 
 def _pending_input_html(message: Message) -> str | None:
-    _, html_text = message_text_and_html(message)
-    if html_text:
-        return html_text
-    fallback = _pending_input_text(message)
-    return escape(fallback) if fallback else None
+    return message_input_html(message)
 
 
 def _report_confirmation_text() -> str:
@@ -143,18 +117,7 @@ async def add_today_task_callback(
     await callback.answer()
 
 
-@router.message(
-    F.text
-    | F.caption
-    | F.photo
-    | F.document
-    | F.video
-    | F.audio
-    | F.voice
-    | F.video_note
-    | F.animation
-    | F.sticker
-)
+@router.message()
 async def today_pending_input_handler(
     message: Message,
     session: AsyncSession,
