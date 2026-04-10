@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import suppress
+from datetime import UTC, datetime
 
 from aiogram import F, Router
 from aiogram.dispatcher.event.bases import UNHANDLED
@@ -66,6 +67,36 @@ def _report_rejected_text(task_status: DailyTaskStatus | None) -> str:
     return "Отчет не принят."
 
 
+async def _dismiss_alert_message(
+    *,
+    bot,
+    chat_id: int,
+    today_repo: TodayRepository,
+    alert: DailyTaskAlert,
+) -> None:
+    await delete_message_safe(bot=bot, chat_id=chat_id, message_id=alert.telegram_message_id)
+    alert.telegram_message_id = None
+    if alert.acknowledged_at is None:
+        await today_repo.acknowledge_alert(alert, acknowledged_at=datetime.now(UTC))
+
+
+async def _dismiss_task_alerts(
+    *,
+    bot,
+    chat_id: int,
+    today_repo: TodayRepository,
+    task_id: int,
+) -> None:
+    alerts = await today_repo.list_alerts_for_task(task_id)
+    for alert in alerts:
+        await _dismiss_alert_message(
+            bot=bot,
+            chat_id=chat_id,
+            today_repo=today_repo,
+            alert=alert,
+        )
+
+
 @router.callback_query(F.data == "today:add")
 async def add_today_task_callback(
     callback: CallbackQuery,
@@ -126,6 +157,7 @@ async def today_pending_input_handler(
         return UNHANDLED
     workspace_repo = WorkspaceRepository(session)
     pending_repo = PendingInputRepository(session)
+    today_repo = TodayRepository(session)
     workspace = await workspace_repo.get_workspace_by_chat_id(message.chat.id)
     if workspace is None:
         return UNHANDLED
@@ -192,7 +224,7 @@ async def today_pending_input_handler(
             display_name=display_name(message.from_user),
         )
         if not submitted:
-            task = await TodayRepository(session).get_task(task_id)
+            task = await today_repo.get_task(task_id)
             await pending_repo.clear(workspace.id, message.from_user.id)
             rejection_text = _report_rejected_text(task.status if task is not None else None)
             edited = await edit_message_like_safe(
@@ -208,7 +240,13 @@ async def today_pending_input_handler(
                     text=rejection_text,
                 )
             return
-        task = await TodayRepository(session).get_task(task_id)
+        await _dismiss_task_alerts(
+            bot=message.bot,
+            chat_id=message.chat.id,
+            today_repo=today_repo,
+            task_id=task_id,
+        )
+        task = await today_repo.get_task(task_id)
         if task:
             await edit_message_like_safe(
                 message=message,
@@ -228,6 +266,7 @@ async def today_pending_input_handler(
                 message_thread_id=message.message_thread_id,
                 text=_report_confirmation_text(),
             )
+        await session.commit()
 
 
 @router.callback_query(F.data.startswith("task:report:"))
@@ -243,6 +282,13 @@ async def open_report_flow(callback: CallbackQuery, session: AsyncSession) -> No
         await callback.answer(text="Отчитаться может только автор задачи.")
         return
     if task.status not in {DailyTaskStatus.ACTIVE, DailyTaskStatus.AWAITING_REPORT}:
+        await _dismiss_task_alerts(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            today_repo=repo,
+            task_id=task_id,
+        )
+        await session.commit()
         await callback.answer(text="Эта задача уже закрыта.")
         return
     existing_pending = await PendingInputRepository(session).get(task.workspace_group_id, callback.from_user.id)
@@ -306,14 +352,26 @@ async def choose_report_status(callback: CallbackQuery, session: AsyncSession) -
 async def acknowledge_alert(callback: CallbackQuery, session: AsyncSession) -> None:
     _, _, raw_alert_id = callback.data.split(":")
     alert_id = int(raw_alert_id)
+    today_repo = TodayRepository(session)
     alert = await session.get(DailyTaskAlert, alert_id)
     if alert is not None:
-        task = await TodayRepository(session).get_task(alert.daily_task_id)
+        task = await today_repo.get_task(alert.daily_task_id)
         if task is not None and task.owner_user_id != callback.from_user.id:
             await callback.answer()
             return
-    if alert is not None and alert.acknowledged_at is None:
-        from datetime import UTC, datetime
-
-        alert.acknowledged_at = datetime.now(UTC)
-    await callback.answer()
+    if alert is None:
+        await delete_message_safe(
+            bot=callback.message.bot,
+            chat_id=callback.message.chat.id,
+            message_id=callback.message.message_id,
+        )
+        await callback.answer()
+        return
+    await _dismiss_alert_message(
+        bot=callback.message.bot,
+        chat_id=callback.message.chat.id,
+        today_repo=today_repo,
+        alert=alert,
+    )
+    await session.commit()
+    await callback.answer(text="Алерт скрыт.")

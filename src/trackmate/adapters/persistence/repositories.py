@@ -414,6 +414,14 @@ class TodayRepository:
         )
         return list(result.scalars().all())
 
+    async def list_alerts_for_task(self, task_id: int) -> list[DailyTaskAlert]:
+        result = await self.session.execute(
+            select(DailyTaskAlert)
+            .where(DailyTaskAlert.daily_task_id == task_id)
+            .order_by(DailyTaskAlert.id.asc())
+        )
+        return list(result.scalars().all())
+
     async def claim_alert_dispatch(self, alert: DailyTaskAlert) -> None:
         alert.dispatch_status = AlertDispatchStatus.DISPATCHING
         await self.session.flush()
@@ -425,6 +433,10 @@ class TodayRepository:
     async def mark_alert_sent(self, alert: DailyTaskAlert, telegram_message_id: int) -> None:
         alert.dispatch_status = AlertDispatchStatus.SENT
         alert.telegram_message_id = telegram_message_id
+        await self.session.flush()
+
+    async def acknowledge_alert(self, alert: DailyTaskAlert, *, acknowledged_at: datetime | None = None) -> None:
+        alert.acknowledged_at = acknowledged_at or datetime.now(UTC)
         await self.session.flush()
 
 
