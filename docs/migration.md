@@ -2,6 +2,15 @@
 
 This project should be migrated with a logical Postgres dump, not by copying the Docker volume.
 
+The preferred migration style is a staged cutover:
+
+- prepare the target machine ahead of time;
+- restore and validate against a prep dump before cutover;
+- stop the source bot only for the final dump and final restore;
+- start polling on the new machine only after the source polling worker is stopped.
+
+In normal day-to-day work, local `.env` plus local Docker is the development environment, while the VPS that runs the long-lived polling worker is the production environment.
+
 ## Files to transfer
 
 - The database dump: `backups/trackmate_<timestamp>.dump`
@@ -14,10 +23,10 @@ Do not transfer the old Docker containers or the `postgres-data` volume.
 ## Why this approach
 
 - A logical dump is portable across machines and easy to verify before restore.
-- The dump is a single file that can be copied to another laptop and then to the VPS.
+- The dump is a single file that can be copied between environments and verified before restore.
 - The backup and restore steps are repeatable and do not depend on local Docker volume internals.
 
-## Create a routine backup on the source laptop
+## Create a routine backup on the source machine
 
 This is safe while the bot is running. It produces a consistent Postgres snapshot, but the bot may write new data after the backup finishes.
 
@@ -44,6 +53,18 @@ Important:
 - Do not restart the old `api` or `worker` after the cutover dump unless you intentionally abort the migration.
 - Do not run the old and new Telegram polling workers at the same time.
 
+## Prepare the target machine before cutover
+
+Before the final switchover, prepare as much as possible on the target machine:
+
+1. Put the repository on the target machine at the correct commit.
+2. Put the target `.env` in place.
+3. Install Docker and any host-level prerequisites.
+4. Optionally restore a prep dump on the target machine and verify the application stack against that dump.
+5. Build the Docker images ahead of time if the target machine is small and image builds are expected to be slow.
+
+This keeps the actual cutover short because the final maintenance window only needs the last dump, the final restore, and the service start.
+
 ## Restore on the target machine
 
 1. Put the repository on the target machine at the correct commit.
@@ -66,14 +87,29 @@ The restore script:
 - starts `api` and `worker`
 - waits for both services to become healthy
 
+For the final cutover, this is the recommended restore path because it gives you a verified restore plus a health-checked service start.
+
 ## Recommended cutover order
 
-1. On the old laptop, run `sh scripts/backup_docker_db.sh --stop-app`.
-2. Copy the dump, checksum, metadata, and `.env` to the transfer laptop.
-3. Copy those files to the VPS.
-4. On the VPS, restore with `sh scripts/restore_docker_db.sh <dump-file>`.
-5. Verify Docker health with `docker compose ps`.
-6. Confirm the bot responds correctly on the VPS.
+1. On the source machine, create a prep dump while the bot is still running.
+2. Copy the prep dump, checksum, metadata, and target `.env` to the target machine.
+3. On the target machine, restore the prep dump and validate the stack.
+4. When ready to switch over, run `sh scripts/backup_docker_db.sh --stop-app` on the source machine.
+5. Copy the final dump, checksum, and metadata to the target machine.
+6. On the target machine, restore with `sh scripts/restore_docker_db.sh <dump-file>`.
+7. Verify Docker health with `docker compose ps`.
+8. Confirm the bot responds correctly on the target machine.
+
+## Validation after cutover
+
+After the final restore:
+
+- check `docker compose ps` and confirm `postgres`, `api`, and `worker` are healthy;
+- follow `docker compose logs -f api worker` for startup errors;
+- confirm the bot responds as expected;
+- keep the old machine stopped until the new machine is verified.
+
+After the production machine is stable, return to the standard production update flow described in `README.md`.
 
 ## Make targets
 

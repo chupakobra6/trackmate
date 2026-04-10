@@ -17,10 +17,19 @@
 
 ## Commands
 - Install dependencies: `make setup`
-- Run app locally: `make dev`
+- Run local API: `make api`
+- Run local worker: `make worker`
+- Run local Docker stack: `docker compose up -d --build`
 - Run lint: `make lint`
 - Run tests: `make test`
 - Run a focused test first when possible, then broader checks if needed.
+
+## Documentation boundaries
+- Use `README.md` and `docs/*.md` for tracked, reusable project guidance.
+- If `private-docs/` exists in the repo, treat it as local-only operational context for the current machine and deployments.
+- Do not copy hostnames, access patterns, or other machine-specific operational details from `private-docs/` into tracked docs unless you first generalize and scrub them.
+- Default assumption: local `.env` plus local Docker is development; a VPS running the long-lived bot is production unless the user says otherwise.
+- The tracked Docker default binds PostgreSQL to `127.0.0.1:5432`; do not broaden that host bind unless the user explicitly needs remote database access.
 
 ## Code change policy
 - Keep diffs small and local.

@@ -38,6 +38,7 @@ htmlcov/
 *.db
 tmp/
 backups/
+private-docs/
 
 # Editors / OS
 .DS_Store

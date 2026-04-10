@@ -36,9 +36,15 @@ For Docker you usually only need to set `TRACKMATE__BOT_TOKEN` in `.env`. `docke
 
 `migrate` runs `alembic upgrade head` before `api` and `worker` start.
 
+## Environment model
+
+- Local `.env` plus local `uv` or local Docker runs should be treated as the development environment by default.
+- A VPS deployment with its own `.env` and long-running polling worker should be treated as the production environment.
+- PostgreSQL is published on `127.0.0.1:5432` by default, so it is reachable from the same machine but not exposed on the host network.
+
 ## One-command update
 
-On the machine where the bot is already running:
+On a production machine that tracks an upstream branch:
 
 ```bash
 make docker-update
@@ -48,6 +54,15 @@ It will:
 - run `git pull --ff-only` if the branch has an upstream;
 - rebuild and restart the Docker services;
 - wait until `postgres`, `api`, and `worker` are ready.
+
+Recommended production update flow:
+
+1. Validate the change locally.
+2. Commit and push the change.
+3. On the production machine, update the checked-out branch and restart with `make docker-update`.
+4. Verify `docker compose ps` and follow logs after restart.
+
+If you are doing a machine move or database cutover, use [docs/migration.md](docs/migration.md) instead of the standard update flow.
 
 ## Development helpers
 
