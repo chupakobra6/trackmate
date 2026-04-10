@@ -37,6 +37,7 @@ htmlcov/
 *.sqlite3
 *.db
 tmp/
+backups/
 
 # Editors / OS
 .DS_Store

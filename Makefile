@@ -13,6 +13,16 @@ docker-up:
 docker-update:
 	sh scripts/update_docker_app.sh
 
+docker-db-backup:
+	sh scripts/backup_docker_db.sh
+
+docker-db-backup-stop:
+	sh scripts/backup_docker_db.sh --stop-app
+
+docker-db-restore:
+	@test -n "$(FILE)" || (echo "FILE is required. Example: make docker-db-restore FILE=backups/trackmate.dump" && exit 1)
+	sh scripts/restore_docker_db.sh "$(FILE)"
+
 lint:
 	uv run ruff check .
 
