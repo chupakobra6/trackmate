@@ -19,7 +19,7 @@
 - Install dependencies: `make setup`
 - Run local API: `make api`
 - Run local worker: `make worker`
-- Run local Docker stack: `docker compose up -d --build`
+- Run local Docker stack: `make docker-up`
 - Run lint: `make lint`
 - Run tests: `make test`
 - Run a focused test first when possible, then broader checks if needed.

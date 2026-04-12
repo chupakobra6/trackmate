@@ -1,51 +1,53 @@
-# Trackmate Migration Runbook
+# Trackmate Migration Guide
 
-This project should be migrated with a logical Postgres dump, not by copying the Docker volume.
+Trackmate should be migrated with a logical PostgreSQL dump, not by copying the Docker volume.
 
 The preferred migration style is a staged cutover:
 
-- prepare the target machine ahead of time;
-- restore and validate against a prep dump before cutover;
-- stop the source bot only for the final dump and final restore;
-- start polling on the new machine only after the source polling worker is stopped.
+1. prepare the target machine ahead of time;
+2. restore and validate against a prep dump before cutover;
+3. stop the source bot only for the final dump and final restore;
+4. start polling on the new machine only after the source polling worker is stopped.
 
 In normal day-to-day work, local `.env` plus local Docker is the development environment, while the VPS that runs the long-lived polling worker is the production environment.
-
-## Files to transfer
-
-- The database dump: `backups/trackmate_<timestamp>.dump`
-- The checksum file: `backups/trackmate_<timestamp>.dump.sha256` if present
-- The metadata file: `backups/trackmate_<timestamp>.dump.meta`
-- The deployment `.env` file transferred separately from the dump
-
-Do not transfer the old Docker containers or the `postgres-data` volume.
 
 ## Why this approach
 
 - A logical dump is portable across machines and easy to verify before restore.
 - The dump is a single file that can be copied between environments and verified before restore.
-- The backup and restore steps are repeatable and do not depend on local Docker volume internals.
+- The backup and restore steps are repeatable and do not depend on Docker volume internals.
 
-## Create a routine backup on the source machine
+## Files to transfer
 
-This is safe while the bot is running. It produces a consistent Postgres snapshot, but the bot may write new data after the backup finishes.
+- database dump: `backups/trackmate_<timestamp>.dump`
+- checksum file: `backups/trackmate_<timestamp>.dump.sha256` if present
+- metadata file: `backups/trackmate_<timestamp>.dump.meta`
+- deployment `.env` file transferred separately from the dump
+
+Do not transfer old Docker containers or the `postgres-data` volume.
+
+## Backup commands
+
+### Routine backup on the source machine
+
+This is safe while the bot is running. It produces a consistent PostgreSQL snapshot, but the bot may write new data after the backup finishes.
 
 ```sh
-sh scripts/backup_docker_db.sh
+make docker-db-backup
 ```
 
-Use `--output` to control the file path:
+If you need a custom path, call the script directly:
 
 ```sh
 sh scripts/backup_docker_db.sh --output backups/prep.dump
 ```
 
-## Create the final cutover backup
+### Final cutover backup
 
 Use this immediately before switching to the new machine. It stops `api` and `worker`, writes the dump, verifies the archive, and keeps the application stopped so the old instance cannot create new writes after the backup.
 
 ```sh
-sh scripts/backup_docker_db.sh --stop-app
+make docker-db-backup-stop
 ```
 
 Important:
@@ -53,7 +55,7 @@ Important:
 - Do not restart the old `api` or `worker` after the cutover dump unless you intentionally abort the migration.
 - Do not run the old and new Telegram polling workers at the same time.
 
-## Prepare the target machine before cutover
+## Prepare the target machine
 
 Before the final switchover, prepare as much as possible on the target machine:
 
@@ -73,19 +75,25 @@ This keeps the actual cutover short because the final maintenance window only ne
 4. Restore it:
 
 ```sh
+make docker-db-restore FILE=backups/trackmate_20260411T120000Z.dump
+```
+
+If needed, the underlying script is:
+
+```sh
 sh scripts/restore_docker_db.sh backups/trackmate_20260411T120000Z.dump
 ```
 
-The restore script:
+The restore flow:
 
-- verifies the dump archive with `pg_restore --list`
-- starts Docker Postgres
-- stops `api` and `worker`
-- drops and recreates the target database
-- restores the dump
-- runs the `migrate` service
-- starts `api` and `worker`
-- waits for both services to become healthy
+- verifies the dump archive with `pg_restore --list`;
+- starts Docker PostgreSQL;
+- stops `api` and `worker`;
+- drops and recreates the target database;
+- restores the dump;
+- runs the `migrate` service;
+- starts `api` and `worker`;
+- waits for both services to become healthy.
 
 For the final cutover, this is the recommended restore path because it gives you a verified restore plus a health-checked service start.
 
@@ -94,9 +102,9 @@ For the final cutover, this is the recommended restore path because it gives you
 1. On the source machine, create a prep dump while the bot is still running.
 2. Copy the prep dump, checksum, metadata, and target `.env` to the target machine.
 3. On the target machine, restore the prep dump and validate the stack.
-4. When ready to switch over, run `sh scripts/backup_docker_db.sh --stop-app` on the source machine.
+4. When ready to switch over, run `make docker-db-backup-stop` on the source machine.
 5. Copy the final dump, checksum, and metadata to the target machine.
-6. On the target machine, restore with `sh scripts/restore_docker_db.sh <dump-file>`.
+6. On the target machine, restore with `make docker-db-restore FILE=<dump-file>`.
 7. Verify Docker health with `docker compose ps`.
 8. Confirm the bot responds correctly on the target machine.
 
@@ -110,13 +118,3 @@ After the final restore:
 - keep the old machine stopped until the new machine is verified.
 
 After the production machine is stable, return to the standard production update flow described in `README.md`.
-
-## Make targets
-
-From the repository root:
-
-```sh
-make docker-db-backup
-make docker-db-backup-stop
-make docker-db-restore FILE=backups/trackmate_20260411T120000Z.dump
-```

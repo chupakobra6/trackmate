@@ -86,7 +86,7 @@ make worker
 
 ```bash
 cp .env.example .env
-docker compose up -d --build
+make docker-up
 ```
 
 For Docker you usually only need to set `TRACKMATE__BOT_TOKEN` in `.env`. `docker-compose.yml` overrides the database URL for containers.
@@ -166,6 +166,9 @@ make docker-db-restore FILE=backups/trackmate.dump
 ```
 
 ## Documentation
+
+- [docs/README.md](docs/README.md)
+  Public documentation index.
 
 - [docs/migration.md](docs/migration.md)
   Migration and machine cutover runbook.
