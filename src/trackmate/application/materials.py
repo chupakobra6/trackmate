@@ -232,6 +232,7 @@ async def submit_material_artifact(
         payload={
             "html": artifact_html,
             "content_kind": artifact_content_kind,
+            "user_id": participant.user_id,
             "display_name": participant.display_name,
             "username": participant.username,
             "material_link": _material_message_link(

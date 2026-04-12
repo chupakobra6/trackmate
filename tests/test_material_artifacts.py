@@ -122,6 +122,47 @@ async def test_mark_material_read_reports_repeat_reads(session) -> None:
 
 
 @pytest.mark.asyncio
+async def test_material_progress_isolated_per_user_when_another_person_clicks(session) -> None:
+    workspace_repo = WorkspaceRepository(session)
+    materials_repo = MaterialRepository(session)
+    workspace = await workspace_repo.get_or_create_workspace(8009, "Group", "Europe/Moscow")
+    first = await workspace_repo.register_participant(workspace.id, 89, "igor", "Igor")
+    second = await workspace_repo.register_participant(workspace.id, 90, "masha", "Masha")
+
+    batch = await materials_repo.create_batch(
+        workspace_id=workspace.id,
+        materials_thread_id=10,
+        media_group_id=None,
+    )
+
+    await mark_material_read(
+        session,
+        workspace_id=workspace.id,
+        user_id=first.user_id,
+        username=first.username,
+        display_name=first.display_name,
+        batch_id=batch.id,
+    )
+    await mark_material_read(
+        session,
+        workspace_id=workspace.id,
+        user_id=second.user_id,
+        username=second.username,
+        display_name=second.display_name,
+        batch_id=batch.id,
+    )
+
+    first_progress = await materials_repo.get_progress(batch.id, first.id)
+    second_progress = await materials_repo.get_progress(batch.id, second.id)
+
+    assert first_progress is not None
+    assert second_progress is not None
+    assert first_progress.participant_id != second_progress.participant_id
+    assert first_progress.read_at is not None
+    assert second_progress.read_at is not None
+
+
+@pytest.mark.asyncio
 async def test_submit_material_artifact_includes_material_link(session) -> None:
     workspace_repo = WorkspaceRepository(session)
     workspace = await workspace_repo.get_or_create_workspace(-1001234567890, "Group", "Europe/Moscow")
@@ -148,6 +189,7 @@ async def test_submit_material_artifact_includes_material_link(session) -> None:
     events = await ProgressRepository(session).list_pending_events()
 
     assert created is True
+    assert events[0].payload["user_id"] == participant.user_id
     assert events[0].payload["material_link"] == "https://t.me/c/1234567890/319?thread=281"
     assert events[0].payload["html"] == '<b>Первая</b> <a href="https://example.com">заметка</a>'
     assert events[0].payload["content_kind"] == "text"

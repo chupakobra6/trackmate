@@ -20,7 +20,11 @@ from trackmate.adapters.telegram.message_ops import (
     reply_message_logged,
     send_message_logged,
 )
-from trackmate.adapters.telegram.rich_text import message_input_html, message_input_kind, message_input_text
+from trackmate.adapters.telegram.rich_text import (
+    message_input_html,
+    message_input_kind,
+    message_input_text,
+)
 from trackmate.application.materials import (
     mark_material_read,
     register_material_message,

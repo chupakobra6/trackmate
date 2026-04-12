@@ -28,6 +28,13 @@ def _daily_task_closed_title(status: str, person: str) -> str:
     }.get(status, f"✅ <b>{person} завершил задачу дня</b>")
 
 
+def _profile_link_label(*, user_id: int | None, username: str | None, display_name: str) -> str:
+    label = escape(username or display_name)
+    if user_id is None:
+        return label
+    return f'<a href="tg://user?id={user_id}">{label}</a>'
+
+
 def _person_label(username: str | None, display_name: str) -> str:
     if username:
         return f"@{escape(username)}"
@@ -174,7 +181,11 @@ def format_daily_task_card(
 def format_progress_event(event: ProgressEvent) -> str:
     event_type = event.event_type
     payload = event.payload or {}
-    person = _person_label(payload.get("username"), payload.get("display_name", "Без имени"))
+    person = _profile_link_label(
+        user_id=payload.get("user_id"),
+        username=payload.get("username"),
+        display_name=payload.get("display_name", "Без имени"),
+    )
     if event_type is ProgressEventType.MATERIAL_NOTE_ADDED:
         material = _payload_link(payload, "material_link", "материалу")
         return "\n".join(

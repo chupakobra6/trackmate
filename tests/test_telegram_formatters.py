@@ -11,6 +11,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
     event = ProgressEvent(
         event_type=ProgressEventType.MATERIAL_APPLIED,
         payload={
+            "user_id": 42,
             "username": "Pheik13",
             "display_name": "Pheik13",
             "material_link": "https://t.me/c/123/319?thread=281",
@@ -21,7 +22,7 @@ def test_format_progress_event_uses_actor_first_titles() -> None:
 
     formatted = format_progress_event(event)
 
-    assert '🚀 <b>@Pheik13 внедрил <a href="https://t.me/c/123/319?thread=281">материал</a></b>' in formatted
+    assert '🚀 <b><a href="tg://user?id=42">Pheik13</a> внедрил <a href="https://t.me/c/123/319?thread=281">материал</a></b>' in formatted
     assert "<b>Что внедрил:</b>\n\n<blockquote><b>текст</b> <a href=\"https://example.com\">с ссылкой</a></blockquote>" in formatted
     assert "По материалу:" not in formatted
 
@@ -30,6 +31,7 @@ def test_format_progress_event_uses_non_text_material_labels() -> None:
     event = ProgressEvent(
         event_type=ProgressEventType.MATERIAL_NOTE_ADDED,
         payload={
+            "user_id": 42,
             "username": "Pheik13",
             "display_name": "Pheik13",
             "material_link": "https://t.me/c/123/319?thread=281",
@@ -40,7 +42,7 @@ def test_format_progress_event_uses_non_text_material_labels() -> None:
 
     formatted = format_progress_event(event)
 
-    assert '📝 <b>@Pheik13 добавил заметку к <a href="https://t.me/c/123/319?thread=281">материалу</a></b>' in formatted
+    assert '📝 <b><a href="tg://user?id=42">Pheik13</a> добавил заметку к <a href="https://t.me/c/123/319?thread=281">материалу</a></b>' in formatted
     assert "<b>Формат заметки:</b>\n\n<blockquote>Фото</blockquote>" in formatted
     assert "Текст заметки" not in formatted
 
@@ -49,6 +51,7 @@ def test_format_progress_event_formats_daily_task_with_actor_first_title() -> No
     event = ProgressEvent(
         event_type=ProgressEventType.DAILY_TASK_CLOSED,
         payload={
+            "user_id": 42,
             "username": "Pheik13",
             "display_name": "Pheik13",
             "status": "done",
@@ -60,7 +63,7 @@ def test_format_progress_event_formats_daily_task_with_actor_first_title() -> No
 
     formatted = format_progress_event(event)
 
-    assert formatted.startswith('✅ <b>@Pheik13 выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a></b>')
+    assert formatted.startswith('✅ <b><a href="tg://user?id=42">Pheik13</a> выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a></b>')
     assert "<b>Что планировал:</b>\n\n<blockquote>сделать бота</blockquote>" in formatted
     assert "<b>Результат:</b>\n\n<blockquote>сделал</blockquote>" in formatted
 
@@ -69,6 +72,7 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
     partial_event = ProgressEvent(
         event_type=ProgressEventType.DAILY_TASK_CLOSED,
         payload={
+            "user_id": 42,
             "username": "Pheik13",
             "display_name": "Pheik13",
             "status": "partial",
@@ -80,6 +84,7 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
     auto_failed_event = ProgressEvent(
         event_type=ProgressEventType.DAILY_TASK_AUTO_FAILED,
         payload={
+            "user_id": 42,
             "username": "Pheik13",
             "display_name": "Pheik13",
             "task_html": "сделать бота",
@@ -90,8 +95,8 @@ def test_format_progress_event_uses_consistent_partial_and_auto_failed_wording()
     partial_formatted = format_progress_event(partial_event)
     auto_failed_formatted = format_progress_event(auto_failed_event)
 
-    assert partial_formatted.startswith('🔸 <b>@Pheik13 частично выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a></b>')
-    assert auto_failed_formatted.startswith('⏰ <b>@Pheik13 не выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a> вовремя</b>')
+    assert partial_formatted.startswith('🔸 <b><a href="tg://user?id=42">Pheik13</a> частично выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a></b>')
+    assert auto_failed_formatted.startswith('⏰ <b><a href="tg://user?id=42">Pheik13</a> не выполнил <a href="https://t.me/c/123/545?thread=538">задачу дня</a> вовремя</b>')
     assert "<b>Что планировал:</b>\n\n<blockquote>сделать бота</blockquote>" in auto_failed_formatted
 
 

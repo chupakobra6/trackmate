@@ -124,6 +124,7 @@ async def test_submit_daily_task_report_preserves_rich_text_payloads(session) ->
     events = await ProgressRepository(session).list_pending_events()
 
     assert submitted is True
+    assert events[0].payload["user_id"] == participant.user_id
     assert task.report_text == 'Изучил <b>раздел API</b>'
     assert events[0].payload["task_html"] == 'Сходить в <a href="https://platform.openai.com/docs">docs</a>'
     assert events[0].payload["report_html"] == 'Изучил <b>раздел API</b>'

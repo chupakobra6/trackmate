@@ -105,6 +105,7 @@ async def submit_daily_task_report(
         payload={
             "status": status.value,
             "report_html": report_html,
+            "user_id": participant.user_id if participant else owner_user_id,
             "display_name": display_name,
             "username": participant.username if participant else None,
             "task_html": task.text,
@@ -158,6 +159,7 @@ async def run_daily_task_transitions(session: AsyncSession, *, now_utc: datetime
                 event_type=ProgressEventType.DAILY_TASK_AUTO_FAILED,
                 payload={
                     "task_html": task.text,
+                    "user_id": participant.user_id if participant else task.owner_user_id,
                     "display_name": participant.display_name if participant else str(task.owner_user_id),
                     "username": participant.username if participant else None,
                     "task_link": _message_link(
