@@ -8,9 +8,37 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from trackmate.adapters.persistence.repositories import ProgressRepository, WorkspaceRepository
 from trackmate.adapters.telegram.formatters import format_progress_event
 from trackmate.adapters.telegram.message_ops import send_message_logged
-from trackmate.domain.enums import TopicKey
+from trackmate.domain.enums import ProgressEventType, TopicKey
 
 logger = structlog.get_logger(__name__)
+
+
+async def create_custom_progress_update(
+    session: AsyncSession,
+    *,
+    workspace_id: int,
+    user_id: int,
+    username: str | None,
+    display_name: str,
+    html: str,
+    content_kind: str,
+) -> None:
+    workspace_repo = WorkspaceRepository(session)
+    progress_repo = ProgressRepository(session)
+    participant = await workspace_repo.register_participant(workspace_id, user_id, username, display_name)
+    await progress_repo.create_event(
+        workspace_group_id=workspace_id,
+        participant_id=participant.id,
+        event_type=ProgressEventType.CUSTOM_UPDATE,
+        payload={
+            "user_id": participant.user_id,
+            "username": participant.username,
+            "display_name": participant.display_name,
+            "html": html,
+            "content_kind": content_kind,
+        },
+    )
+    await session.flush()
 
 
 async def publish_pending_progress_events(session: AsyncSession, bot: Bot) -> None:

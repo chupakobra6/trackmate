@@ -77,6 +77,11 @@ def _material_artifact_section_title(payload: dict, *, is_applied: bool) -> str:
     return "Формат заметки:" if content_kind != "text" else "Текст заметки:"
 
 
+def _custom_update_section_title(payload: dict) -> str:
+    content_kind = payload.get("content_kind", "text")
+    return "Формат апдейта:" if content_kind != "text" else "Что поменялось:"
+
+
 def format_setup_checklist(
     *,
     ready: bool,
@@ -234,6 +239,16 @@ def format_progress_event(event: ProgressEvent) -> str:
                 "<b>Что планировал:</b>",
                 "",
                 _render_section_html(payload.get("task_html")),
+            ]
+        )
+    if event_type is ProgressEventType.CUSTOM_UPDATE:
+        return "\n".join(
+            [
+                f"🆕 <b>{person} поделился апдейтом</b>",
+                "",
+                f"<b>{_custom_update_section_title(payload)}</b>",
+                "",
+                _render_section_html(payload.get("html")),
             ]
         )
     return "\n".join(

@@ -47,6 +47,24 @@ def test_format_progress_event_uses_non_text_material_labels() -> None:
     assert "Текст заметки" not in formatted
 
 
+def test_format_progress_event_formats_custom_update() -> None:
+    event = ProgressEvent(
+        event_type=ProgressEventType.CUSTOM_UPDATE,
+        payload={
+            "user_id": 42,
+            "username": "Pheik13",
+            "display_name": "Pheik13",
+            "html": "Обновили дедлайны и текст кнопок",
+            "content_kind": "text",
+        },
+    )
+
+    formatted = format_progress_event(event)
+
+    assert formatted.startswith('🆕 <b><a href="tg://user?id=42">Pheik13</a> поделился апдейтом</b>')
+    assert "<b>Что поменялось:</b>\n\n<blockquote>Обновили дедлайны и текст кнопок</blockquote>" in formatted
+
+
 def test_format_progress_event_formats_daily_task_with_actor_first_title() -> None:
     event = ProgressEvent(
         event_type=ProgressEventType.DAILY_TASK_CLOSED,
