@@ -5,7 +5,6 @@ Trackmate is a Telegram accountability bot for shared materials, one daily focus
 ## At a glance
 
 - Telegram bot with a separate background worker
-- Admin custom progress updates via `/update` in the `Прогресс` topic
 - PostgreSQL-backed state and Alembic migrations
 - local `uv` workflow for development
 - Docker workflow for long-running deployment

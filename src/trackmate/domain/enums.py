@@ -44,7 +44,6 @@ class ProgressEventType(StrEnum):
     MATERIAL_APPLIED = "material_applied"
     DAILY_TASK_CLOSED = "daily_task.closed"
     DAILY_TASK_AUTO_FAILED = "daily_task.auto_failed"
-    CUSTOM_UPDATE = "custom_update"
     SYSTEM_ALERT = "system_alert"
 
 
@@ -66,4 +65,3 @@ class PendingInputKind(StrEnum):
     MATERIAL_APPLIED = "material_applied"
     DAILY_TASK_TEXT = "daily_task_text"
     DAILY_TASK_REPORT = "daily_task_report"
-    PROGRESS_UPDATE = "progress_update"
