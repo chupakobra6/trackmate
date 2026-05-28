@@ -26,10 +26,11 @@
 
 ## Documentation boundaries
 - Use `README.md` and `docs/*.md` for tracked, reusable project guidance.
-- If `private-docs/` exists in the repo, treat it as local-only operational context for the current machine and deployments.
-- Do not copy hostnames, access patterns, or other machine-specific operational details from `private-docs/` into tracked docs unless you first generalize and scrub them.
+- Do not track or read `private-docs/`; keep machine-specific operational context outside the repository.
 - Default assumption: local `.env` plus local Docker is development; a VPS running the long-lived bot is production unless the user says otherwise.
 - The tracked Docker default binds PostgreSQL to `127.0.0.1:5432`; do not broaden that host bind unless the user explicitly needs remote database access.
+- Trackmate is Go-only. Keep tracked docs focused on the current runtime; do not add migration-era Python/Alembic guides back to the public documentation.
+- Product-owned Telegram E2E scenarios live in `e2e/telegram/`; rendered scenarios stay under ignored `tmp/`.
 
 ## Code change policy
 - Keep diffs small and local.

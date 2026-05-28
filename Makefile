@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup tidy fmt fmt-check lint test migrate api worker dev docker-up docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean-legacy down logs logs-all logs-db
+.PHONY: help setup tidy fmt fmt-check lint test migrate api worker dev docker-up docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean down logs logs-all logs-db
 
 help:
 	@printf "Available commands:\n"
@@ -11,7 +11,7 @@ help:
 	@printf "  make api                # run Go Telegram poller locally\n"
 	@printf "  make worker             # run Go worker locally\n"
 	@printf "  make docker-up          # build and start local Docker stack\n"
-	@printf "  make clean-legacy       # remove old Python caches from working tree\n"
+	@printf "  make clean              # remove generated local artifacts\n"
 
 setup: tidy
 
@@ -61,9 +61,8 @@ docker-db-restore:
 	@test -n "$(FILE)" || (echo "FILE is required. Example: make docker-db-restore FILE=backups/trackmate.dump" && exit 1)
 	sh scripts/restore_docker_db.sh "$(FILE)"
 
-clean-legacy:
-	rm -rf .venv .pytest_cache .ruff_cache .mypy_cache .coverage htmlcov
-	find . -type d -name '__pycache__' -prune -exec rm -rf {} +
+clean:
+	rm -rf tmp
 
 down:
 	docker compose down

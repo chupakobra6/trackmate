@@ -28,6 +28,7 @@ Important variables:
 - `TRACKMATE__DATABASE_URL`
 - `TRACKMATE__DEFAULT_TIMEZONE`
 - `TRACKMATE__WORKER_TICK_SECONDS`
+- `TRACKMATE__POLL_TIMEOUT_SECONDS`
 - `TRACKMATE__ENVIRONMENT`
 - `TRACKMATE__CONTROL_HTTP_ADDR` for non-production E2E control
 
@@ -69,7 +70,7 @@ make docker-reset        # remove Docker volume and restart stack
 make docker-db-backup
 make docker-db-backup-stop
 make docker-db-restore FILE=backups/trackmate.dump
-make clean-legacy          # remove old Python caches after cutover
+make clean               # remove generated local artifacts
 ```
 
 Storage integration tests require a disposable PostgreSQL URL:
@@ -106,13 +107,13 @@ Use these only with disposable local/test Telegram groups and local databases.
 - `internal/ui/`: Telegram HTML formatters and inline keyboards.
 - `migrations/`: goose migrations.
 - `e2e/telegram/`: Trackmate-owned JSONL scenarios for the sibling E2E runner.
-- `docs/`: architecture and cutover notes.
+- `docs/`: current architecture, operations, and ADRs.
 
 ## Documentation
 
-- [docs/current-architecture.md](docs/current-architecture.md)
-- [docs/go-migration.md](docs/go-migration.md)
-- [docs/go-cutover-runbook.md](docs/go-cutover-runbook.md)
+- [docs/architecture.md](docs/architecture.md)
+- [docs/operations.md](docs/operations.md)
+- [e2e/telegram/README.md](e2e/telegram/README.md)
 - [docs/adr/0001-remove-materials-topic.md](docs/adr/0001-remove-materials-topic.md)
 
-Keep machine-specific operational details in `private-docs/`, not in tracked docs.
+Keep machine-specific operational details out of tracked docs.

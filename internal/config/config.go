@@ -24,7 +24,7 @@ func Load() (Config, error) {
 	_ = loadDotEnv(".env")
 	cfg := Config{
 		BotToken:          os.Getenv("TRACKMATE__BOT_TOKEN"),
-		DatabaseURL:       normalizeDatabaseURL(os.Getenv("TRACKMATE__DATABASE_URL")),
+		DatabaseURL:       strings.TrimSpace(os.Getenv("TRACKMATE__DATABASE_URL")),
 		DefaultTimezone:   getEnvDefault("TRACKMATE__DEFAULT_TIMEZONE", "Europe/Moscow"),
 		WorkerTickSeconds: getEnvIntDefault("TRACKMATE__WORKER_TICK_SECONDS", 5),
 		LogLevel:          getEnvDefault("TRACKMATE__LOG_LEVEL", "INFO"),
@@ -54,13 +54,6 @@ func (c Config) IsProduction() bool {
 
 func (c Config) ControlEnabled() bool {
 	return c.ControlHTTPAddr != "" && !c.IsProduction()
-}
-
-func normalizeDatabaseURL(value string) string {
-	value = strings.TrimSpace(value)
-	value = strings.Replace(value, "postgresql+asyncpg://", "postgres://", 1)
-	value = strings.Replace(value, "postgres+asyncpg://", "postgres://", 1)
-	return value
 }
 
 func getEnvDefault(key, fallback string) string {

@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+.venv
+.pytest_cache
+.ruff_cache
+.mypy_cache
+__pycache__
+tmp
+backups
+private-docs
+e2e
+docs
+scripts
+.DS_Store
+*.log

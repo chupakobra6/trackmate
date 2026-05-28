@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 
@@ -27,7 +26,7 @@ func OpenMigratedStore(t *testing.T) (*postgres.Store, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 	schema := fmt.Sprintf("tmtest_%d", time.Now().UnixNano())
-	adminDB, err := sql.Open("pgx", normalizeURL(baseURL))
+	adminDB, err := sql.Open("pgx", baseURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,12 +67,7 @@ func migrationsDir(t *testing.T) string {
 	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", "migrations"))
 }
 
-func normalizeURL(raw string) string {
-	return strings.Replace(strings.Replace(raw, "postgresql+asyncpg://", "postgres://", 1), "postgres+asyncpg://", "postgres://", 1)
-}
-
 func withSearchPath(raw string, schema string) string {
-	raw = normalizeURL(raw)
 	parsed, err := url.Parse(raw)
 	if err != nil {
 		return raw
