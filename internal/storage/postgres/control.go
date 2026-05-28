@@ -13,7 +13,7 @@ type ResetWorkspaceResult struct {
 	DeletedAlerts   int64 `json:"deleted_alerts"`
 	DeletedPending  int64 `json:"deleted_pending_inputs"`
 	DeletedProgress int64 `json:"deleted_progress_events"`
-	ResetTopics     int64 `json:"reset_topic_messages"`
+	ResetSetup      int64 `json:"reset_setup_messages"`
 }
 
 func (q *Queries) ResetWorkspaceForE2E(ctx context.Context, chatID int64) (ResetWorkspaceResult, error) {
@@ -42,12 +42,14 @@ func (q *Queries) ResetWorkspaceForE2E(ctx context.Context, chatID int64) (Reset
 		return result, err
 	}
 	result.DeletedTasks = tag.RowsAffected()
-	_, err = q.db.Exec(ctx, `
+	tag, err = q.db.Exec(ctx, `
 UPDATE workspace_groups
 SET setup_status = 'pending',
+    setup_message_id = NULL,
     updated_at = now()
 WHERE id = $1
 `, workspace.ID)
+	result.ResetSetup = tag.RowsAffected()
 	return result, err
 }
 

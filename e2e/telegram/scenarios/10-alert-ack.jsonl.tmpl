@@ -1,6 +1,4 @@
-# Covers acknowledging an already-dispatched daily-task alert in the Today topic.
-# Precondition: a visible alert card with the "👀 Понял" button already exists.
+# Проверяет подтверждение уже отправленного напоминания в теме «Сегодня».
+# Перед запуском подготовь напоминание через локальный control API: clock + tick.
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
-{"id":"dump_before_alert_ack","action":"dump_state"}
-{"id":"ack_alert","action":"click_button","button_text":"👀 Понял","timeout_ms":60000}
-{"id":"dump_after_alert_ack","action":"dump_state"}
+{"id":"ack_alert","action":"click_button","button_text":"👀 Понял","message_text":"День уже закончился","timeout_ms":60000}

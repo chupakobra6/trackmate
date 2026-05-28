@@ -1,7 +1,6 @@
-# Covers creating one daily task in the Today topic.
+# Проверяет создание одной задачи дня в теме «Сегодня».
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_task_text","action":"send_text","text":"Trackmate E2E: закончить smoke-проверку Go бота"}
+{"id":"send_task_text","action":"send_text","text":"Закончить локальную проверку Go-бота"}
 {"id":"wait_task_card","action":"wait","timeout_ms":90000}
-{"id":"dump_created_task","action":"dump_state"}

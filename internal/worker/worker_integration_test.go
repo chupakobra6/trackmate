@@ -52,6 +52,9 @@ func TestWorkerTransitionsDispatchesAlertAndPublishesProgress(t *testing.T) {
 	if len(fake.sent) != 2 {
 		t.Fatalf("expected alert and progress sends, got %d", len(fake.sent))
 	}
+	if fake.sent[0].MessageThreadID != 10 || fake.sent[0].ReplyToMessageID != 555 {
+		t.Fatalf("alert was not sent into today thread as a task reply: %+v", fake.sent[0])
+	}
 	if fake.sent[1].MessageThreadID != 20 {
 		t.Fatalf("progress was not published into progress thread: %+v", fake.sent[1])
 	}

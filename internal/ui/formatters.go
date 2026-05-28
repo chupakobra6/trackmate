@@ -93,9 +93,29 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			"",
 			renderSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
+	case domain.ProgressCustomUpdate:
+		return formatCustomProgressUpdate(payload)
 	default:
 		return "🔔 Системное сообщение\n" + fmt.Sprint(payload)
 	}
+}
+
+func formatCustomProgressUpdate(payload map[string]any) string {
+	title := payloadString(payload, "title")
+	if title == "" {
+		title = "Обновление Trackmate"
+	}
+	lines := []string{"🚀 <b>" + html.EscapeString(title) + "</b>"}
+	if body := payloadString(payload, "body"); body != "" {
+		lines = append(lines, "", html.EscapeString(body))
+	}
+	if items := payloadStringSlice(payload, "items"); len(items) > 0 {
+		lines = append(lines, "")
+		for _, item := range items {
+			lines = append(lines, "• "+html.EscapeString(item))
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 func AlertText(kind domain.AlertKind) string {
@@ -208,4 +228,21 @@ func payloadInt64(payload map[string]any, key string) int64 {
 	default:
 		return 0
 	}
+}
+
+func payloadStringSlice(payload map[string]any, key string) []string {
+	values, ok := payload[key].([]any)
+	if !ok {
+		if typed, ok := payload[key].([]string); ok {
+			return typed
+		}
+		return nil
+	}
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if item, ok := value.(string); ok && item != "" {
+			result = append(result, item)
+		}
+	}
+	return result
 }

@@ -3,6 +3,7 @@ package bot_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/igor/trackmate/internal/bot"
 	"github.com/igor/trackmate/internal/domain"
@@ -49,6 +50,86 @@ func TestSetupCreatesOnlyTodayAndProgress(t *testing.T) {
 	}
 	if _, ok := bindings[domain.TopicProgress]; !ok {
 		t.Fatal("progress binding missing")
+	}
+}
+
+func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicToday, 10, "Сегодня"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicProgress, 11, "Прогресс"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Приложить фотоотчет")
+	if err != nil || !created {
+		t.Fatalf("task created=%v err=%v", created, err)
+	}
+	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport, map[string]any{
+		"thread_id":         10,
+		"task_id":           task.ID,
+		"status":            string(domain.DailyTaskDone),
+		"prompt_message_id": 101,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	first := telegram.Message{
+		MessageID:       201,
+		MessageThreadID: 10,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Caption:         "Фотоотчет: задача закрыта двумя изображениями.",
+		MediaGroupID:    "album-1",
+		Photo:           []telegram.PhotoSize{{}},
+	}
+	second := first
+	second.MessageID = 202
+
+	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 1, Message: &first}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 2, Message: &second}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, found, err := q.GetTask(ctx, task.ID)
+	if err != nil || !found {
+		t.Fatalf("task found=%v err=%v", found, err)
+	}
+	if updated.Status != domain.DailyTaskDone || updated.ReportText == nil || *updated.ReportText != "Фотоотчет: задача закрыта двумя изображениями." {
+		t.Fatalf("unexpected report state: %+v", updated)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || found {
+		t.Fatalf("pending input found=%v err=%v", found, err)
+	}
+	var progressCount int
+	if err := store.Pool().QueryRow(ctx, `
+SELECT count(*)
+FROM progress_events
+WHERE workspace_group_id = $1 AND daily_task_id = $2 AND event_type = 'daily_task.closed'
+`, workspace.ID, task.ID).Scan(&progressCount); err != nil {
+		t.Fatal(err)
+	}
+	if progressCount != 1 {
+		t.Fatalf("progress events = %d, want 1", progressCount)
 	}
 }
 

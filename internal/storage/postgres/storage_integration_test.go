@@ -81,6 +81,32 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	assertNoTable(t, store, "material_participant_progresses")
 	assertEnumLabels(t, store, "topickey", []string{"today", "progress"})
 	assertEnumLabels(t, store, "progresseventtype", []string{"daily_task.closed", "daily_task.auto_failed", "system_alert", "custom_update"})
+
+	if err := q.SetSetupMessageID(ctx, workspace.ID, 777); err != nil {
+		t.Fatal(err)
+	}
+	if err := q.MarkWorkspaceReady(ctx, workspace.ID); err != nil {
+		t.Fatal(err)
+	}
+	reset, err := q.ResetWorkspaceForE2E(ctx, workspace.ChatID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reset.DeletedTasks != 1 || reset.DeletedAlerts != 1 || reset.DeletedPending != 0 || reset.DeletedProgress != 1 || reset.ResetSetup != 1 {
+		t.Fatalf("unexpected reset result: %+v", reset)
+	}
+	reloaded, found, err := q.GetWorkspaceByChatID(ctx, workspace.ChatID)
+	if err != nil || !found {
+		t.Fatalf("workspace after reset found=%v err=%v", found, err)
+	}
+	if reloaded.SetupStatus != domain.GroupSetupPending || reloaded.SetupMessageID != nil {
+		t.Fatalf("setup reset mismatch: status=%s setup_message_id=%v", reloaded.SetupStatus, reloaded.SetupMessageID)
+	}
+	if bindings, err := q.ListTopicBindings(ctx, workspace.ID); err != nil {
+		t.Fatal(err)
+	} else if len(bindings) != 2 {
+		t.Fatalf("topic bindings should stay intact after reset, got %d", len(bindings))
+	}
 }
 
 func assertNoTable(t *testing.T, store *postgres.Store, name string) {

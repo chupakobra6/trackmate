@@ -7,6 +7,7 @@ import (
 
 	appprogress "github.com/igor/trackmate/internal/app/progress"
 	apptoday "github.com/igor/trackmate/internal/app/today"
+	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -62,10 +63,20 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 		}
 		if !found {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
-			continue
+			return nil
+		}
+		todayTopic, found, err := r.Store.Queries().GetTopicBinding(ctx, workspace.ID, domain.TopicToday)
+		if err != nil {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			return err
+		}
+		if !found {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			return nil
 		}
 		message, err := r.TG.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              workspace.ChatID,
+			MessageThreadID:     todayTopic.ThreadID,
 			Text:                ui.AlertText(alert.AlertKind),
 			ReplyToMessageID:    optionalInt64(task.TodayCardMessageID),
 			ReplyMarkup:         ui.AlertKeyboard(task.ID, alert.ID),
@@ -76,7 +87,7 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			if r.Logger != nil {
 				r.Logger.WarnContext(ctx, "alert_dispatch_failed", "alert_id", alert.ID, "error", err)
 			}
-			continue
+			return err
 		}
 		if err := r.Store.Queries().MarkAlertSent(ctx, alert.ID, message.MessageID); err != nil {
 			return err

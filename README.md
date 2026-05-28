@@ -69,6 +69,7 @@ make docker-reset        # remove Docker volume and restart stack
 make docker-db-backup
 make docker-db-backup-stop
 make docker-db-restore FILE=backups/trackmate.dump
+make clean-legacy          # remove old Python caches after cutover
 ```
 
 Storage integration tests require a disposable PostgreSQL URL:

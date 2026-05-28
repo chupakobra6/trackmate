@@ -31,6 +31,9 @@ Existing Python/Alembic databases can be opened by the Go migration command:
    - recreates `progresseventtype` without material event types;
    - drops material-only enum types.
 3. `202605280003_drop_alembic_version.sql` removes the old Alembic metadata table.
+4. `202605280004_trackmate_10_go_announcement.sql` creates one pending `custom_update`
+   progress event for existing workspaces with a Progress topic, so the worker can
+   publish the Trackmate 1.0 Go announcement once after cutover.
 
 The migration does not drop daily-task, participant, alert, or non-material progress history.
 
@@ -70,6 +73,7 @@ Required Telegram E2E scenarios:
 - setup smoke;
 - Today create task;
 - report done;
+- report photo album/media group;
 - wrong-topic pending ignored;
 - progress topic event;
 - alert ack with control clock/tick.

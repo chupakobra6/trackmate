@@ -27,3 +27,23 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatProgressEventCustomUpdate(t *testing.T) {
+	event := postgres.ProgressEvent{
+		EventType: domain.ProgressCustomUpdate,
+		Payload: map[string]any{
+			"title": "Встречайте: Trackmate 1.0 на Go",
+			"body":  "Бот переехал на новый runtime.",
+			"items": []any{
+				"сохранили задачи, отчеты и прогресс",
+				"удалили старый Materials",
+			},
+		},
+	}
+	got := FormatProgressEvent(event)
+	for _, part := range []string{"Встречайте: Trackmate 1.0 на Go", "новый runtime", "сохранили задачи", "удалили старый Materials"} {
+		if !strings.Contains(got, part) {
+			t.Fatalf("formatted custom update missing %q: %s", part, got)
+		}
+	}
+}

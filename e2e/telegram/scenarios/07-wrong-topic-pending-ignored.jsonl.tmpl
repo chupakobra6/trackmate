@@ -1,11 +1,9 @@
-# Covers pending task input ignoring a message sent in a different forum topic.
+# Проверяет, что ожидание задачи не съедает сообщение из другой темы.
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
 {"id":"select_wrong_topic","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{WRONG_THREAD_ID}}}
-{"id":"send_decoy_to_wrong_topic","action":"send_text","text":"Trackmate E2E decoy: this must not satisfy the Today pending input"}
-{"id":"dump_wrong_topic_after_decoy","action":"dump_state"}
+{"id":"send_decoy_to_wrong_topic","action":"send_text","text":"Это сообщение отправлено не в тему «Сегодня» и не должно стать задачей."}
 {"id":"return_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
-{"id":"send_real_task","action":"send_text","text":"Trackmate E2E: pending input accepted only in Today topic"}
+{"id":"send_real_task","action":"send_text","text":"Задача принимается только в теме «Сегодня»"}
 {"id":"wait_real_task_card","action":"wait","timeout_ms":90000}
-{"id":"dump_wrong_topic_pending_ignored","action":"dump_state"}

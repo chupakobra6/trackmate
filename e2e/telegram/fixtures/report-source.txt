@@ -1,4 +1,4 @@
-Trackmate E2E report attachment.
+Файл для локального E2E-отчета Trackmate.
 
 This fixture is safe to send to a disposable test group when checking document
 handling in daily-task reports.

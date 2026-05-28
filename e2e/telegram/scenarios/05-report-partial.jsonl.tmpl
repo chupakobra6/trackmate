@@ -1,13 +1,12 @@
-# Covers closing a daily task as partially done.
+# Проверяет отчет со статусом «выполнена частично».
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_task","action":"send_text","text":"Trackmate E2E partial: проверить несколько веток"}
+{"id":"send_task","action":"send_text","text":"Проверить несколько веток отчета"}
 {"id":"wait_task_card","action":"wait","timeout_ms":90000}
-{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","timeout_ms":60000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","message_text":"Проверить несколько веток отчета","timeout_ms":60000}
 {"id":"wait_status_picker","action":"wait","timeout_ms":60000}
-{"id":"choose_partial","action":"click_button","button_text":"🔸 Выполнена частично","timeout_ms":60000}
+{"id":"choose_partial","action":"click_button","button_text":"🔸 Выполнена частично","message_text":"Выбери итог дня","timeout_ms":60000}
 {"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_partial_report","action":"send_text","text":"Частично: основной путь работает, один пункт оставлен на повтор."}
+{"id":"send_partial_report","action":"send_text","text":"Основной путь работает, вторую часть перенесу."}
 {"id":"wait_partial_report_saved","action":"wait","timeout_ms":90000}
-{"id":"dump_partial_report","action":"dump_state"}

@@ -75,6 +75,10 @@ Alerts are claimed with `FOR UPDATE SKIP LOCKED`. Sent alert messages store thei
 
 Progress events are also claimed with `FOR UPDATE SKIP LOCKED`. Transient Telegram errors requeue; permanent failures mark the event failed.
 
+`custom_update` events are formatted as readable product announcements. The Go
+cutover migration uses this to publish the one-time Trackmate 1.0 announcement in
+the Progress topic after an existing database is upgraded.
+
 ## Data Model
 
 Core tables:
