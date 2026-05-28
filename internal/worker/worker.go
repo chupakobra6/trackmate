@@ -1,0 +1,92 @@
+package worker
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	appprogress "github.com/igor/trackmate/internal/app/progress"
+	apptoday "github.com/igor/trackmate/internal/app/today"
+	"github.com/igor/trackmate/internal/storage/postgres"
+	"github.com/igor/trackmate/internal/telegram"
+	"github.com/igor/trackmate/internal/ui"
+)
+
+type Runner struct {
+	Store  *postgres.Store
+	TG     telegram.API
+	Logger *slog.Logger
+}
+
+func (r *Runner) Tick(ctx context.Context, now time.Time) error {
+	acquired, err := r.Store.TryAcquireWorkerLock(ctx)
+	if err != nil || !acquired {
+		return err
+	}
+	defer r.Store.ReleaseWorkerLock(ctx)
+
+	if err := r.Store.InTx(ctx, func(q *postgres.Queries) error {
+		current, err := q.CurrentNow(ctx, now.UTC())
+		if err != nil {
+			return err
+		}
+		return apptoday.RunDailyTaskTransitions(ctx, q, current)
+	}); err != nil {
+		return err
+	}
+	if err := r.DispatchAlerts(ctx); err != nil {
+		return err
+	}
+	return appprogress.PublishPending(ctx, r.Store, r.TG)
+}
+
+func (r *Runner) DispatchAlerts(ctx context.Context) error {
+	for {
+		alert, ok, err := r.Store.Queries().ClaimPendingAlert(ctx)
+		if err != nil || !ok {
+			return err
+		}
+		task, found, err := r.Store.Queries().GetTask(ctx, alert.DailyTaskID)
+		if err != nil {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			return err
+		}
+		if !found {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			continue
+		}
+		workspace, found, err := r.Store.Queries().GetWorkspaceByID(ctx, task.WorkspaceGroupID)
+		if err != nil {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			return err
+		}
+		if !found {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			continue
+		}
+		message, err := r.TG.SendMessage(ctx, telegram.SendMessageRequest{
+			ChatID:              workspace.ChatID,
+			Text:                ui.AlertText(alert.AlertKind),
+			ReplyToMessageID:    optionalInt64(task.TodayCardMessageID),
+			ReplyMarkup:         ui.AlertKeyboard(task.ID, alert.ID),
+			DisableNotification: true,
+		})
+		if err != nil {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			if r.Logger != nil {
+				r.Logger.WarnContext(ctx, "alert_dispatch_failed", "alert_id", alert.ID, "error", err)
+			}
+			continue
+		}
+		if err := r.Store.Queries().MarkAlertSent(ctx, alert.ID, message.MessageID); err != nil {
+			return err
+		}
+	}
+}
+
+func optionalInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}

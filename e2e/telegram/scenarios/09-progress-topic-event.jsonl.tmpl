@@ -1,0 +1,15 @@
+# Covers worker-published progress event after a daily task is closed.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_task","action":"send_text","text":"Trackmate E2E: publish progress event"}
+{"id":"wait_task_card","action":"wait","timeout_ms":90000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","timeout_ms":60000}
+{"id":"wait_status_picker","action":"wait","timeout_ms":60000}
+{"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","timeout_ms":60000}
+{"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_report","action":"send_text","text":"Готово: ожидаю публикацию события в теме Прогресс."}
+{"id":"wait_report_saved","action":"wait","timeout_ms":90000}
+{"id":"select_progress","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
+{"id":"wait_progress_event","action":"wait","timeout_ms":120000}
+{"id":"dump_progress_event","action":"dump_state"}

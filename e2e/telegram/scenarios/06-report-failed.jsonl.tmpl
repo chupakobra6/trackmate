@@ -1,0 +1,13 @@
+# Covers closing a daily task as failed.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_task","action":"send_text","text":"Trackmate E2E failed: намеренно не успеть"}
+{"id":"wait_task_card","action":"wait","timeout_ms":90000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","timeout_ms":60000}
+{"id":"wait_status_picker","action":"wait","timeout_ms":60000}
+{"id":"choose_failed","action":"click_button","button_text":"❌ Не выполнена","timeout_ms":60000}
+{"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_failed_report","action":"send_text","text":"Не выполнено: фиксирую отрицательный исход для E2E."}
+{"id":"wait_failed_report_saved","action":"wait","timeout_ms":90000}
+{"id":"dump_failed_report","action":"dump_state"}

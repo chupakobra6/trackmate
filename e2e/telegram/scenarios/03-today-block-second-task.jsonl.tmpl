@@ -1,0 +1,9 @@
+# Covers the one-daily-task guard for the same user and day.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_first_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_first_task_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_first_task","action":"send_text","text":"Trackmate E2E: первая задача дня"}
+{"id":"wait_first_task_card","action":"wait","timeout_ms":90000}
+{"id":"try_second_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_second_task_guard","action":"wait","timeout_ms":30000}
+{"id":"dump_second_task_guard","action":"dump_state"}

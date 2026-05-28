@@ -1,0 +1,8 @@
+# Covers setup checklist refresh and setup action in the group root chat.
+{"id":"select_group","action":"select_chat","chat":"@your_bot_username"}
+{"id":"setup_command","action":"send_text","text":"/setup"}
+{"id":"wait_setup_checklist","action":"wait","timeout_ms":60000}
+{"id":"refresh_checklist","action":"click_button","button_text":"🔄 Проверить снова","timeout_ms":60000}
+{"id":"start_group_setup","action":"click_button","button_text":"✨ Оформить группу","timeout_ms":60000}
+{"id":"wait_group_setup","action":"wait","timeout_ms":90000}
+{"id":"dump_setup_smoke","action":"dump_state"}

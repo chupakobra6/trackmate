@@ -1,22 +1,30 @@
-FROM python:3.14-slim
+FROM golang:1.24-bookworm AS build
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    UV_LINK_MODE=copy
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY cmd ./cmd
+COPY internal ./internal
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate \
+    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-api ./cmd/trackmate-api \
+    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-worker ./cmd/trackmate-worker \
+    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-healthcheck ./cmd/trackmate-healthcheck
+
+FROM debian:bookworm-slim
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
     && rm -rf /var/lib/apt/lists/*
-
-RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
-COPY src ./src
-COPY alembic.ini ./
-COPY alembic ./alembic
+COPY --from=build /out/migrate /usr/local/bin/migrate
+COPY --from=build /out/trackmate-api /usr/local/bin/trackmate-api
+COPY --from=build /out/trackmate-worker /usr/local/bin/trackmate-worker
+COPY --from=build /out/trackmate-healthcheck /usr/local/bin/trackmate-healthcheck
+COPY migrations ./migrations
 
-RUN uv sync --no-dev
-
-CMD ["uv", "run", "python", "-m", "trackmate.entrypoints.api"]
+CMD ["trackmate-api"]

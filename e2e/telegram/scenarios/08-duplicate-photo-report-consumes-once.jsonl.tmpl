@@ -1,0 +1,15 @@
+# Covers duplicate photo report dispatch after a report status is selected.
+# Current MTProto runner cannot send a real media group/album; this approximates the live flow with two photo messages.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_task","action":"send_text","text":"Trackmate E2E: duplicate photo report"}
+{"id":"wait_task_card","action":"wait","timeout_ms":90000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","timeout_ms":60000}
+{"id":"wait_status_picker","action":"wait","timeout_ms":60000}
+{"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","timeout_ms":60000}
+{"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_first_photo_report","action":"send_photo","path":"@fixtures/e2e-photo.png","caption":"Trackmate E2E duplicate photo report"}
+{"id":"wait_first_photo_saved","action":"wait","timeout_ms":90000}
+{"id":"send_duplicate_photo_report","action":"send_photo","path":"@fixtures/e2e-photo.png","caption":"Trackmate E2E duplicate photo report should not create a second report"}
+{"id":"dump_duplicate_photo_report","action":"dump_state"}

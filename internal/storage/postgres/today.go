@@ -1,0 +1,416 @@
+package postgres
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/igor/trackmate/internal/domain"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+func (q *Queries) GetOpenTask(ctx context.Context, workspaceID int64, participantID int64) (DailyTask, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+       report_text, report_status::text, today_card_message_id, created_at, reported_at,
+       awaiting_report_at, failed_at
+FROM daily_tasks
+WHERE workspace_group_id = $1
+  AND participant_id = $2
+  AND status IN ('active', 'awaiting_report')
+ORDER BY id DESC
+LIMIT 1
+`, workspaceID, participantID)
+	task, err := scanDailyTask(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DailyTask{}, false, nil
+	}
+	return task, err == nil, err
+}
+
+func (q *Queries) GetTaskForDate(ctx context.Context, workspaceID int64, participantID int64, taskDate time.Time) (DailyTask, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+       report_text, report_status::text, today_card_message_id, created_at, reported_at,
+       awaiting_report_at, failed_at
+FROM daily_tasks
+WHERE workspace_group_id = $1 AND participant_id = $2 AND task_date = $3::date
+`, workspaceID, participantID, taskDate)
+	task, err := scanDailyTask(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DailyTask{}, false, nil
+	}
+	return task, err == nil, err
+}
+
+func (q *Queries) CreateDailyTask(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, taskDate time.Time, text string) (DailyTask, bool, error) {
+	row := q.db.QueryRow(ctx, `
+INSERT INTO daily_tasks (workspace_group_id, participant_id, owner_user_id, task_date, text, status, created_at)
+VALUES ($1, $2, $3, $4::date, $5, 'active', now())
+ON CONFLICT (workspace_group_id, participant_id, task_date) DO NOTHING
+RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+       report_text, report_status::text, today_card_message_id, created_at, reported_at,
+       awaiting_report_at, failed_at
+`, workspaceID, participantID, ownerUserID, taskDate, text)
+	task, err := scanDailyTask(row)
+	if err == nil {
+		return task, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return DailyTask{}, false, err
+	}
+	existing, found, err := q.GetTaskForDate(ctx, workspaceID, participantID, taskDate)
+	return existing, !found, err
+}
+
+func (q *Queries) SetDailyTaskCardMessageID(ctx context.Context, taskID int64, messageID int64) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE daily_tasks
+SET today_card_message_id = $2
+WHERE id = $1
+`, taskID, messageID)
+	return err
+}
+
+func (q *Queries) GetTask(ctx context.Context, taskID int64) (DailyTask, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+       report_text, report_status::text, today_card_message_id, created_at, reported_at,
+       awaiting_report_at, failed_at
+FROM daily_tasks
+WHERE id = $1
+`, taskID)
+	task, err := scanDailyTask(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DailyTask{}, false, nil
+	}
+	return task, err == nil, err
+}
+
+func (q *Queries) ListTasksForTransition(ctx context.Context) ([]DailyTask, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+       report_text, report_status::text, today_card_message_id, created_at, reported_at,
+       awaiting_report_at, failed_at
+FROM daily_tasks
+WHERE status IN ('active', 'awaiting_report')
+ORDER BY id ASC
+`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tasks := []DailyTask{}
+	for rows.Next() {
+		task, err := scanDailyTaskRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		tasks = append(tasks, task)
+	}
+	return tasks, rows.Err()
+}
+
+func (q *Queries) UpdateTaskAwaitingReport(ctx context.Context, taskID int64, now time.Time) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE daily_tasks
+SET status = 'awaiting_report', awaiting_report_at = $2
+WHERE id = $1 AND status = 'active'
+`, taskID, now.UTC())
+	return err
+}
+
+func (q *Queries) UpdateTaskFailed(ctx context.Context, taskID int64, now time.Time) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE daily_tasks
+SET status = 'failed', failed_at = $2
+WHERE id = $1 AND status IN ('active', 'awaiting_report')
+`, taskID, now.UTC())
+	return err
+}
+
+func (q *Queries) SubmitTaskReport(ctx context.Context, taskID int64, ownerUserID int64, status domain.DailyTaskStatus, reportHTML string, displayName string) (bool, error) {
+	task, found, err := q.GetTask(ctx, taskID)
+	if err != nil || !found {
+		return false, err
+	}
+	if task.OwnerUserID != ownerUserID || !task.Status.IsOpen() || !status.IsFinalReport() {
+		return false, nil
+	}
+	_, err = q.db.Exec(ctx, `
+UPDATE daily_tasks
+SET status = $2::dailytaskstatus,
+    report_status = $2::dailytaskstatus,
+    report_text = $3,
+    reported_at = now()
+WHERE id = $1 AND owner_user_id = $4 AND status IN ('active', 'awaiting_report')
+`, taskID, string(status), reportHTML, ownerUserID)
+	if err != nil {
+		return false, err
+	}
+	participant, _, _ := q.GetParticipantByID(ctx, task.ParticipantID)
+	workspace, _, _ := q.GetWorkspaceByID(ctx, task.WorkspaceGroupID)
+	todayBinding, hasToday, _ := q.GetTopicBinding(ctx, task.WorkspaceGroupID, domain.TopicToday)
+	var username any
+	var participantUserID any = ownerUserID
+	if participant.ID != 0 {
+		participantUserID = participant.UserID
+		if participant.Username != nil {
+			username = *participant.Username
+		}
+	}
+	payload := map[string]any{
+		"status":       string(status),
+		"report_html":  reportHTML,
+		"user_id":      participantUserID,
+		"display_name": displayName,
+		"username":     username,
+		"task_html":    task.Text,
+	}
+	if workspace.ID != 0 {
+		var threadID int64
+		if hasToday {
+			threadID = todayBinding.ThreadID
+		}
+		payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+	}
+	if _, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, domain.ProgressDailyTaskClosed, payload, &task.ParticipantID, &task.ID); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (q *Queries) GetParticipantByID(ctx context.Context, participantID int64) (Participant, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, workspace_group_id, user_id, username, display_name, is_active, created_at, updated_at
+FROM participants
+WHERE id = $1
+`, participantID)
+	item, err := scanParticipant(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Participant{}, false, nil
+	}
+	return item, err == nil, err
+}
+
+func (q *Queries) GetOrCreateAlert(ctx context.Context, taskID int64, kind domain.AlertKind) (DailyTaskAlert, error) {
+	row := q.db.QueryRow(ctx, `
+INSERT INTO daily_task_alerts (daily_task_id, alert_kind, dispatch_status, created_at)
+VALUES ($1, $2::alertkind, 'pending', now())
+ON CONFLICT (daily_task_id, alert_kind) DO UPDATE SET daily_task_id = EXCLUDED.daily_task_id
+RETURNING id, daily_task_id, alert_kind::text, dispatch_status::text, telegram_message_id, acknowledged_at, created_at
+`, taskID, string(kind))
+	return scanAlert(row)
+}
+
+func (q *Queries) ListAlertsForTask(ctx context.Context, taskID int64) ([]DailyTaskAlert, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT id, daily_task_id, alert_kind::text, dispatch_status::text, telegram_message_id, acknowledged_at, created_at
+FROM daily_task_alerts
+WHERE daily_task_id = $1
+ORDER BY id ASC
+`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var alerts []DailyTaskAlert
+	for rows.Next() {
+		alert, err := scanAlertRows(rows)
+		if err != nil {
+			return nil, err
+		}
+		alerts = append(alerts, alert)
+	}
+	return alerts, rows.Err()
+}
+
+func (q *Queries) AcknowledgeAlert(ctx context.Context, alertID int64, now time.Time) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE daily_task_alerts
+SET acknowledged_at = COALESCE(acknowledged_at, $2), telegram_message_id = NULL
+WHERE id = $1
+`, alertID, now.UTC())
+	return err
+}
+
+func (q *Queries) ClearAlertMessage(ctx context.Context, alertID int64) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE daily_task_alerts SET telegram_message_id = NULL WHERE id = $1
+`, alertID)
+	return err
+}
+
+func (q *Queries) GetAlert(ctx context.Context, alertID int64) (DailyTaskAlert, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, daily_task_id, alert_kind::text, dispatch_status::text, telegram_message_id, acknowledged_at, created_at
+FROM daily_task_alerts
+WHERE id = $1
+`, alertID)
+	alert, err := scanAlert(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DailyTaskAlert{}, false, nil
+	}
+	return alert, err == nil, err
+}
+
+func (q *Queries) GetPendingInput(ctx context.Context, workspaceID int64, userID int64) (PendingInput, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, workspace_group_id, user_id, kind, payload, created_at
+FROM pending_inputs
+WHERE workspace_group_id = $1 AND user_id = $2
+`, workspaceID, userID)
+	pending, err := scanPending(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PendingInput{}, false, nil
+	}
+	return pending, err == nil, err
+}
+
+func (q *Queries) UpsertPendingInput(ctx context.Context, workspaceID int64, userID int64, kind domain.PendingInputKind, payload map[string]any) (PendingInput, error) {
+	encoded, err := encodePayload(payload)
+	if err != nil {
+		return PendingInput{}, err
+	}
+	row := q.db.QueryRow(ctx, `
+INSERT INTO pending_inputs (workspace_group_id, user_id, kind, payload, created_at)
+VALUES ($1, $2, $3, $4, now())
+ON CONFLICT (workspace_group_id, user_id) DO UPDATE SET
+    kind = EXCLUDED.kind,
+    payload = EXCLUDED.payload,
+    created_at = now()
+RETURNING id, workspace_group_id, user_id, kind, payload, created_at
+`, workspaceID, userID, string(kind), encoded)
+	return scanPending(row)
+}
+
+func (q *Queries) ClaimPendingInput(ctx context.Context, workspaceID int64, userID int64, kind domain.PendingInputKind) (PendingInput, bool, error) {
+	row := q.db.QueryRow(ctx, `
+DELETE FROM pending_inputs
+WHERE workspace_group_id = $1 AND user_id = $2 AND kind = $3
+RETURNING id, workspace_group_id, user_id, kind, payload, created_at
+`, workspaceID, userID, string(kind))
+	pending, err := scanPending(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PendingInput{}, false, nil
+	}
+	return pending, err == nil, err
+}
+
+func (q *Queries) ClearPendingInput(ctx context.Context, workspaceID int64, userID int64) error {
+	_, err := q.db.Exec(ctx, `
+DELETE FROM pending_inputs WHERE workspace_group_id = $1 AND user_id = $2
+`, workspaceID, userID)
+	return err
+}
+
+func scanDailyTask(row pgx.Row) (DailyTask, error) {
+	var task DailyTask
+	var status string
+	var reportText, reportStatus pgtype.Text
+	var card pgtype.Int4
+	var reportedAt, awaitingAt, failedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&task.ID, &task.WorkspaceGroupID, &task.ParticipantID, &task.OwnerUserID, &task.TaskDate,
+		&task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
+	); err != nil {
+		return DailyTask{}, err
+	}
+	task.Status = domain.DailyTaskStatus(status)
+	task.ReportText = textFromPg(reportText)
+	task.ReportStatus = statusFromPg(reportStatus)
+	task.TodayCardMessageID = int64FromPgInt4(card)
+	task.ReportedAt = timeFromPg(reportedAt)
+	task.AwaitingReportAt = timeFromPg(awaitingAt)
+	task.FailedAt = timeFromPg(failedAt)
+	return task, nil
+}
+
+func scanDailyTaskRows(rows pgx.Rows) (DailyTask, error) {
+	var task DailyTask
+	var status string
+	var reportText, reportStatus pgtype.Text
+	var card pgtype.Int4
+	var reportedAt, awaitingAt, failedAt pgtype.Timestamptz
+	if err := rows.Scan(
+		&task.ID, &task.WorkspaceGroupID, &task.ParticipantID, &task.OwnerUserID, &task.TaskDate,
+		&task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
+	); err != nil {
+		return DailyTask{}, err
+	}
+	task.Status = domain.DailyTaskStatus(status)
+	task.ReportText = textFromPg(reportText)
+	task.ReportStatus = statusFromPg(reportStatus)
+	task.TodayCardMessageID = int64FromPgInt4(card)
+	task.ReportedAt = timeFromPg(reportedAt)
+	task.AwaitingReportAt = timeFromPg(awaitingAt)
+	task.FailedAt = timeFromPg(failedAt)
+	return task, nil
+}
+
+func scanAlert(row pgx.Row) (DailyTaskAlert, error) {
+	var alert DailyTaskAlert
+	var kind, status string
+	var messageID pgtype.Int4
+	var acknowledged pgtype.Timestamptz
+	if err := row.Scan(&alert.ID, &alert.DailyTaskID, &kind, &status, &messageID, &acknowledged, &alert.CreatedAt); err != nil {
+		return DailyTaskAlert{}, err
+	}
+	alert.AlertKind = domain.AlertKind(kind)
+	alert.DispatchStatus = domain.AlertDispatchStatus(status)
+	alert.TelegramMessageID = int64FromPgInt4(messageID)
+	alert.AcknowledgedAt = timeFromPg(acknowledged)
+	return alert, nil
+}
+
+func scanAlertRows(rows pgx.Rows) (DailyTaskAlert, error) {
+	var alert DailyTaskAlert
+	var kind, status string
+	var messageID pgtype.Int4
+	var acknowledged pgtype.Timestamptz
+	if err := rows.Scan(&alert.ID, &alert.DailyTaskID, &kind, &status, &messageID, &acknowledged, &alert.CreatedAt); err != nil {
+		return DailyTaskAlert{}, err
+	}
+	alert.AlertKind = domain.AlertKind(kind)
+	alert.DispatchStatus = domain.AlertDispatchStatus(status)
+	alert.TelegramMessageID = int64FromPgInt4(messageID)
+	alert.AcknowledgedAt = timeFromPg(acknowledged)
+	return alert, nil
+}
+
+func scanPending(row pgx.Row) (PendingInput, error) {
+	var pending PendingInput
+	var kind string
+	var raw []byte
+	if err := row.Scan(&pending.ID, &pending.WorkspaceGroupID, &pending.UserID, &kind, &raw, &pending.CreatedAt); err != nil {
+		return PendingInput{}, err
+	}
+	pending.Kind = domain.PendingInputKind(kind)
+	pending.Payload = decodePayload(raw)
+	return pending, nil
+}
+
+func optionalInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
+}
+
+func MessageLink(chatID int64, messageID int64, threadID int64) string {
+	if messageID == 0 {
+		return ""
+	}
+	chatText := strconv.FormatInt(chatID, 10)
+	if !strings.HasPrefix(chatText, "-100") {
+		return ""
+	}
+	link := "https://t.me/c/" + chatText[4:] + "/" + strconv.FormatInt(messageID, 10)
+	if threadID != 0 {
+		link += "?thread=" + strconv.FormatInt(threadID, 10)
+	}
+	return link
+}

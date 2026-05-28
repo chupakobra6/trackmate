@@ -1,0 +1,13 @@
+# Covers closing a daily task as done.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_task","action":"send_text","text":"Trackmate E2E done: подготовить отчет"}
+{"id":"wait_task_card","action":"wait","timeout_ms":90000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","timeout_ms":60000}
+{"id":"wait_status_picker","action":"wait","timeout_ms":60000}
+{"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","timeout_ms":60000}
+{"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_done_report","action":"send_text","text":"Готово: проверка выполнена полностью."}
+{"id":"wait_done_report_saved","action":"wait","timeout_ms":90000}
+{"id":"dump_done_report","action":"dump_state"}

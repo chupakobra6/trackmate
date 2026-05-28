@@ -3,30 +3,9 @@
 .env.local
 .env.*.local
 
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.python-version
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Tooling caches
-.pytest_cache/
-.ruff_cache/
-.mypy_cache/
-.pyre/
-.hypothesis/
-
-# Packaging and coverage
+# Tooling caches and build output
 build/
 dist/
-*.egg-info/
-.eggs/
 .coverage
 .coverage.*
 htmlcov/
