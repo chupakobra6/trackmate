@@ -87,6 +87,18 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
 Кнопки на карточках задач кликаются с `message_text`, чтобы в давно используемой
 тестовой группе не попасть в старую кнопку из истории.
 
+После полного прогона можно очистить видимые тестовые сообщения в темах:
+
+```bash
+cd /Users/igor/projects/telegram-bot-e2e-test-tool
+CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
+  /Users/igor/projects/trackmate/tmp/e2e-rendered/99-cleanup-visible-messages.jsonl
+```
+
+Cleanup не удаляет темы, service-сообщения Telegram, starter топика и закрепленное
+сообщение. Для удаления bot-сообщений в supergroup MTProto-пользователь runner-а
+должен иметь права на удаление сообщений.
+
 ## Сценарии
 
 - `00-setup-smoke.jsonl`: `/setup`, повторная проверка условий, оформление группы.
@@ -102,6 +114,8 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
   из двух фото с общей подписью закрывает отчет один раз.
 - `09-progress-topic-event.jsonl.tmpl`: событие появляется в `Прогресс`.
 - `10-alert-ack.jsonl.tmpl`: кнопка `👀 Понял` подтверждает напоминание.
+- `99-cleanup-visible-messages.jsonl.tmpl`: удаляет видимые тестовые сообщения в
+  `Сегодня` и `Прогресс` после прогона.
 
 ## Детерминированные Worker-Сценарии
 
