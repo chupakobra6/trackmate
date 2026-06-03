@@ -273,9 +273,9 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 UPDATE progress_events
 SET payload = CASE
     WHEN event_type = 'daily_task.closed'::progresseventtype THEN
-        payload || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text)
     WHEN event_type = 'daily_task.auto_failed'::progresseventtype THEN
-        payload || jsonb_build_object('task_html', $2::text, 'task_link', $4::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'task_link', $4::text)
     ELSE payload
 END
 WHERE daily_task_id = $1

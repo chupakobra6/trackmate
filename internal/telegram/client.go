@@ -267,7 +267,7 @@ func responseDescription(dest any) string {
 
 func retryAttempts(method string) int {
 	switch method {
-	case "getUpdates", "answerCallbackQuery", "editMessageText", "deleteMessage", "pinChatMessage", "getChat", "getChatMember", "editForumTopic":
+	case "getUpdates", "answerCallbackQuery", "sendMessage", "editMessageText", "deleteMessage", "pinChatMessage", "getChat", "getChatMember", "createForumTopic", "editForumTopic":
 		return 3
 	default:
 		return 1
