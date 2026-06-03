@@ -2,6 +2,7 @@ package bot_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -74,7 +75,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Приложить фотоотчет")
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Приложить фотоотчет", 200, 10)
 	if err != nil || !created {
 		t.Fatalf("task created=%v err=%v", created, err)
 	}
@@ -133,10 +134,145 @@ WHERE workspace_group_id = $1 AND daily_task_id = $2 AND event_type = 'daily_tas
 	}
 }
 
+func TestEditedTaskMessageUpdatesStoredTextAndCard(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicToday, 10, "Сегодня"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Старая задача", 201, 10)
+	if err != nil || !created {
+		t.Fatalf("task created=%v err=%v", created, err)
+	}
+	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	edited := telegram.Message{
+		MessageID:       201,
+		MessageThreadID: 10,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Новая задача",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 3, EditedMessage: &edited}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, found, err := q.GetTask(ctx, task.ID)
+	if err != nil || !found {
+		t.Fatalf("task found=%v err=%v", found, err)
+	}
+	if updated.Text != "Новая задача" {
+		t.Fatalf("task text = %q", updated.Text)
+	}
+	edit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(edit.Text, "Новая задача") {
+		t.Fatalf("task card edit missing new text: found=%v edit=%+v", ok, edit)
+	}
+}
+
+func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicToday, 10, "Сегодня"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicProgress, 11, "Прогресс"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "План дня", 201, 10)
+	if err != nil || !created {
+		t.Fatalf("task created=%v err=%v", created, err)
+	}
+	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+	submitted, err := q.SubmitTaskReport(ctx, task.ID, participant.UserID, domain.DailyTaskDone, "Старый отчет", "Игорь", 301, 10)
+	if err != nil || !submitted {
+		t.Fatalf("submitted=%v err=%v", submitted, err)
+	}
+	events, err := q.ListPendingProgressEvents(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("progress events = %d, want 1", len(events))
+	}
+	if err := q.MarkProgressEventPublished(ctx, events[0].ID, 500, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	edited := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 10,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Новый отчет",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 4, EditedMessage: &edited}); err != nil {
+		t.Fatal(err)
+	}
+
+	updated, found, err := q.GetTask(ctx, task.ID)
+	if err != nil || !found {
+		t.Fatalf("task found=%v err=%v", found, err)
+	}
+	if updated.ReportText == nil || *updated.ReportText != "Новый отчет" {
+		t.Fatalf("report text = %v", updated.ReportText)
+	}
+	cardEdit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(cardEdit.Text, "Новый отчет") {
+		t.Fatalf("task card edit missing new report: found=%v edit=%+v", ok, cardEdit)
+	}
+	progressEdit, ok := fake.findEdit(500)
+	if !ok || !strings.Contains(progressEdit.Text, "Новый отчет") || strings.Contains(progressEdit.Text, "Старый отчет") {
+		t.Fatalf("progress edit mismatch: found=%v edit=%+v", ok, progressEdit)
+	}
+	var reportHTML string
+	if err := store.Pool().QueryRow(ctx, `
+SELECT payload ->> 'report_html'
+FROM progress_events
+WHERE id = $1
+`, events[0].ID).Scan(&reportHTML); err != nil {
+		t.Fatal(err)
+	}
+	if reportHTML != "Новый отчет" {
+		t.Fatalf("progress payload report_html = %q", reportHTML)
+	}
+}
+
 type fakeTelegram struct {
 	createdTopics []string
 	nextThreadID  int64
 	nextMessageID int64
+	edits         []telegram.EditMessageTextRequest
 }
 
 func newFakeTelegram() *fakeTelegram {
@@ -153,7 +289,8 @@ func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessa
 	f.nextMessageID++
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
-func (f *fakeTelegram) EditMessageText(context.Context, telegram.EditMessageTextRequest) error {
+func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditMessageTextRequest) error {
+	f.edits = append(f.edits, request)
 	return nil
 }
 func (f *fakeTelegram) DeleteMessage(context.Context, int64, int64) error {
@@ -178,4 +315,13 @@ func (f *fakeTelegram) CreateForumTopic(_ context.Context, request telegram.Crea
 }
 func (f *fakeTelegram) EditForumTopic(context.Context, telegram.EditForumTopicRequest) error {
 	return nil
+}
+
+func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextRequest, bool) {
+	for i := len(f.edits) - 1; i >= 0; i-- {
+		if f.edits[i].MessageID == messageID {
+			return f.edits[i], true
+		}
+	}
+	return telegram.EditMessageTextRequest{}, false
 }

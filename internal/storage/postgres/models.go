@@ -42,20 +42,24 @@ type Participant struct {
 }
 
 type DailyTask struct {
-	ID                 int64
-	WorkspaceGroupID   int64
-	ParticipantID      int64
-	OwnerUserID        int64
-	TaskDate           time.Time
-	Text               string
-	Status             domain.DailyTaskStatus
-	ReportText         *string
-	ReportStatus       *domain.DailyTaskStatus
-	TodayCardMessageID *int64
-	CreatedAt          time.Time
-	ReportedAt         *time.Time
-	AwaitingReportAt   *time.Time
-	FailedAt           *time.Time
+	ID                    int64
+	WorkspaceGroupID      int64
+	ParticipantID         int64
+	OwnerUserID           int64
+	TaskDate              time.Time
+	Text                  string
+	Status                domain.DailyTaskStatus
+	ReportText            *string
+	ReportStatus          *domain.DailyTaskStatus
+	TodayCardMessageID    *int64
+	TaskMessageID         *int64
+	TaskMessageThreadID   *int64
+	ReportMessageID       *int64
+	ReportMessageThreadID *int64
+	CreatedAt             time.Time
+	ReportedAt            *time.Time
+	AwaitingReportAt      *time.Time
+	FailedAt              *time.Time
 }
 
 type DailyTaskAlert struct {

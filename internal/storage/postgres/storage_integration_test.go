@@ -31,19 +31,22 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	}
 
 	taskDate := time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC)
-	firstTask, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, taskDate, "Task")
+	firstTask, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, taskDate, "Task", 201, 11)
 	if err != nil || !created {
 		t.Fatalf("first task created=%v err=%v", created, err)
 	}
 	if err := q.SetDailyTaskCardMessageID(ctx, firstTask.ID, 100); err != nil {
 		t.Fatal(err)
 	}
-	secondTask, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, taskDate, "Task 2")
+	secondTask, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, taskDate, "Task 2", 202, 11)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if created || secondTask.ID != firstTask.ID {
 		t.Fatalf("expected uniqueness to return existing task, created=%v second=%d first=%d", created, secondTask.ID, firstTask.ID)
+	}
+	if firstTask.TaskMessageID == nil || *firstTask.TaskMessageID != 201 || firstTask.TaskMessageThreadID == nil || *firstTask.TaskMessageThreadID != 11 {
+		t.Fatalf("source message was not stored: %+v", firstTask)
 	}
 
 	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport, map[string]any{"thread_id": 11, "task_id": firstTask.ID}); err != nil {
@@ -68,6 +71,16 @@ func TestStorageIntegrationContracts(t *testing.T) {
 
 	if _, err := q.CreateProgressEvent(ctx, workspace.ID, domain.ProgressDailyTaskClosed, map[string]any{"status": "done"}, &participant.ID, &firstTask.ID); err != nil {
 		t.Fatal(err)
+	}
+	updatedTask, syncedEvents, ok, err := q.UpdateTaskTextFromSourceMessage(ctx, workspace.ID, participant.UserID, 201, 11, "Updated task")
+	if err != nil || !ok {
+		t.Fatalf("source edit ok=%v err=%v", ok, err)
+	}
+	if updatedTask.Text != "Updated task" {
+		t.Fatalf("updated task text = %q", updatedTask.Text)
+	}
+	if len(syncedEvents) != 1 || syncedEvents[0].Payload["task_html"] != "Updated task" {
+		t.Fatalf("progress payload was not synced: %+v", syncedEvents)
 	}
 	if _, ok, err := q.ClaimProgressEvent(ctx); err != nil || !ok {
 		t.Fatalf("progress claim ok=%v err=%v", ok, err)

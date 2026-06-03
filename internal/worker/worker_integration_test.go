@@ -30,7 +30,7 @@ func TestWorkerTransitionsDispatchesAlertAndPublishesProgress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC), "Task")
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC), "Task", 200, 10)
 	if err != nil || !created {
 		t.Fatalf("task created=%v err=%v", created, err)
 	}

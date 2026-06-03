@@ -25,6 +25,34 @@ func MessageInputKind(message Message) string {
 	return "non_text"
 }
 
+type MessageInput struct {
+	Kind     string
+	TextHTML string
+	Source   MessageSource
+}
+
+type MessageSource struct {
+	ThreadID  int64
+	MessageID int64
+	UserID    int64
+}
+
+func NewMessageInput(message Message) MessageInput {
+	var userID int64
+	if message.From != nil {
+		userID = message.From.ID
+	}
+	return MessageInput{
+		Kind:     MessageInputKind(message),
+		TextHTML: MessageInputHTML(message),
+		Source: MessageSource{
+			ThreadID:  message.MessageThreadID,
+			MessageID: message.MessageID,
+			UserID:    userID,
+		},
+	}
+}
+
 func MessageInputText(message Message) string {
 	if message.Text != "" {
 		return message.Text

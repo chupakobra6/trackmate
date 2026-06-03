@@ -67,6 +67,13 @@ updates the task card, and creates a `daily_task.closed` progress event.
 
 Wrong-topic input is ignored without consuming pending state.
 
+When Telegram sends `edited_message` for an already accepted user input,
+Trackmate matches it by the stored source `message_id`/thread/user in
+`daily_tasks`. Task text edits update the stored task, the Today card, and any
+existing task progress payload. Report edits update the stored report, the Today
+card, pending progress payloads, and already published Progress messages. This
+path is silent: no additional Telegram messages are sent to the group.
+
 ## Worker Flow
 
 Each tick takes a PostgreSQL advisory lock before transitions.

@@ -63,7 +63,7 @@ func (c *Client) PollUpdates(ctx context.Context, offset int64, timeoutSeconds i
 	body := map[string]any{
 		"offset":          offset,
 		"timeout":         timeoutSeconds,
-		"allowed_updates": []string{"message", "callback_query", "my_chat_member"},
+		"allowed_updates": []string{"message", "edited_message", "callback_query", "my_chat_member"},
 	}
 	var response getUpdatesResponse
 	if err := c.callJSON(ctx, "getUpdates", body, &response); err != nil {

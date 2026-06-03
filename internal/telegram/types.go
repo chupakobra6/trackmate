@@ -20,10 +20,11 @@ type API interface {
 }
 
 type Update struct {
-	UpdateID     int64              `json:"update_id"`
-	Message      *Message           `json:"message,omitempty"`
-	Callback     *CallbackQuery     `json:"callback_query,omitempty"`
-	MyChatMember *ChatMemberUpdated `json:"my_chat_member,omitempty"`
+	UpdateID      int64              `json:"update_id"`
+	Message       *Message           `json:"message,omitempty"`
+	EditedMessage *Message           `json:"edited_message,omitempty"`
+	Callback      *CallbackQuery     `json:"callback_query,omitempty"`
+	MyChatMember  *ChatMemberUpdated `json:"my_chat_member,omitempty"`
 }
 
 type ChatMemberUpdated struct {

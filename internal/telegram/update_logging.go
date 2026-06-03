@@ -28,6 +28,22 @@ func LogIncomingUpdate(ctx context.Context, logger *slog.Logger, update Update) 
 			"username", username,
 			"media_group_id", msg.MediaGroupID,
 		)...)
+	case update.EditedMessage != nil:
+		msg := update.EditedMessage
+		var userID int64
+		var username string
+		if msg.From != nil {
+			userID = msg.From.ID
+			username = msg.From.Username
+		}
+		logger.InfoContext(ctx, "telegram_incoming_edited_message", observability.LogAttrs(ctx,
+			"chat_id", msg.Chat.ID,
+			"message_id", msg.MessageID,
+			"thread_id", msg.MessageThreadID,
+			"user_id", userID,
+			"username", username,
+			"media_group_id", msg.MediaGroupID,
+		)...)
 	case update.Callback != nil:
 		cb := update.Callback
 		var chatID int64

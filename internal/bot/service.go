@@ -40,6 +40,9 @@ func (s *Service) HandleUpdate(ctx context.Context, update telegram.Update) (Cal
 	if update.Message != nil {
 		return CallbackAnswer{}, s.handleMessage(ctx, *update.Message)
 	}
+	if update.EditedMessage != nil {
+		return CallbackAnswer{}, s.handleEditedMessage(ctx, *update.EditedMessage)
+	}
 	if update.Callback != nil {
 		answer, err := s.handleCallback(ctx, *update.Callback)
 		answer.ID = update.Callback.ID
@@ -69,6 +72,69 @@ func (s *Service) handleMessage(ctx context.Context, message telegram.Message) e
 		return nil
 	}
 	return s.handlePendingInputMessage(ctx, message)
+}
+
+func (s *Service) handleEditedMessage(ctx context.Context, message telegram.Message) error {
+	if message.Chat.Type != "group" && message.Chat.Type != "supergroup" {
+		return nil
+	}
+	if message.From == nil {
+		return nil
+	}
+	workspace, err := s.ensureWorkspaceLoaded(ctx, message.Chat.ID)
+	if err != nil || workspace.ID == 0 {
+		return err
+	}
+	input := telegram.NewMessageInput(message)
+	var task postgres.DailyTask
+	var progressEvents []postgres.ProgressEvent
+	var found bool
+	if err := s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		updated, events, ok, err := q.UpdateTaskTextFromSourceMessage(ctx, workspace.ID, input.Source.UserID, input.Source.MessageID, input.Source.ThreadID, input.TextHTML)
+		if err != nil {
+			return err
+		}
+		if ok {
+			task = updated
+			progressEvents = events
+			found = true
+			return nil
+		}
+		updated, events, ok, err = q.UpdateTaskReportFromSourceMessage(ctx, workspace.ID, input.Source.UserID, input.Source.MessageID, input.Source.ThreadID, input.TextHTML)
+		if err != nil {
+			return err
+		}
+		if ok {
+			task = updated
+			progressEvents = events
+			found = true
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+	if task.TodayCardMessageID != nil {
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:      message.Chat.ID,
+			MessageID:   *task.TodayCardMessageID,
+			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
+			ReplyMarkup: dailyTaskCardKeyboard(task),
+		})
+	}
+	for _, event := range progressEvents {
+		if event.PublishedMessageID == nil {
+			continue
+		}
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:    message.Chat.ID,
+			MessageID: *event.PublishedMessageID,
+			Text:      ui.FormatProgressEvent(event),
+		})
+	}
+	return nil
 }
 
 func (s *Service) handleCallback(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
@@ -302,7 +368,8 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 		if err != nil {
 			return err
 		}
-		task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, user.ID, taskDate, telegram.MessageInputHTML(message))
+		input := telegram.NewMessageInput(message)
+		task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, user.ID, taskDate, input.TextHTML, input.Source.MessageID, input.Source.ThreadID)
 		if err != nil {
 			return err
 		}
@@ -341,7 +408,8 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 		}
 		taskID := payloadInt64(pending.Payload, "task_id")
 		status := domain.DailyTaskStatus(payloadString(pending.Payload, "status"))
-		submitted, err := q.SubmitTaskReport(ctx, taskID, message.From.ID, status, telegram.MessageInputHTML(message), telegram.DisplayName(*message.From))
+		input := telegram.NewMessageInput(message)
+		submitted, err := q.SubmitTaskReport(ctx, taskID, message.From.ID, status, input.TextHTML, telegram.DisplayName(*message.From), input.Source.MessageID, input.Source.ThreadID)
 		if err != nil {
 			return err
 		}
@@ -566,6 +634,13 @@ func (s *Service) editMessageSafe(ctx context.Context, chatID int64, messageID i
 		return false
 	}
 	return true
+}
+
+func dailyTaskCardKeyboard(task postgres.DailyTask) *telegram.InlineKeyboardMarkup {
+	if task.Status.IsOpen() {
+		return ui.DailyTaskKeyboard(task.ID)
+	}
+	return nil
 }
 
 func isCommand(text string, command string) bool {

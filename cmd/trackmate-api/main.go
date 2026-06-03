@@ -118,15 +118,22 @@ func updateMailboxKey(update telegram.Update) string {
 		return "user:" + strconv.FormatInt(update.Callback.From.ID, 10)
 	}
 	if update.Message != nil {
-		if update.Message.From != nil {
-			if isCommand(update.Message.Text, "/setup") {
-				return fmt.Sprintf("chat:%d:setup", update.Message.Chat.ID)
-			}
-			return fmt.Sprintf("chat:%d:user:%d", update.Message.Chat.ID, update.Message.From.ID)
-		}
-		return fmt.Sprintf("chat:%d", update.Message.Chat.ID)
+		return messageMailboxKey(*update.Message)
+	}
+	if update.EditedMessage != nil {
+		return messageMailboxKey(*update.EditedMessage)
 	}
 	return fmt.Sprintf("update:%d", update.UpdateID)
+}
+
+func messageMailboxKey(message telegram.Message) string {
+	if message.From != nil {
+		if isCommand(message.Text, "/setup") {
+			return fmt.Sprintf("chat:%d:setup", message.Chat.ID)
+		}
+		return fmt.Sprintf("chat:%d:user:%d", message.Chat.ID, message.From.ID)
+	}
+	return fmt.Sprintf("chat:%d", message.Chat.ID)
 }
 
 func isCommand(text string, command string) bool {
