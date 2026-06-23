@@ -4,21 +4,22 @@
 Обновлено: 2026-06-23
 
 ## Активный Шаг
-- id: `STEP-001`
+- id: `STEP-002`
 - status: `готово`
-- objective: Локально реализовать два новых топика `Рутины` и `Цели`, аккуратно поправить `Сегодня`, добавить тесты, проверить миграции и подготовить результат на ревью без прод-деплоя.
-- requirement IDs: `REQ-001..REQ-014`, `CON-001..CON-004`, `VAL-001..VAL-003`, `SCOPE-001..SCOPE-003`
-- owned paths: `.project-loop/`, `internal/`, `cmd/`, `migrations/`, `docs/`, `README.md`, `e2e/telegram/` при необходимости
-- validation: `go test ./internal/...`; `make test`; `make lint`; `python3 /Users/igor/plugins/project-loop/skills/project-loop/scripts/loopctl.py validate /Users/igor/projects/trackmate`; DB migration dry-run заблокирован отсутствием PostgreSQL/Docker.
-- done criteria: Новые topic flows реализованы и покрыты тестами; existing Today/Progress tests обновлены; миграция additive; routine leaderboard не попадает в `Прогресс`; final response содержит summary, validation, commit hash и план безопасной prod-миграции для approval.
+- objective: Учесть review delta: fair routine leaderboard, deterministic goal nudge cooldown, вынести новые домены из раздутого service/worker кода, выполнить full Docker/PostgreSQL testing.
+- requirement IDs: `REQ-015..REQ-017`, `VAL-004`
+- owned paths: `.project-loop/`, `internal/`, `migrations/`, `docs/`, tests
+- validation: `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`; `make lint`; `make test`; `make migrate`; `python3 /Users/igor/plugins/project-loop/skills/project-loop/scripts/loopctl.py validate /Users/igor/projects/trackmate`
+- done criteria: Новая дельта покрыта кодом и тестами; Docker/PostgreSQL validation выполнена; локальный commit создается в конце шага; prod остается без deploy до approval.
 
 ## Фокус Ревью
-- Raw intake покрыт требованиями без пропусков.
-- Новый код не копирует daily-flow целиком, а выделяет общие механики там, где это реально уменьшает хрупкость.
-- Pending inputs и callbacks расширены без поломки existing `daily_task_text`/`daily_task_report`.
-- Миграции только добавляют новые данные/индексы/типы или безопасно изменяют enum/contracts; текущая история Today/Progress сохраняется.
-- Telegram output остается лаконичным и близким к текущему стилю Trackmate.
+- Leaderboard не sorted/communicated as pure streak-only.
+- Goal nudge cooldown хранится в БД и не может спамить чаще 1 раза в 3 дня на пользователя.
+- `internal/bot/service.go` и `internal/worker/worker.go` снова остаются маршрутизаторами, а не контейнерами доменной логики.
+- PostgreSQL integration tests реально выполняются, не skipped.
 
 ## Примечания
 - Прод-деплой запрещен до отдельного approval после ревью и миграционного плана.
-- PostgreSQL integration/dry-run нужно выполнить перед production: `TRACKMATE_TEST_DATABASE_URL` сейчас не задан, Docker daemon недоступен.
+- Docker теперь доступен; локальные DB tests можно запускать через `TRACKMATE_TEST_DATABASE_URL`.
+- Docker compose проверен локально: `postgres`, `api`, `worker` healthy/up; агент может запускать Docker-команды для тестирования.
+- Выполнено: `TRACKMATE_TEST_DATABASE_URL=... go test ./...`, `go test ./... -cover`, `make lint`, `TRACKMATE_TEST_DATABASE_URL=... make test`, `TRACKMATE__DATABASE_URL=... make migrate`, `loopctl.py validate`.

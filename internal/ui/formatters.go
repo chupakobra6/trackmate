@@ -161,7 +161,7 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 	}
 	for i := 0; i < limit; i++ {
 		entry := entries[i]
-		lines = append(lines, fmt.Sprintf("%d. %s — %d дней подряд, %.0f%% за 7 дней", i+1, participantLabel(entry.Participant), entry.CurrentStreak, entry.CompletionRate))
+		lines = append(lines, fmt.Sprintf("%d. %s — %.0f%% за 7 дней, стрик %d дней, %s", i+1, participantLabel(entry.Participant), entry.CompletionRate, entry.CurrentStreak, routineItemsCountLabel(entry.RoutineItemCount)))
 	}
 	best := entries[0]
 	for _, entry := range entries {
@@ -379,6 +379,17 @@ func goalFinalStatusLabel(status domain.GoalFinalStatus) string {
 		return "не выполнены"
 	default:
 		return string(status)
+	}
+}
+
+func routineItemsCountLabel(count int) string {
+	switch {
+	case count%10 == 1 && count%100 != 11:
+		return fmt.Sprintf("%d пункт", count)
+	case count%10 >= 2 && count%10 <= 4 && (count%100 < 10 || count%100 >= 20):
+		return fmt.Sprintf("%d пункта", count)
+	default:
+		return fmt.Sprintf("%d пунктов", count)
 	}
 }
 

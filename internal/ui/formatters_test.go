@@ -47,3 +47,22 @@ func TestFormatProgressEventCustomUpdate(t *testing.T) {
 		}
 	}
 }
+
+func TestFormatRoutineLeaderboardShowsRateStreakAndItemCount(t *testing.T) {
+	username := "igor"
+	got := FormatRoutineLeaderboard([]postgres.RoutineLeaderboardEntry{{
+		Participant: postgres.Participant{
+			Username:    &username,
+			DisplayName: "Igor",
+		},
+		CompletionRate:   92,
+		CurrentStreak:    5,
+		MaxStreak:        9,
+		RoutineItemCount: 4,
+	}})
+	for _, part := range []string{"92% за 7 дней", "стрик 5 дней", "4 пункта", "Лучший стрик сезона"} {
+		if !strings.Contains(got, part) {
+			t.Fatalf("leaderboard missing %q: %s", part, got)
+		}
+	}
+}

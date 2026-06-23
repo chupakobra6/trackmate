@@ -3,6 +3,7 @@
 ALTER TYPE topickey ADD VALUE IF NOT EXISTS 'routine';
 ALTER TYPE topickey ADD VALUE IF NOT EXISTS 'goals';
 
+-- +goose StatementBegin
 DO $$ BEGIN
     CREATE TYPE routineitemstatus AS ENUM ('done', 'partial', 'failed');
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -12,6 +13,7 @@ DO $$ BEGIN
     CREATE TYPE goalfinalstatus AS ENUM ('done', 'partial', 'failed');
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+-- +goose StatementEnd
 
 CREATE TABLE IF NOT EXISTS routine_plans (
     id SERIAL PRIMARY KEY,

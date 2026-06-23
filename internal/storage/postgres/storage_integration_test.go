@@ -124,7 +124,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(leaderboard) != 1 || leaderboard[0].CurrentStreak != 0 || leaderboard[0].CompletionRate != 75 {
+	if len(leaderboard) != 1 || leaderboard[0].CurrentStreak != 0 || leaderboard[0].CompletionRate != 75 || leaderboard[0].RoutineItemCount != 2 {
 		t.Fatalf("unexpected routine leaderboard: %+v", leaderboard)
 	}
 
@@ -141,6 +141,17 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	hasGoals, err := q.HasSeasonalGoalSetForParticipant(ctx, workspace.ID, participant.ID, "summer-2026")
 	if err != nil || !hasGoals {
 		t.Fatalf("has goals=%v err=%v", hasGoals, err)
+	}
+	if _, found, err := q.GetGoalNudgeCooldown(ctx, workspace.ID, participant.ID); err != nil || found {
+		t.Fatalf("unexpected initial nudge cooldown found=%v err=%v", found, err)
+	}
+	nudgeAt := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
+	if err := q.MarkGoalNudgeShown(ctx, workspace.ID, participant.ID, nudgeAt); err != nil {
+		t.Fatal(err)
+	}
+	cooldown, found, err := q.GetGoalNudgeCooldown(ctx, workspace.ID, participant.ID)
+	if err != nil || !found || !cooldown.LastShownAt.Equal(nudgeAt) {
+		t.Fatalf("nudge cooldown found=%v cooldown=%+v err=%v", found, cooldown, err)
 	}
 	weekly, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC))
 	if err != nil {
@@ -198,6 +209,77 @@ func TestStorageIntegrationContracts(t *testing.T) {
 		t.Fatal(err)
 	} else if len(bindings) != 4 {
 		t.Fatalf("topic bindings should stay intact after reset, got %d", len(bindings))
+	}
+}
+
+func TestRoutineLeaderboardRanksCompletionRateBeforeStreak(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567891, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streakParticipant, err := q.RegisterParticipant(ctx, workspace.ID, 101, "streak", "Streak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rateParticipant, err := q.RegisterParticipant(ctx, workspace.ID, 102, "rate", "Rate")
+	if err != nil {
+		t.Fatal(err)
+	}
+	streakPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, streakParticipant.ID, streakParticipant.UserID, []string{"одно действие"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ratePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, rateParticipant.ID, rateParticipant.UserID, []string{"зарядка", "работа", "английский", "йога"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	start := time.Date(2026, 6, 17, 0, 0, 0, 0, time.UTC)
+	for day := 0; day < 7; day++ {
+		date := start.AddDate(0, 0, day)
+		streakCheckin, err := q.GetOrCreateRoutineCheckin(ctx, streakPlan, date)
+		if err != nil {
+			t.Fatal(err)
+		}
+		streakStatus := domain.RoutineItemFailed
+		if day >= 4 {
+			streakStatus = domain.RoutineItemDone
+		}
+		if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, streakCheckin.ID, streakParticipant.UserID, 0, streakStatus, nil); err != nil || !ok {
+			t.Fatalf("streak item ok=%v err=%v", ok, err)
+		}
+
+		rateCheckin, err := q.GetOrCreateRoutineCheckin(ctx, ratePlan, date)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for item := 0; item < 3; item++ {
+			if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, rateCheckin.ID, rateParticipant.UserID, item, domain.RoutineItemDone, nil); err != nil || !ok {
+				t.Fatalf("rate done item ok=%v err=%v", ok, err)
+			}
+		}
+		reason := "не успел"
+		if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, rateCheckin.ID, rateParticipant.UserID, 3, domain.RoutineItemPartial, &reason); err != nil || !ok {
+			t.Fatalf("rate partial item ok=%v err=%v", ok, err)
+		}
+	}
+
+	leaderboard, err := q.GetRoutineLeaderboard(ctx, workspace.ID, time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaderboard) != 2 {
+		t.Fatalf("leaderboard entries = %d, want 2: %+v", len(leaderboard), leaderboard)
+	}
+	if leaderboard[0].Participant.UserID != rateParticipant.UserID {
+		t.Fatalf("completion rate should rank first, got %+v", leaderboard)
+	}
+	if leaderboard[0].CompletionRate <= leaderboard[1].CompletionRate || leaderboard[1].CurrentStreak != 3 {
+		t.Fatalf("unexpected metrics: %+v", leaderboard)
 	}
 }
 

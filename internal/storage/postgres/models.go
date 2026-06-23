@@ -137,10 +137,11 @@ type RoutinePlanContext struct {
 }
 
 type RoutineLeaderboardEntry struct {
-	Participant    Participant
-	CurrentStreak  int
-	MaxStreak      int
-	CompletionRate float64
+	Participant      Participant
+	CurrentStreak    int
+	MaxStreak        int
+	CompletionRate   float64
+	RoutineItemCount int
 }
 
 type SeasonalGoalSet struct {
@@ -185,6 +186,14 @@ type GoalFinalReview struct {
 	SummaryText           *string
 	RequestedAt           time.Time
 	CompletedAt           *time.Time
+}
+
+type GoalNudgeCooldown struct {
+	WorkspaceGroupID int64
+	ParticipantID    int64
+	LastShownAt      time.Time
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 func strPtr(value string) *string {

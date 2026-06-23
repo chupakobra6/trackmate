@@ -107,3 +107,18 @@ func TestGoalNudgeIsDeterministic(t *testing.T) {
 		t.Fatal("nudge decision must be stable for one seed")
 	}
 }
+
+func TestGoalNudgeAllowedUsesThreeDayCooldown(t *testing.T) {
+	now := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
+	if !GoalNudgeAllowed(nil, now) {
+		t.Fatal("nudge should be allowed without previous show")
+	}
+	last := now.Add(-71 * time.Hour)
+	if GoalNudgeAllowed(&last, now) {
+		t.Fatal("nudge should be blocked inside cooldown")
+	}
+	last = now.Add(-72 * time.Hour)
+	if !GoalNudgeAllowed(&last, now) {
+		t.Fatal("nudge should be allowed after cooldown")
+	}
+}

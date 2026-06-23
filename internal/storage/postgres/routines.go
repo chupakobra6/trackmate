@@ -258,7 +258,12 @@ ORDER BY p.id ASC, rc.checkin_date ASC
 		participant Participant
 		checkins    []RoutineCheckin
 	}
+	type checkinRecord struct {
+		checkin     RoutineCheckin
+		participant Participant
+	}
 	byParticipant := map[int64]*participantCheckins{}
+	var records []checkinRecord
 	for rows.Next() {
 		var checkin RoutineCheckin
 		var participant Participant
@@ -277,36 +282,45 @@ ORDER BY p.id ASC, rc.checkin_date ASC
 		checkin.CardMessageThreadID = int64FromPgInt4(cardThreadID)
 		checkin.ReflectionText = textFromPg(reflection)
 		checkin.CompletedAt = timeFromPg(completedAt)
-		items, err := q.ListRoutineCheckinItems(ctx, checkin.ID)
-		if err != nil {
-			return nil, err
-		}
-		checkin.Items = items
 		participant.Username = textFromPg(username)
-		if byParticipant[participant.ID] == nil {
-			byParticipant[participant.ID] = &participantCheckins{participant: participant}
-		}
-		byParticipant[participant.ID].checkins = append(byParticipant[participant.ID].checkins, checkin)
+		records = append(records, checkinRecord{checkin: checkin, participant: participant})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+	rows.Close()
+	for _, record := range records {
+		items, err := q.ListRoutineCheckinItems(ctx, record.checkin.ID)
+		if err != nil {
+			return nil, err
+		}
+		record.checkin.Items = items
+		participant := record.participant
+		if byParticipant[participant.ID] == nil {
+			byParticipant[participant.ID] = &participantCheckins{participant: participant}
+		}
+		byParticipant[participant.ID].checkins = append(byParticipant[participant.ID].checkins, record.checkin)
 	}
 	entries := make([]RoutineLeaderboardEntry, 0, len(byParticipant))
 	for _, item := range byParticipant {
 		entry := RoutineLeaderboardEntry{Participant: item.participant}
 		entry.CurrentStreak, entry.MaxStreak = routineStreaks(item.checkins)
 		entry.CompletionRate = routineCompletionRate(item.checkins, nowUTC)
+		entry.RoutineItemCount = latestRoutineItemCount(item.checkins)
 		entries = append(entries, entry)
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].CurrentStreak != entries[j].CurrentStreak {
-			return entries[i].CurrentStreak > entries[j].CurrentStreak
-		}
 		if entries[i].CompletionRate != entries[j].CompletionRate {
 			return entries[i].CompletionRate > entries[j].CompletionRate
 		}
+		if entries[i].CurrentStreak != entries[j].CurrentStreak {
+			return entries[i].CurrentStreak > entries[j].CurrentStreak
+		}
 		if entries[i].MaxStreak != entries[j].MaxStreak {
 			return entries[i].MaxStreak > entries[j].MaxStreak
+		}
+		if entries[i].RoutineItemCount != entries[j].RoutineItemCount {
+			return entries[i].RoutineItemCount > entries[j].RoutineItemCount
 		}
 		return entries[i].Participant.DisplayName < entries[j].Participant.DisplayName
 	})
@@ -375,6 +389,16 @@ func routineCompletionRate(checkins []RoutineCheckin, nowUTC time.Time) float64 
 		return 0
 	}
 	return total / float64(count) * 100
+}
+
+func latestRoutineItemCount(checkins []RoutineCheckin) int {
+	if len(checkins) == 0 {
+		return 0
+	}
+	sort.Slice(checkins, func(i, j int) bool {
+		return checkins[i].CheckinDate.Before(checkins[j].CheckinDate)
+	})
+	return len(checkins[len(checkins)-1].Items)
 }
 
 func routineCheckinAllDone(checkin RoutineCheckin) bool {

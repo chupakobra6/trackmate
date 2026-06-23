@@ -58,6 +58,33 @@ SELECT EXISTS (
 	return exists, err
 }
 
+func (q *Queries) GetGoalNudgeCooldown(ctx context.Context, workspaceID int64, participantID int64) (GoalNudgeCooldown, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT workspace_group_id, participant_id, last_shown_at, created_at, updated_at
+FROM goal_nudge_cooldowns
+WHERE workspace_group_id = $1 AND participant_id = $2
+`, workspaceID, participantID)
+	var cooldown GoalNudgeCooldown
+	if err := row.Scan(&cooldown.WorkspaceGroupID, &cooldown.ParticipantID, &cooldown.LastShownAt, &cooldown.CreatedAt, &cooldown.UpdatedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return GoalNudgeCooldown{}, false, nil
+		}
+		return GoalNudgeCooldown{}, false, err
+	}
+	return cooldown, true, nil
+}
+
+func (q *Queries) MarkGoalNudgeShown(ctx context.Context, workspaceID int64, participantID int64, shownAt time.Time) error {
+	_, err := q.db.Exec(ctx, `
+INSERT INTO goal_nudge_cooldowns (workspace_group_id, participant_id, last_shown_at, created_at, updated_at)
+VALUES ($1, $2, $3, now(), now())
+ON CONFLICT (workspace_group_id, participant_id) DO UPDATE SET
+    last_shown_at = EXCLUDED.last_shown_at,
+    updated_at = now()
+`, workspaceID, participantID, shownAt.UTC())
+	return err
+}
+
 func (q *Queries) SetSeasonalGoalCardMessageID(ctx context.Context, goalSetID int64, messageID int64, threadID int64) error {
 	_, err := q.db.Exec(ctx, `
 UPDATE seasonal_goal_sets

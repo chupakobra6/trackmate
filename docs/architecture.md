@@ -26,6 +26,9 @@ command.
 - `internal/app/setup`: forum/admin checks and product topic repair.
 - `internal/app/today`: daily task rules and report state transitions.
 - `internal/app/progress`: progress outbox formatting and publishing.
+- `internal/app/routine`: routine check-in dispatch and leaderboard refresh.
+- `internal/app/goals`: seasonal goal weekly/final dispatch and throttled goal
+  nudges.
 - `internal/storage/postgres`: pgx storage, transactions, idempotency, DB
   claims, advisory worker lock, and E2E control state.
 - `internal/ui`: Telegram HTML formatters and inline keyboards.
@@ -96,8 +99,10 @@ the same card asks for one reflection:
 
 Routine results stay in `Рутины`. They do not create `progress_events`.
 
-The Routines topic also keeps a leaderboard message with current streak, best
-streak, and 7-day completion rate.
+The Routines topic also keeps a leaderboard message with 7-day completion rate,
+current streak, best streak, and routine item count. Ranking uses completion
+rate first, then current streak, so a one-item routine does not dominate by
+streak alone.
 
 ## Goals Flow
 
@@ -118,8 +123,10 @@ On Sunday after 20:00 local time, the worker sends one weekly review prompt in
 end date, the worker sends a final review prompt with buttons
 `done|partial|failed`; after the button, the user writes one final summary.
 
-Today can show a rare deterministic 10% goal nudge when a participant already
-has seasonal goals for the current period.
+Today can show a rare deterministic goal nudge when a participant already has
+seasonal goals for the current period. Nudges are pseudo-random by seed, but
+persist a per-user cooldown in PostgreSQL and cannot appear more than once every
+72 hours.
 
 ## Worker Flow
 
@@ -159,6 +166,7 @@ Core tables:
 - `seasonal_goal_sets`
 - `seasonal_goal_weekly_reviews`
 - `seasonal_goal_final_reviews`
+- `goal_nudge_cooldowns`
 - `app_clock`
 
 Important enum values:

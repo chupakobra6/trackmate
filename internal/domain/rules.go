@@ -14,6 +14,7 @@ const (
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
 	GoalNudgePercent        = 10
+	GoalNudgeCooldown       = 72 * time.Hour
 )
 
 type DailyTaskTransition struct {
@@ -146,6 +147,13 @@ func ShouldShowGoalNudge(seed string) bool {
 	hash := fnv.New32a()
 	_, _ = hash.Write([]byte(seed))
 	return hash.Sum32()%100 < GoalNudgePercent
+}
+
+func GoalNudgeAllowed(lastShownAt *time.Time, nowUTC time.Time) bool {
+	if lastShownAt == nil {
+		return true
+	}
+	return !nowUTC.Before(lastShownAt.UTC().Add(GoalNudgeCooldown))
 }
 
 func NextDailyTaskTransition(taskDate time.Time, workspaceTimezone string, currentStatus DailyTaskStatus, nowUTC time.Time) (DailyTaskTransition, error) {
