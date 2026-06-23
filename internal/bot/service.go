@@ -736,7 +736,7 @@ func pendingBusyText(kind domain.PendingInputKind) string {
 	case domain.PendingDailyTaskReport:
 		return "Сначала закончи текущий итог"
 	case domain.PendingRoutinePlan:
-		return "Я уже жду список рутины"
+		return "Я уже жду список рутин"
 	case domain.PendingRoutineReason:
 		return "Я уже жду короткую причину по рутине"
 	case domain.PendingRoutineReflection:

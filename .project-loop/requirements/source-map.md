@@ -20,6 +20,7 @@
 | S003 | user | 2026-06-23 | `.project-loop/intake/user-deltas.md` | принято | Review delta: fair leaderboard metrics, deterministic goal nudge cooldown, domain separation, Docker/full testing. |
 | S004 | user | 2026-06-23 | `.project-loop/intake/user-deltas.md` | принято | Live E2E на тестовом боте, исправление найденных ошибок, оставить видимые Telegram-примеры workflow без cleanup. |
 | S005 | user | 2026-06-23 | `.project-loop/intake/user-deltas.md` | принято | Review delta: поправить формулировки и визуальное форматирование сообщений, убрать англицизмы из пользовательских терминов. |
+| S006 | user | 2026-06-23 | `.project-loop/intake/user-deltas.md`; attachment `/Users/igor/.codex/attachments/94d461f5-f57c-4b41-89ca-515bccdee362/pasted-text.txt` | принято | Внешнее ревью текстов: `задача дня` вместо `цель-задача`, компактные карточки, нейтральные вставки про цели, `Таблица рутин`, структурированный шаблон целей. |
 
 ## Конфликты
 | Источники | Решение | Дата |

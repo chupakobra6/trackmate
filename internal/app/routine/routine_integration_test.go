@@ -60,7 +60,7 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	edit, ok := fake.findEdit(introID)
-	if !ok || !strings.Contains(edit.Text, "Рутины: таблица") {
+	if !ok || !strings.Contains(edit.Text, "Таблица рутин") {
 		t.Fatalf("routine table intro was not edited: found=%v edit=%+v", ok, edit)
 	}
 }

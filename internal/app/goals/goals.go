@@ -42,11 +42,11 @@ func MaybeNudge(ctx context.Context, q *postgres.Queries, workspace postgres.Wor
 	}
 	switch status {
 	case string(domain.DailyTaskFailed):
-		return "Подумай, мешает ли этот провал целям до 1 сентября?", nil
+		return "Как это событие влияет на твои цели до 1 сентября?", nil
 	case string(domain.DailyTaskDone), string(domain.DailyTaskPartial):
-		return "Как этот итог влияет на сезонные цели?", nil
+		return "Как этот итог приближает тебя к сезонным целям?", nil
 	default:
-		return "Эта задача двигает тебя к сезонным целям на лето?", nil
+		return "Связана ли эта задача с твоими целями на лето?", nil
 	}
 }
 

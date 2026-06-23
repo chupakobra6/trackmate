@@ -53,7 +53,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 	if raw == "" || parseErr != nil {
 		text := "⚠️ <b>Пришли список текстом: один пункт на строку</b>"
 		if parseErr != nil && strings.Contains(parseErr.Error(), "max") {
-			text = "⚠️ <b>Слишком много для ежедневной проверки</b>\nОставь до 9 пунктов"
+			text = "⚠️ <b>Слишком много пунктов</b>\nОграничение — не более 9 рутин"
 		}
 		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text+"\n\n"+ui.RoutinePlanPrompt(), nil)
 		return nil
@@ -69,7 +69,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}
-		text := fmt.Sprintf("✅ <b>Рутина сохранена</b>\nПунктов: %d\nС завтрашнего утра пришлю одну карточку для отметки", len(items))
+		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nС завтрашнего утра буду присылать карточку для отметок", len(items))
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}

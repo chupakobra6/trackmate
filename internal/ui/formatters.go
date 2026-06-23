@@ -10,43 +10,42 @@ import (
 )
 
 const TodayControlText = "🎯 <b>Сегодня</b>\n" +
-	"Одна главная цель-задача дня для каждого\n" +
-	"Нажми кнопку ниже и запиши, что сегодня главное\n\n" +
+	"Здесь каждый участник фиксирует одну главную задачу дня.\n\n" +
 	"Как это работает:\n" +
-	"• формулируешь одну цель-задачу дня\n" +
-	"• я показываю ее отдельной карточкой\n" +
-	"• вечером в этой же карточке отмечаешь итог"
+	"• Формулируешь свою задачу на день\n" +
+	"• Бот закрепляет ее в отдельной карточке\n" +
+	"• Вечером в этой же карточке отмечаешь итог"
 
 const ProgressIntroText = "✨ <b>Прогресс</b>\n" +
-	"Общая лента завершенных задач и итогов дня\n\n" +
+	"Общая лента выполненных задач и итогов дня\n\n" +
 	"Здесь появляются:\n" +
-	"• закрытые задачи дня\n" +
-	"• автоматические итоги просроченных задач\n\n" +
-	"Так видно, кто что довел до результата"
+	"• Выполненные задачи участников\n" +
+	"• Автоматические итоги просроченных задач\n\n" +
+	"Так видно, кто каких результатов достиг"
 
 const RoutineControlText = "🔁 <b>Рутины</b>\n" +
-	"Повторяющиеся ежедневные действия: зарядка, английский, йога, режим\n\n" +
-	"Один раз настрой список — дальше я каждый день пришлю одну карточку для отметки"
+	"Повторяющиеся ежедневные действия: зарядка, чтение, спорт, режим\n\n" +
+	"Один раз настроишь список — дальше я каждый день буду присылать одну карточку для отметки"
 
 const GoalsControlText = "🎯 <b>Цели</b>\n" +
 	"Сезонные цели на общий период.\n\n" +
 	"Текущий период: <b>Лето 2026</b>\n" +
 	"До <b>01.09.2026</b>\n\n" +
-	"Формат цели:\n" +
+	"Рекомендуемый формат:\n" +
 	"1. Направление\n" +
-	"Результат: что должно измениться к концу периода\n" +
-	"Метрика: как поймем, что цель достигнута\n" +
-	"Шаг недели: что делать каждую неделю\n" +
-	"Зачем: почему это важно"
+	"• <b>Результат:</b> что должно измениться к концу периода\n" +
+	"• <b>Метрика:</b> как понять, что цель достигнута\n" +
+	"• <b>Шаг недели:</b> регулярное действие на каждую неделю\n" +
+	"• <b>Зачем:</b> почему важно держать это в фокусе"
 
 const SetupReadyText = "✅ <b>Все на месте</b>\nТемы и стартовые сообщения в порядке"
 
 const SetupRepairedText = "✨ <b>Готово</b>\nПространство оформлено, темы на месте\n\n" +
 	"Что дальше:\n" +
-	"• в <b>Сегодня</b> каждый фиксирует цель-задачу дня\n" +
-	"• в <b>Рутинах</b> будут ежедневные проверки и таблица\n" +
-	"• в <b>Целях</b> будут сезонные цели и недельные обзоры\n" +
-	"• в <b>Прогрессе</b> будут результаты задач дня"
+	"• В <b>Сегодня</b> — главная задача дня для каждого\n" +
+	"• В <b>Рутинах</b> — ежедневные отметки и таблица результатов\n" +
+	"• В <b>Целях</b> — сезонные ориентиры и недельные обзоры\n" +
+	"• В <b>Прогрессе</b> — общая лента выполненных задач"
 
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
 	status := "До запуска нужно закрыть несколько пунктов"
@@ -73,6 +72,7 @@ func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username s
 	lines := []string{
 		fmt.Sprintf("🎯 <b>Задача дня</b> %s", person),
 		"",
+		"<b>План:</b>",
 		renderSectionHTML(task.Text),
 		"",
 		"<b>Состояние:</b> " + taskStatusLabel(task.Status),
@@ -85,7 +85,7 @@ func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username s
 
 func DailyTaskTextPrompt(nudge string) string {
 	lines := []string{
-		"✍️ <b>Напиши главную цель-задачу дня одним сообщением</b>",
+		"✍️ <b>Напиши главную задачу дня одним сообщением</b>",
 		"Можно текстом, голосом, фото или видео",
 	}
 	if nudge != "" {
@@ -106,11 +106,10 @@ func DailyTaskReportPrompt(nudge string) string {
 }
 
 func RoutinePlanPrompt() string {
-	return "✏️ <b>Пришли список рутины одним сообщением</b>\n\n" +
-		"Одна строка — один ежедневный пункт\n\n" +
+	return "✏️ <b>Пришли список рутин одним сообщением</b>\n\n" +
+		"Одна строка — один ежедневный пункт:\n" +
 		"<blockquote>зарядка\nработа\nанглийский перед сном\nйога</blockquote>\n\n" +
-		"Можно с маркерами или номерами\n" +
-		"Максимум 9 пунктов"
+		"Можно использовать маркеры или номера. Максимум 9 пунктов."
 }
 
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
@@ -133,7 +132,7 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 	}
 	if nextIndex := NextRoutineItemIndex(checkin); nextIndex >= 0 {
 		item := checkin.Items[nextIndex]
-		lines = append(lines, "", fmt.Sprintf("<b>%d/%d</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
+		lines = append(lines, "", fmt.Sprintf("<b>%d/%d:</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
 	}
 	return appendNotice(lines, notice)
 }
@@ -159,7 +158,7 @@ func FormatRoutineReflectionPrompt(checkin postgres.RoutineCheckin, displayName 
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {
-	lines := []string{"🏆 <b>Рутины: таблица</b>"}
+	lines := []string{"🏆 <b>Таблица рутин</b>"}
 	if len(entries) == 0 {
 		return strings.Join(append(lines, "", "Пока жду первые завершенные проверки"), "\n")
 	}
@@ -185,14 +184,14 @@ func SeasonalGoalsPrompt() string {
 	return "✏️ <b>Пришли сезонные цели одним сообщением</b>\n\n" +
 		"Текущий период: <b>Лето 2026</b>\n" +
 		"До <b>01.09.2026</b>\n\n" +
-		"Формат для каждой цели:\n" +
-		"<blockquote>1. Работа\nРезультат: получить предложение о работе в серверной разработке до 01.09.2026\nМетрика: 10 подходящих откликов или 3 разговора по работе в неделю\nШаг недели: 2 сессии подготовки + 5 откликов\nЗачем: вернуть доход и закрыть финансовый провал</blockquote>"
+		"Пример формата:\n" +
+		"<blockquote>1. Работа\n• Результат: получить предложение о работе в серверной разработке до 01.09.2026\n• Метрика: 10 подходящих откликов в неделю\n• Шаг недели: 2 сессии подготовки + 5 откликов\n• Зачем: восстановить доход</blockquote>"
 }
 
 func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🎯 <b>%s</b> %s", html.EscapeString(goalSet.PeriodTitle), person),
+		fmt.Sprintf("🎯 <b>Цели на %s</b> · %s", html.EscapeString(strings.ToLower(goalSet.PeriodTitle)), person),
 		fmt.Sprintf("До <b>%s</b>", goalSet.PeriodEndsOn.Format("02.01.2006")),
 		"",
 		renderSectionHTML(goalSet.GoalsText),
@@ -205,7 +204,7 @@ func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName 
 	return strings.Join([]string{
 		"🎯 <b>Недельный обзор целей</b>",
 		"",
-		fmt.Sprintf("%s, коротко ответь одним сообщением:", person),
+		fmt.Sprintf("%s, ответь одним сообщением:", person),
 		"",
 		"1. Что продвинулось по сезонным целям?",
 		"2. Что мешало?",
@@ -284,11 +283,9 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			title,
 			"",
 			"<b>План:</b>",
-			"",
 			renderSectionHTML(payloadString(payload, "task_html")),
 			"",
 			"<b>Итог:</b>",
-			"",
 			renderSectionHTML(payloadString(payload, "report_html")),
 		}, "\n")
 	case domain.ProgressDailyTaskAutoFail:
@@ -297,7 +294,6 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			fmt.Sprintf("⏰ <b>%s не выполнил %s вовремя</b>", person, task),
 			"",
 			"<b>План:</b>",
-			"",
 			renderSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
 	case domain.ProgressCustomUpdate:
@@ -351,7 +347,7 @@ func taskStatusLabel(status domain.DailyTaskStatus) string {
 	case domain.DailyTaskActive:
 		return "в процессе"
 	case domain.DailyTaskAwaitingReport:
-		return "ждет итог"
+		return "ждет итога"
 	case domain.DailyTaskDone:
 		return "выполнена"
 	case domain.DailyTaskPartial:

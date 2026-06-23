@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-004`
+- active step: `STEP-005`
 - status: `готово`
 
 ## Завершено
@@ -17,7 +17,7 @@
 - Локально реализованы `Рутины`, `Цели`, обновление `Сегодня`, additive migration, tests, docs и E2E templates.
 - Учтена review delta S003:
   - leaderboard показывает 7-day completion rate, current streak и число пунктов; сортировка идет по completion rate, затем streak;
-  - goal nudges работают только при активных целях и имеют DB cooldown 72 часа на пользователя;
+  - вставки про цели работают только при активных целях и имеют ограничение 72 часа на пользователя;
   - routine/goals вынесены из `internal/bot/service.go` в `internal/bot/routines.go`, `internal/bot/goals.go`, `internal/app/routine`, `internal/app/goals`;
   - Docker локально доступен, агент может запускать `docker compose` для тестов.
 - Выполнен live E2E S004 на тестовом боте `@yaminotoubot` в группе `тестирование trackmate v2`.
@@ -34,6 +34,12 @@
   - видимые термины заменены: check-in -> проверка, leaderboard -> таблица, review -> обзор/итог периода, streak/стрик -> серия, report -> итог;
   - кнопка ежедневной задачи стала `🏁 Подвести итог`;
   - E2E-шаблоны обновлены под новые видимые тексты.
+- Закрыт STEP-005 по внешнему ревью текстов S006:
+  - `цель-задача дня` заменено на `задача дня` в пользовательских текстах;
+  - карточки `Сегодня`/`Прогресс` стали компактнее: `План:` и `Итог:` идут сразу перед цитатой;
+  - вставки про цели смягчены без слов `провал` и `двигает тебя`;
+  - `Рутины: таблица` заменено на `Таблица рутин`;
+  - шаблон целей структурирован маркерами, при этом конфликтующий пример `оффер Go/backend` не возвращен.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -50,11 +56,14 @@
 - `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - `telegram-bot-e2e-test-tool make doctor`: pass.
 - `telegram-bot-e2e-test-tool make test`: pass.
-- Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` goal nudge.
+- Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.
 - Final visible-state evidence: `tmp/e2e-live-logs/98-dump-review-state.log`.
 - STEP-004 правка текстов: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`: pass.
 - STEP-004 правка текстов: `make test`: pass.
 - STEP-004 правка текстов: `make lint`: pass.
+- STEP-005 внешнее ревью текстов: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine ./internal/storage/postgres`: pass.
+- STEP-005 внешнее ревью текстов: `make test`: pass.
+- STEP-005 внешнее ревью текстов: `make lint`: pass.
 
 ## Агенты
 - Subagents отсутствуют.

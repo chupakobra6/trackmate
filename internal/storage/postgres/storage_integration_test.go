@@ -134,7 +134,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 	}
-	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: оффер\nМетрика: 10 откликов")
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе\nМетрика: 10 откликов")
 	if err != nil {
 		t.Fatal(err)
 	}

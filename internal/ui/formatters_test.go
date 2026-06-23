@@ -26,6 +26,25 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 			t.Fatalf("formatted task event missing %q: %s", part, got)
 		}
 	}
+	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Итог:</b>\n\n<blockquote>") {
+		t.Fatalf("formatted task event has extra blank line around blockquote: %s", got)
+	}
+}
+
+func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
+	task := postgres.DailyTask{
+		Text:   "Подготовить короткий итог по задаче",
+		Status: domain.DailyTaskActive,
+	}
+	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
+	for _, part := range []string{"Задача дня", "<b>План:</b>", "<b>Состояние:</b> в процессе"} {
+		if !strings.Contains(got, part) {
+			t.Fatalf("daily task card missing %q: %s", part, got)
+		}
+	}
+	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") {
+		t.Fatalf("daily task card has extra blank line before plan blockquote: %s", got)
+	}
 }
 
 func TestFormatProgressEventCustomUpdate(t *testing.T) {
@@ -60,7 +79,7 @@ func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 		MaxStreak:        9,
 		RoutineItemCount: 4,
 	}})
-	for _, part := range []string{"92% за 7 дней", "серия 5 дней", "4 пункта", "Лучшая серия сезона"} {
+	for _, part := range []string{"Таблица рутин", "92% за 7 дней", "серия 5 дней", "4 пункта", "Лучшая серия сезона"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("routine table missing %q: %s", part, got)
 		}

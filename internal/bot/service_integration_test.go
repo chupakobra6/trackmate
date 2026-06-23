@@ -372,7 +372,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 		t.Fatalf("routine not completed: %+v", updated)
 	}
 	tableEdit, ok := fake.findEdit(900)
-	if !ok || !strings.Contains(tableEdit.Text, "Рутины: таблица") {
+	if !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
 		t.Fatalf("routine table edit missing: found=%v edit=%+v", ok, tableEdit)
 	}
 	var progressCount int
