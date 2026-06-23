@@ -30,7 +30,7 @@ type GoalPeriod struct {
 	EndsOn   time.Time
 }
 
-var routineLinePrefix = regexp.MustCompile(`^\s*(?:[-*•]\s*|\d+[\.)]\s*)`)
+var routineLinePrefix = regexp.MustCompile(`^\s*(?:[-—–*•]\s*|\d+[\.)]\s*)`)
 
 func ParseRoutineItems(raw string) ([]string, error) {
 	lines := strings.Split(raw, "\n")

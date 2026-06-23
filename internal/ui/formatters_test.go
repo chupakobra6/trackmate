@@ -85,3 +85,56 @@ func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 		}
 	}
 }
+
+func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
+	if !strings.Contains(TodayControlText, "Здесь у каждого одна главная задача дня") {
+		t.Fatalf("today control text should keep old topic style: %s", TodayControlText)
+	}
+	if !strings.Contains(RoutineControlText, "Здесь живут повторяющиеся действия") {
+		t.Fatalf("routine control text should keep old topic style: %s", RoutineControlText)
+	}
+	if !strings.Contains(ProgressIntroText, "Здесь собирается все важное") {
+		t.Fatalf("progress intro should keep old topic style: %s", ProgressIntroText)
+	}
+	if !strings.Contains(GoalsControlText, "долгосрочные цели, которых мы хотим достичь за сезон") {
+		t.Fatalf("goals control should explain long-term seasonal goals: %s", GoalsControlText)
+	}
+	for name, text := range map[string]string{
+		"today":    TodayControlText,
+		"progress": ProgressIntroText,
+		"routine":  RoutineControlText,
+		"goals":    GoalsControlText,
+		"prompt":   SeasonalGoalsPrompt(),
+	} {
+		if strings.Contains(text, "•") {
+			t.Fatalf("%s text should use dashes instead of bullet markers: %s", name, text)
+		}
+	}
+
+	goalSet := postgres.SeasonalGoalSet{PeriodTitle: "Лето 2026", GoalsText: "1. Работа"}
+	weekly := FormatGoalWeeklyReviewPrompt(goalSet, "Игорь", "igor")
+	for _, part := range []string{
+		"Какие шаги сделаны по сезонным целям за эту неделю?",
+		"С какими сложностями пришлось столкнуться?",
+		"Какой главный шаг планируешь на следующую неделю?",
+	} {
+		if !strings.Contains(weekly, part) {
+			t.Fatalf("weekly prompt missing %q: %s", part, weekly)
+		}
+	}
+
+	final := FormatGoalFinalReflectionPrompt(goalSet, domain.GoalFinalPartial)
+	for _, part := range []string{
+		"Опиши конкретные результаты по целям:",
+		"— Что именно удалось довести до конца",
+		"— Что осталось невыполненным и почему",
+		"— Какие выводы и задачи переносишь на следующий сезон",
+	} {
+		if !strings.Contains(final, part) {
+			t.Fatalf("final reflection prompt missing %q: %s", part, final)
+		}
+	}
+	if strings.Contains(final, "Напиши короткий вывод") || strings.Contains(final, "•") {
+		t.Fatalf("final reflection prompt kept old wording or bullets: %s", final)
+	}
+}

@@ -4,24 +4,26 @@
 Обновлено: 2026-06-23
 
 ## Активный Шаг
-- id: `STEP-005`
+- id: `STEP-006`
 - status: `готово`
-- objective: Учесть внешнее ревью текстов: термин `задача дня`, компактные карточки, нейтральные вставки, `Таблица рутин`, структурированный шаблон целей.
-- requirement IDs: `REQ-020`
+- objective: Применить финальное ревью стиля: старый тон закрепов, длинные тире, понятные долгосрочные цели, конкретный недельный обзор и итог периода.
+- requirement IDs: `REQ-021`
 - owned paths: `.project-loop/`, `internal/ui/`, `internal/bot/`, `internal/app/`, `e2e/telegram/`, tests
-- validation: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`; `make test`; `make lint`; `loopctl.py validate`
-- done criteria: рекомендации внешнего ревью применены; конфликтующий англицизм из примера целей не возвращен; E2E-ожидания обновлены; тесты проходят; prod остается без deploy до approval.
+- validation: `go test ./internal/ui ./internal/domain ./internal/bot ./internal/app/goals ./internal/app/routine`; `make test`; `make lint`; `loopctl.py validate`
+- done criteria: тексты из S007 применены; видимые списки используют `—`; parser routine принимает `—`; E2E-ожидания обновлены; тесты проходят; prod остается без deploy до approval.
 
 ## Фокус Ревью
-- Закрепить `задача дня` вместо `цель-задача дня`, чтобы не путать ежедневный сценарий с сезонными целями.
-- Уплотнить карточки `Сегодня`/`Прогресс`: заголовок `План:` сразу перед `<blockquote>`, без лишней пустой строки.
-- Смягчить вставки про цели: убрать `провал`, `двигает тебя` и похожую назидательность.
-- Переименовать видимый заголовок routine table в `Таблица рутин`.
-- Структурировать шаблон целей через маркированные поля, но не возвращать `оффер Go/backend`.
+- Вернуть закрепам спокойный стиль старых текстов: `Здесь у каждого...`, `Здесь живут...`, `Здесь собирается...`.
+- Заменить видимые маркеры списков с `•` на длинное тире `—`.
+- Сделать `Цели` понятнее: долгосрочные цели на сезон, например лето.
+- Заменить пример целей на описание полей формата.
+- Переписать вопросы недельного обзора и итог периода на конкретные формулировки.
 
 ## Примечания
+- STEP-006 закрыт: применены тексты из S007, обновлены E2E-ожидания, routine parser принимает `—`.
+- Проверки STEP-006: `go test ./internal/ui ./internal/domain ./internal/bot ./internal/app/goals ./internal/app/routine`, `make test`, `make lint`, `loopctl.py validate`.
 - Прод-деплой запрещен до отдельного approval после ревью и миграционного плана.
 - Docker доступен; локальные DB tests можно запускать через `TRACKMATE_TEST_DATABASE_URL`.
 - Предыдущий live E2E оставил видимые примеры в тестовой группе; текущий шаг может потребовать нового прогона только если пользователь попросит свежий визуальный Telegram review.
-- Источник ревью: attachment `/Users/igor/.codex/attachments/94d461f5-f57c-4b41-89ca-515bccdee362/pasted-text.txt`.
-- Проверки STEP-005 прошли: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine ./internal/storage/postgres`, `make test`, `make lint`.
+- Источник ревью: attachment `/Users/igor/.codex/attachments/55bd8dc4-45f5-4892-8186-d844e12eeb30/pasted-text.txt`.
+- STEP-005 уже закрыт: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine ./internal/storage/postgres`, `make test`, `make lint`.

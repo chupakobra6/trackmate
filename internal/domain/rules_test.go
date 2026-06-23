@@ -34,8 +34,8 @@ func TestDailyTaskTransitions(t *testing.T) {
 	}
 }
 
-func TestParseRoutineItemsAcceptsSimpleBulletsAndNumbers(t *testing.T) {
-	got, err := ParseRoutineItems("  - зарядка\n• работа\n1. английский перед сном\n2) йога\n\n")
+func TestParseRoutineItemsAcceptsSimpleBulletsDashesAndNumbers(t *testing.T) {
+	got, err := ParseRoutineItems("  - зарядка\n— работа\n1. английский перед сном\n2) йога\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
