@@ -1,8 +1,8 @@
-# Проверяет редкую связку Today с активными сезонными целями.
+# Проверяет редкую связку «Сегодня» с активными сезонными целями.
 # Перед запуском должны быть сохранены цели текущего периода.
-# Для детерминированного попадания выставь local control clock на дату, seed которой проходит ShouldShowGoalNudge.
+# Для детерминированного попадания выставь локальные часы на дату, которая проходит ShouldShowGoalNudge.
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
-{"id":"wait_goal_nudge","action":"assert_visible_text","text":"приближает тебя к сезонным целям","timeout_ms":60000}
+{"id":"wait_goal_nudge","action":"assert_visible_text","text":"двигает тебя к сезонным целям","timeout_ms":60000}
 {"id":"send_goal_linked_task","action":"send_text","text":"Сделать шаг, который двигает сезонные цели"}
 {"id":"wait_goal_linked_card","action":"wait","timeout_ms":90000}

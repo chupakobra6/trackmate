@@ -82,7 +82,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Приложить фотоотчет", 200, 10)
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "Приложить фото к итогу", 200, 10)
 	if err != nil || !created {
 		t.Fatalf("task created=%v err=%v", created, err)
 	}
@@ -104,7 +104,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 		DateUnix:        time.Now().Unix(),
 		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
 		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
-		Caption:         "Фотоотчет: задача закрыта двумя изображениями.",
+		Caption:         "Фото к итогу: задача закрыта двумя изображениями.",
 		MediaGroupID:    "album-1",
 		Photo:           []telegram.PhotoSize{{}},
 	}
@@ -122,7 +122,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("task found=%v err=%v", found, err)
 	}
-	if updated.Status != domain.DailyTaskDone || updated.ReportText == nil || *updated.ReportText != "Фотоотчет: задача закрыта двумя изображениями." {
+	if updated.Status != domain.DailyTaskDone || updated.ReportText == nil || *updated.ReportText != "Фото к итогу: задача закрыта двумя изображениями." {
 		t.Fatalf("unexpected report state: %+v", updated)
 	}
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || found {
@@ -220,7 +220,7 @@ func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
 	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
 		t.Fatal(err)
 	}
-	submitted, err := q.SubmitTaskReport(ctx, task.ID, participant.UserID, domain.DailyTaskDone, "Старый отчет", "Игорь", 301, 10)
+	submitted, err := q.SubmitTaskReport(ctx, task.ID, participant.UserID, domain.DailyTaskDone, "Старый итог", "Игорь", 301, 10)
 	if err != nil || !submitted {
 		t.Fatalf("submitted=%v err=%v", submitted, err)
 	}
@@ -241,7 +241,7 @@ func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
 		DateUnix:        time.Now().Unix(),
 		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
 		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
-		Text:            "Новый отчет",
+		Text:            "Новый итог",
 	}
 	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 4, EditedMessage: &edited}); err != nil {
 		t.Fatal(err)
@@ -251,15 +251,15 @@ func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("task found=%v err=%v", found, err)
 	}
-	if updated.ReportText == nil || *updated.ReportText != "Новый отчет" {
+	if updated.ReportText == nil || *updated.ReportText != "Новый итог" {
 		t.Fatalf("report text = %v", updated.ReportText)
 	}
 	cardEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(cardEdit.Text, "Новый отчет") {
+	if !ok || !strings.Contains(cardEdit.Text, "Новый итог") {
 		t.Fatalf("task card edit missing new report: found=%v edit=%+v", ok, cardEdit)
 	}
 	progressEdit, ok := fake.findEdit(500)
-	if !ok || !strings.Contains(progressEdit.Text, "Новый отчет") || strings.Contains(progressEdit.Text, "Старый отчет") {
+	if !ok || !strings.Contains(progressEdit.Text, "Новый итог") || strings.Contains(progressEdit.Text, "Старый итог") {
 		t.Fatalf("progress edit mismatch: found=%v edit=%+v", ok, progressEdit)
 	}
 	var reportHTML string
@@ -270,7 +270,7 @@ WHERE id = $1
 `, events[0].ID).Scan(&reportHTML); err != nil {
 		t.Fatal(err)
 	}
-	if reportHTML != "Новый отчет" {
+	if reportHTML != "Новый итог" {
 		t.Fatalf("progress payload report_html = %q", reportHTML)
 	}
 }
@@ -289,8 +289,8 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 13, "Рутины"); err != nil {
 		t.Fatal(err)
 	}
-	leaderboardMessageID := int64(900)
-	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &leaderboardMessageID, nil, false, false); err != nil {
+	routineTableMessageID := int64(900)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &routineTableMessageID, nil, false, false); err != nil {
 		t.Fatal(err)
 	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
@@ -354,7 +354,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 		t.Fatalf("routine reflection pending found=%v pending=%+v err=%v", found, pending, err)
 	}
 	reflectionEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(reflectionEdit.Text, "какую одну правку сделаешь завтра") {
+	if !ok || !strings.Contains(reflectionEdit.Text, "Что изменишь завтра") {
 		t.Fatalf("expected reflection prompt, found=%v edit=%+v", ok, reflectionEdit)
 	}
 
@@ -371,9 +371,9 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if updated.CompletedAt == nil || updated.ReflectionText == nil {
 		t.Fatalf("routine not completed: %+v", updated)
 	}
-	leaderboardEdit, ok := fake.findEdit(900)
-	if !ok || !strings.Contains(leaderboardEdit.Text, "Рутины: лидерборд") {
-		t.Fatalf("leaderboard edit missing: found=%v edit=%+v", ok, leaderboardEdit)
+	tableEdit, ok := fake.findEdit(900)
+	if !ok || !strings.Contains(tableEdit.Text, "Рутины: таблица") {
+		t.Fatalf("routine table edit missing: found=%v edit=%+v", ok, tableEdit)
 	}
 	var progressCount int
 	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM progress_events WHERE workspace_group_id = $1`, workspace.ID).Scan(&progressCount); err != nil {

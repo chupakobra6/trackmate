@@ -1,16 +1,16 @@
-# Проверяет настройку целей, weekly review и final review в теме «Цели».
+# Проверяет настройку целей, недельный обзор и итог периода в теме «Цели».
 # Перед wait_weekly_review_prompt: clock на воскресенье 20:00 локального времени + POST /control/tick.
 # Перед wait_final_review_prompt: clock на 2026-09-01 + POST /control/tick.
 {"id":"select_goals","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{GOALS_THREAD_ID}}}
 {"id":"open_goals_setup","action":"click_button","button_text":"✏️ Настроить цели","timeout_ms":60000}
 {"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_goals","action":"send_text","text":"1. Работа\nРезультат: получить оффер Go/backend до 01.09.2026.\nМетрика: 10 релевантных откликов в неделю.\nЕженедельный шаг: 2 сессии подготовки + 5 откликов.\nПочему важно: вернуть доход."}
+{"id":"send_goals","action":"send_text","text":"1. Работа\nРезультат: получить предложение о работе в серверной разработке до 01.09.2026\nМетрика: 10 подходящих откликов в неделю\nШаг недели: 2 сессии подготовки + 5 откликов\nЗачем: вернуть доход"}
 {"id":"wait_goals_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_weekly_review_prompt","action":"assert_visible_text","text":"Еженедельная проверка целей","timeout_ms":120000}
-{"id":"send_weekly_review","action":"send_text","text":"Сдвинулось: 6 откликов.\nМешало: режим.\nСледующая неделя: 10 откликов + 2 мок-собеса."}
+{"id":"wait_weekly_review_prompt","action":"assert_visible_text","text":"Недельный обзор целей","timeout_ms":120000}
+{"id":"send_weekly_review","action":"send_text","text":"Сдвинулось: 6 откликов.\nМешало: режим.\nСледующая неделя: 10 откликов + 2 тренировочных собеседования."}
 {"id":"wait_weekly_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_final_review_prompt","action":"assert_visible_text","text":"Финал периода","timeout_ms":120000}
-{"id":"choose_final_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Финал периода","timeout_ms":60000}
+{"id":"wait_final_review_prompt","action":"assert_visible_text","text":"Итог периода","timeout_ms":120000}
+{"id":"choose_final_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Итог периода","timeout_ms":60000}
 {"id":"wait_final_summary_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_final_summary","action":"send_text","text":"Получилось: регулярные отклики. Не получилось: стабильный режим. Вывод: планировать неделю заранее."}
 {"id":"wait_final_saved","action":"wait","timeout_ms":90000}

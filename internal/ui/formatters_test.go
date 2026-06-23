@@ -16,12 +16,12 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 			"display_name": "Igor",
 			"username":     "igor",
 			"status":       "done",
-			"task_html":    "Написать Go runtime",
+			"task_html":    "Написать движок на Go",
 			"report_html":  "Готово",
 		},
 	}
 	got := FormatProgressEvent(event)
-	for _, part := range []string{"выполнил задачу дня", "Написать Go runtime", "Готово"} {
+	for _, part := range []string{"выполнил задачу дня", "Написать движок на Go", "Готово"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("formatted task event missing %q: %s", part, got)
 		}
@@ -33,22 +33,22 @@ func TestFormatProgressEventCustomUpdate(t *testing.T) {
 		EventType: domain.ProgressCustomUpdate,
 		Payload: map[string]any{
 			"title": "Встречайте: Trackmate 1.0 на Go",
-			"body":  "Бот переехал на новый runtime.",
+			"body":  "Бот переехал на новый движок.",
 			"items": []any{
-				"сохранили задачи, отчеты и прогресс",
-				"удалили старый Materials",
+				"сохранили задачи, итоги и прогресс",
+				"удалили старые материалы",
 			},
 		},
 	}
 	got := FormatProgressEvent(event)
-	for _, part := range []string{"Встречайте: Trackmate 1.0 на Go", "новый runtime", "сохранили задачи", "удалили старый Materials"} {
+	for _, part := range []string{"Встречайте: Trackmate 1.0 на Go", "новый движок", "сохранили задачи", "сохранили задачи, итоги", "удалили старые материалы"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("formatted custom update missing %q: %s", part, got)
 		}
 	}
 }
 
-func TestFormatRoutineLeaderboardShowsRateStreakAndItemCount(t *testing.T) {
+func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 	username := "igor"
 	got := FormatRoutineLeaderboard([]postgres.RoutineLeaderboardEntry{{
 		Participant: postgres.Participant{
@@ -60,9 +60,9 @@ func TestFormatRoutineLeaderboardShowsRateStreakAndItemCount(t *testing.T) {
 		MaxStreak:        9,
 		RoutineItemCount: 4,
 	}})
-	for _, part := range []string{"92% за 7 дней", "стрик 5 дней", "4 пункта", "Лучший стрик сезона"} {
+	for _, part := range []string{"92% за 7 дней", "серия 5 дней", "4 пункта", "Лучшая серия сезона"} {
 		if !strings.Contains(got, part) {
-			t.Fatalf("leaderboard missing %q: %s", part, got)
+			t.Fatalf("routine table missing %q: %s", part, got)
 		}
 	}
 }

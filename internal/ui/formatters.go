@@ -10,59 +10,60 @@ import (
 )
 
 const TodayControlText = "🎯 <b>Сегодня</b>\n" +
-	"Здесь у каждого одна главная цель-задача дня.\n" +
-	"Нажми кнопку ниже, чтобы зафиксировать свой главный фокус.\n\n" +
+	"Одна главная цель-задача дня для каждого\n" +
+	"Нажми кнопку ниже и запиши, что сегодня главное\n\n" +
 	"Как это работает:\n" +
-	"• ты формулируешь одну главную цель-задачу дня;\n" +
-	"• я закрепляю ее в отдельной карточке;\n" +
-	"• вечером в этой же карточке можно оставить результат."
+	"• формулируешь одну цель-задачу дня\n" +
+	"• я показываю ее отдельной карточкой\n" +
+	"• вечером в этой же карточке отмечаешь итог"
 
 const ProgressIntroText = "✨ <b>Прогресс</b>\n" +
-	"Здесь будет собираться все важное в аккуратную общую ленту.\n\n" +
-	"Что появится здесь:\n" +
-	"• закрытые задачи дня;\n" +
-	"• автоматические итоги просроченных задач.\n\n" +
-	"Так всегда видно, кто что сделал и довел до результата."
+	"Общая лента завершенных задач и итогов дня\n\n" +
+	"Здесь появляются:\n" +
+	"• закрытые задачи дня\n" +
+	"• автоматические итоги просроченных задач\n\n" +
+	"Так видно, кто что довел до результата"
 
 const RoutineControlText = "🔁 <b>Рутины</b>\n" +
-	"Здесь живут повторяющиеся действия: зарядка, английский, йога, режим и другие ежедневные опоры.\n\n" +
-	"Нажми кнопку ниже и пришли список. Я буду спрашивать по нему один раз в день одной карточкой."
+	"Повторяющиеся ежедневные действия: зарядка, английский, йога, режим\n\n" +
+	"Один раз настрой список — дальше я каждый день пришлю одну карточку для отметки"
 
 const GoalsControlText = "🎯 <b>Цели</b>\n" +
-	"Здесь сезонные цели на общий период.\n\n" +
-	"Текущий период: <b>Лето 2026</b>, до <b>01.09.2026</b>.\n\n" +
-	"Лучший формат:\n" +
+	"Сезонные цели на общий период.\n\n" +
+	"Текущий период: <b>Лето 2026</b>\n" +
+	"До <b>01.09.2026</b>\n\n" +
+	"Формат цели:\n" +
 	"1. Направление\n" +
-	"Результат: какой outcome нужен к концу периода.\n" +
-	"Метрика: как понятно, что цель достигнута.\n" +
-	"Еженедельный шаг: что делать каждую неделю.\n" +
-	"Почему важно: зачем это держать в фокусе."
+	"Результат: что должно измениться к концу периода\n" +
+	"Метрика: как поймем, что цель достигнута\n" +
+	"Шаг недели: что делать каждую неделю\n" +
+	"Зачем: почему это важно"
 
-const SetupReadyText = "✅ <b>Все на месте.</b>\nТемы и стартовые сообщения уже в порядке. Ничего восстанавливать не пришлось."
+const SetupReadyText = "✅ <b>Все на месте</b>\nТемы и стартовые сообщения в порядке"
 
-const SetupRepairedText = "✨ <b>Готово!</b>\nЯ проверил пространство и восстановил все, чего не хватало.\n\n" +
+const SetupRepairedText = "✨ <b>Готово</b>\nПространство оформлено, темы на месте\n\n" +
 	"Что дальше:\n" +
-	"• в теме <b>Сегодня</b> каждый фиксирует одну цель-задачу дня;\n" +
-	"• в теме <b>Рутины</b> будут daily check-in и лидерборд;\n" +
-	"• в теме <b>Цели</b> будут сезонные цели и weekly review;\n" +
-	"• в теме <b>Прогресс</b> будут появляться результаты задач дня."
+	"• в <b>Сегодня</b> каждый фиксирует цель-задачу дня\n" +
+	"• в <b>Рутинах</b> будут ежедневные проверки и таблица\n" +
+	"• в <b>Целях</b> будут сезонные цели и недельные обзоры\n" +
+	"• в <b>Прогрессе</b> будут результаты задач дня"
 
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
-	status := "До запуска нужно закрыть несколько пунктов."
+	status := "До запуска нужно закрыть несколько пунктов"
 	if ready {
-		status = "✅ Можно начинать: все условия выполнены."
+		status = "✅ Можно начинать: все условия выполнены"
 	}
 	lines := []string{
 		"⚙️ <b>Подготовка пространства</b>",
 		status,
 		"",
-		mark(isSupergroup) + " Группа переведена в супергруппу.",
-		mark(isForum) + " Включены темы.",
-		mark(isAdmin) + " Бот назначен администратором.",
-		mark(canManageTopics) + " У бота есть право управлять темами.",
-		mark(canReadMessages) + " Бот видит сообщения участников.",
+		mark(isSupergroup) + " Группа переведена в супергруппу",
+		mark(isForum) + " Темы включены",
+		mark(isAdmin) + " Бот назначен администратором",
+		mark(canManageTopics) + " Бот может управлять темами",
+		mark(canReadMessages) + " Бот видит сообщения участников",
 		"",
-		"Когда все будет готово, можно запускать оформление группы.",
+		"Когда все готово, запускай оформление группы",
 	}
 	return appendNotice(lines, notice)
 }
@@ -70,20 +71,23 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🎯 <b>Задача дня</b> %s:", person),
+		fmt.Sprintf("🎯 <b>Задача дня</b> %s", person),
 		"",
 		renderSectionHTML(task.Text),
 		"",
-		"<b>Статус:</b> " + taskStatusLabel(task.Status),
+		"<b>Состояние:</b> " + taskStatusLabel(task.Status),
 	}
 	if task.ReportText != nil && *task.ReportText != "" {
-		lines = append(lines, "", "<b>Результат:</b>", renderSectionHTML(*task.ReportText))
+		lines = append(lines, "", "<b>Итог:</b>", renderSectionHTML(*task.ReportText))
 	}
 	return appendNotice(lines, notice)
 }
 
 func DailyTaskTextPrompt(nudge string) string {
-	lines := []string{"✍️ <b>Напиши одну главную цель-задачу дня одним сообщением. Можно текстом, голосовым или медиа.</b>"}
+	lines := []string{
+		"✍️ <b>Напиши главную цель-задачу дня одним сообщением</b>",
+		"Можно текстом, голосом, фото или видео",
+	}
 	if nudge != "" {
 		lines = append(lines, "", "💡 "+html.EscapeString(nudge))
 	}
@@ -91,7 +95,10 @@ func DailyTaskTextPrompt(nudge string) string {
 }
 
 func DailyTaskReportPrompt(nudge string) string {
-	lines := []string{"✍️ <b>Теперь напиши короткий результат одним сообщением. Можно текстом, голосовым или медиа.</b>"}
+	lines := []string{
+		"✍️ <b>Напиши короткий итог одним сообщением</b>",
+		"Можно текстом, голосом, фото или видео",
+	}
 	if nudge != "" {
 		lines = append(lines, "", "💡 "+html.EscapeString(nudge))
 	}
@@ -99,10 +106,11 @@ func DailyTaskReportPrompt(nudge string) string {
 }
 
 func RoutinePlanPrompt() string {
-	return "✏️ <b>Пришли список рутины одним сообщением.</b>\n\n" +
-		"Каждая строка — один ежедневный пункт. Подойдут варианты:\n\n" +
+	return "✏️ <b>Пришли список рутины одним сообщением</b>\n\n" +
+		"Одна строка — один ежедневный пункт\n\n" +
 		"<blockquote>зарядка\nработа\nанглийский перед сном\nйога</blockquote>\n\n" +
-		"Можно с маркерами или номерами. Максимум 9 пунктов."
+		"Можно с маркерами или номерами\n" +
+		"Максимум 9 пунктов"
 }
 
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
@@ -114,7 +122,7 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 	for _, item := range checkin.Items {
 		lines = append(lines, routineItemLine(item))
 		if item.ReasonText != nil && *item.ReasonText != "" {
-			lines = append(lines, "   <i>что помешало:</i> "+renderInlineHTML(*item.ReasonText))
+			lines = append(lines, "   <i>причина:</i> "+renderInlineHTML(*item.ReasonText))
 		}
 	}
 	if checkin.CompletedAt != nil {
@@ -125,7 +133,7 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 	}
 	if nextIndex := NextRoutineItemIndex(checkin); nextIndex >= 0 {
 		item := checkin.Items[nextIndex]
-		lines = append(lines, "", fmt.Sprintf("<b>Пункт %d/%d:</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
+		lines = append(lines, "", fmt.Sprintf("<b>%d/%d</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
 	}
 	return appendNotice(lines, notice)
 }
@@ -139,21 +147,21 @@ func FormatRoutineReasonPrompt(checkin postgres.RoutineCheckin, itemIndex int) s
 		lines = append(lines, routineItemLine(item))
 	}
 	if itemIndex >= 0 && itemIndex < len(checkin.Items) {
-		lines = append(lines, "", fmt.Sprintf("<b>%s?</b>", html.EscapeString(checkin.Items[itemIndex].Text)), "Коротко: что помешало?")
+		lines = append(lines, "", fmt.Sprintf("<b>%s?</b>", html.EscapeString(checkin.Items[itemIndex].Text)), "Что помешало?")
 	}
 	return strings.Join(lines, "\n")
 }
 
 func FormatRoutineReflectionPrompt(checkin postgres.RoutineCheckin, displayName string, username string) string {
 	lines := strings.Split(FormatRoutineCheckinCard(checkin, displayName, username, ""), "\n")
-	lines = append(lines, "", "<b>Короткий итог дня:</b>", "Что помогло / что помешало / какую одну правку сделаешь завтра?")
+	lines = append(lines, "", "<b>Итог дня</b>", "Что помогло? Что мешало? Что изменишь завтра?")
 	return strings.Join(lines, "\n")
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {
-	lines := []string{"🏆 <b>Рутины: лидерборд</b>"}
+	lines := []string{"🏆 <b>Рутины: таблица</b>"}
 	if len(entries) == 0 {
-		return strings.Join(append(lines, "", "Пока жду первые завершенные check-in."), "\n")
+		return strings.Join(append(lines, "", "Пока жду первые завершенные проверки"), "\n")
 	}
 	limit := len(entries)
 	if limit > 10 {
@@ -161,7 +169,7 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 	}
 	for i := 0; i < limit; i++ {
 		entry := entries[i]
-		lines = append(lines, fmt.Sprintf("%d. %s — %.0f%% за 7 дней, стрик %d дней, %s", i+1, participantLabel(entry.Participant), entry.CompletionRate, entry.CurrentStreak, routineItemsCountLabel(entry.RoutineItemCount)))
+		lines = append(lines, fmt.Sprintf("%d. %s — %.0f%% за 7 дней, серия %d дней, %s", i+1, participantLabel(entry.Participant), entry.CompletionRate, entry.CurrentStreak, routineItemsCountLabel(entry.RoutineItemCount)))
 	}
 	best := entries[0]
 	for _, entry := range entries {
@@ -169,15 +177,16 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 			best = entry
 		}
 	}
-	lines = append(lines, "", "<b>Лучший стрик сезона:</b>", fmt.Sprintf("%s — %d дней", participantLabel(best.Participant), best.MaxStreak))
+	lines = append(lines, "", "<b>Лучшая серия сезона</b>", fmt.Sprintf("%s — %d дней", participantLabel(best.Participant), best.MaxStreak))
 	return strings.Join(lines, "\n")
 }
 
 func SeasonalGoalsPrompt() string {
-	return "✏️ <b>Пришли сезонные цели одним сообщением.</b>\n\n" +
-		"Текущий период: <b>Лето 2026</b>, до <b>01.09.2026</b>.\n\n" +
+	return "✏️ <b>Пришли сезонные цели одним сообщением</b>\n\n" +
+		"Текущий период: <b>Лето 2026</b>\n" +
+		"До <b>01.09.2026</b>\n\n" +
 		"Формат для каждой цели:\n" +
-		"<blockquote>1. Работа\nРезультат: получить оффер Go/backend до 01.09.2026.\nМетрика: 10 релевантных откликов или 3 касания с рынком в неделю.\nЕженедельный шаг: 2 сессии подготовки + 5 откликов.\nПочему важно: вернуть доход и закрыть финансовый провал.</blockquote>"
+		"<blockquote>1. Работа\nРезультат: получить предложение о работе в серверной разработке до 01.09.2026\nМетрика: 10 подходящих откликов или 3 разговора по работе в неделю\nШаг недели: 2 сессии подготовки + 5 откликов\nЗачем: вернуть доход и закрыть финансовый провал</blockquote>"
 }
 
 func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string) string {
@@ -194,13 +203,13 @@ func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string
 func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
 	person := personLabel(username, displayName)
 	return strings.Join([]string{
-		"🎯 <b>Еженедельная проверка целей</b>",
+		"🎯 <b>Недельный обзор целей</b>",
 		"",
 		fmt.Sprintf("%s, коротко ответь одним сообщением:", person),
 		"",
-		"1. Что сдвинулось по сезонным целям?",
+		"1. Что продвинулось по сезонным целям?",
 		"2. Что мешало?",
-		"3. Какой главный шаг на следующую неделю?",
+		"3. Главный шаг на следующую неделю?",
 		"",
 		"<b>Твои цели:</b>",
 		renderSectionHTML(goalSet.GoalsText),
@@ -208,7 +217,7 @@ func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName 
 }
 
 func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
-	lines := []string{"✅ <b>Weekly review сохранен.</b>"}
+	lines := []string{"✅ <b>Недельный обзор сохранен</b>"}
 	if review.ResponseText != nil && *review.ResponseText != "" {
 		lines = append(lines, "", renderSectionHTML(*review.ResponseText))
 	}
@@ -218,7 +227,7 @@ func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
 func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
 	person := personLabel(username, displayName)
 	return strings.Join([]string{
-		fmt.Sprintf("🏁 <b>Финал периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
 		"",
 		fmt.Sprintf("%s, оцени сезонные цели:", person),
 		"",
@@ -228,14 +237,14 @@ func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName s
 
 func FormatGoalFinalReflectionPrompt(goalSet postgres.SeasonalGoalSet, status domain.GoalFinalStatus) string {
 	return strings.Join([]string{
-		fmt.Sprintf("🏁 <b>Финал периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
 		"",
 		"<b>Оценка:</b> " + goalFinalStatusLabel(status),
 		"",
-		"Теперь напиши короткий итог:",
-		"• что получилось;",
-		"• что не получилось;",
-		"• какой вывод на следующий сезон.",
+		"Напиши короткий вывод:",
+		"• что получилось",
+		"• что не получилось",
+		"• что берешь в следующий сезон",
 	}, "\n")
 }
 
@@ -245,7 +254,7 @@ func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgre
 		status = goalFinalStatusLabel(*review.Status)
 	}
 	lines := []string{
-		fmt.Sprintf("🏁 <b>Финал периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
 		"",
 		"<b>Оценка:</b> " + status,
 	}
@@ -274,11 +283,11 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		return strings.Join([]string{
 			title,
 			"",
-			"<b>Что планировал:</b>",
+			"<b>План:</b>",
 			"",
 			renderSectionHTML(payloadString(payload, "task_html")),
 			"",
-			"<b>Результат:</b>",
+			"<b>Итог:</b>",
 			"",
 			renderSectionHTML(payloadString(payload, "report_html")),
 		}, "\n")
@@ -287,7 +296,7 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		return strings.Join([]string{
 			fmt.Sprintf("⏰ <b>%s не выполнил %s вовремя</b>", person, task),
 			"",
-			"<b>Что планировал:</b>",
+			"<b>План:</b>",
 			"",
 			renderSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
@@ -318,9 +327,9 @@ func formatCustomProgressUpdate(payload map[string]any) string {
 
 func AlertText(kind domain.AlertKind) string {
 	if kind == domain.AlertDayClosedPendingReport {
-		return "🔔 День уже закончился, а отчет по задаче так и не появился."
+		return "🔔 День закончился, а итог по задаче еще не сохранен"
 	}
-	return "⏰ Время вышло — задача автоматически отмечена как не выполненная."
+	return "⏰ Время вышло. Задача отмечена как не выполненная"
 }
 
 func mark(value bool) string {
@@ -342,7 +351,7 @@ func taskStatusLabel(status domain.DailyTaskStatus) string {
 	case domain.DailyTaskActive:
 		return "в процессе"
 	case domain.DailyTaskAwaitingReport:
-		return "ждет отчета"
+		return "ждет итог"
 	case domain.DailyTaskDone:
 		return "выполнена"
 	case domain.DailyTaskPartial:

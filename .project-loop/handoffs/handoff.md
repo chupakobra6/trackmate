@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-003`
+- active step: `STEP-004`
 - status: `готово`
 
 ## Завершено
@@ -29,6 +29,11 @@
 - Найдено и исправлено во время live E2E:
   - time-based E2E waits для уже видимых карточек заменены на `assert_visible_text`;
   - final review целей теперь сравнивает `EndsOn` как локальную календарную дату workspace, а не UTC instant.
+- Закрыт STEP-004 по текстам:
+  - пользовательские сообщения Today/Routine/Goals/Progress/alerts стали лаконичнее и ровнее по отступам;
+  - видимые термины заменены: check-in -> проверка, leaderboard -> таблица, review -> обзор/итог периода, streak/стрик -> серия, report -> итог;
+  - кнопка ежедневной задачи стала `🏁 Подвести итог`;
+  - E2E-шаблоны обновлены под новые видимые тексты.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -47,6 +52,9 @@
 - `telegram-bot-e2e-test-tool make test`: pass.
 - Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` goal nudge.
 - Final visible-state evidence: `tmp/e2e-live-logs/98-dump-review-state.log`.
+- STEP-004 правка текстов: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`: pass.
+- STEP-004 правка текстов: `make test`: pass.
+- STEP-004 правка текстов: `make lint`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -62,7 +70,7 @@
 - Перед prod нужен production backup и approval на конкретную command sequence; локальный PostgreSQL dry-run уже выполнен.
 
 ## Следующее Действие
-- Показать Telegram-примеры Игорю на ревью. После approval миграции: выполнить production backup/counts, применить migrations, перезапустить сервисы и smoke-check topics.
+- Показать обновленные тексты Игорю на ревью. После approval миграции: выполнить production backup/counts, применить migrations, перезапустить сервисы и smoke-check topics.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

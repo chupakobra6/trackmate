@@ -16,7 +16,7 @@ import (
 func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -51,9 +51,9 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 	raw := messagePlainText(message)
 	items, parseErr := domain.ParseRoutineItems(raw)
 	if raw == "" || parseErr != nil {
-		text := "⚠️ <b>Пришли список текстом: один пункт на строку.</b>"
+		text := "⚠️ <b>Пришли список текстом: один пункт на строку</b>"
 		if parseErr != nil && strings.Contains(parseErr.Error(), "max") {
-			text = "⚠️ <b>Слишком много для daily check-in, сократи до 9 пунктов.</b>"
+			text = "⚠️ <b>Слишком много для ежедневной проверки</b>\nОставь до 9 пунктов"
 		}
 		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text+"\n\n"+ui.RoutinePlanPrompt(), nil)
 		return nil
@@ -69,7 +69,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}
-		text := fmt.Sprintf("✅ <b>Рутина сохранена.</b>\nПунктов: %d. С завтрашнего утра буду присылать одну check-in карточку.", len(items))
+		text := fmt.Sprintf("✅ <b>Рутина сохранена</b>\nПунктов: %d\nС завтрашнего утра пришлю одну карточку для отметки", len(items))
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}
@@ -80,7 +80,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.CallbackQuery, checkinID int64, itemIndex int, status domain.RoutineItemStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -89,20 +89,20 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			return err
 		}
 		if !found {
-			answer.Text = "Check-in не найден."
+			answer.Text = "Проверка не найдена"
 			return nil
 		}
 		if checkin.OwnerUserID != callback.From.ID {
-			answer.Text = "Отметить рутину может только ее автор."
+			answer.Text = "Отметить рутину может только ее автор"
 			return nil
 		}
 		if checkin.CompletedAt != nil {
-			answer.Text = "Этот check-in уже завершен."
+			answer.Text = "Эта проверка уже завершена"
 			return nil
 		}
 		nextIndex := ui.NextRoutineItemIndex(checkin)
 		if nextIndex != itemIndex {
-			answer.Text = "Этот пункт уже не актуален."
+			answer.Text = "Этот пункт уже не актуален"
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {

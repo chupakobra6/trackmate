@@ -4,30 +4,22 @@
 Обновлено: 2026-06-23
 
 ## Активный Шаг
-- id: `STEP-003`
+- id: `STEP-004`
 - status: `готово`
-- objective: Выполнить полный live E2E на тестовом Telegram-боте для новых workflow, исправить найденные ошибки и оставить видимые примеры в темах без cleanup.
-- requirement IDs: `REQ-018`, `VAL-005`, `CON-005`
-- owned paths: `.project-loop/`, `e2e/telegram/`, `internal/`, `migrations/`, `docs/`, tests
-- validation: `make docker-up`; `make migrate`; `telegram-bot-e2e-test-tool make doctor/chats/run-scenario`; targeted `go test`; `make lint`; `loopctl.py validate`
-- done criteria: Live E2E пройден на тестовом боте; найденные ошибки исправлены и повторно проверены; видимые примеры workflow оставлены в Telegram; локальный commit создан при изменениях; prod остается без deploy до approval.
+- objective: Поправить пользовательские сообщения и форматирование новых сценариев, убрать англицизмы из видимых терминов.
+- requirement IDs: `REQ-019`
+- owned paths: `.project-loop/`, `internal/ui/`, `internal/bot/`, `internal/app/`, `e2e/telegram/`, tests
+- validation: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`; `make test`; `make lint`; `loopctl.py validate`
+- done criteria: видимые сообщения стали лаконичнее и полностью русскими по терминам; E2E-ожидания обновлены; тесты проходят; prod остается без deploy до approval.
 
 ## Фокус Ревью
-- E2E идет через реального Telegram user runner, не через Bot API shortcuts.
-- Cleanup/delete сценарии не запускаются после текущего прогона.
-- Каждый топик получает пример: `Сегодня`, `Рутины`, `Цели`, `Прогресс`.
-- Если сценарий падает, сначала читаются transcript artifacts, затем чинится продукт/сценарий и failing path повторяется.
+- Убрать из пользовательского текста `check-in`, `leaderboard`, `review`, `daily`, `weekly`, `outcome`, `стрик` и похожие термины.
+- Не переименовывать технические callback/data/API/enum контракты ради текста.
+- Сохранить смысл текущих сценариев: Today, Routine, Goals, Progress, alerts.
+- Сделать карточки более ровными: короткие заголовки, понятные блоки, меньше лишних точек и тяжелых формулировок.
 
 ## Примечания
 - Прод-деплой запрещен до отдельного approval после ревью и миграционного плана.
-- Docker теперь доступен; локальные DB tests можно запускать через `TRACKMATE_TEST_DATABASE_URL`.
-- Docker compose проверен локально: `postgres`, `api`, `worker` healthy/up; агент может запускать Docker-команды для тестирования.
-- Выполнено: `TRACKMATE_TEST_DATABASE_URL=... go test ./...`, `go test ./... -cover`, `make lint`, `TRACKMATE_TEST_DATABASE_URL=... make test`, `TRACKMATE__DATABASE_URL=... make migrate`, `loopctl.py validate`.
-- Для S004 не запускать `99-cleanup-visible-messages.jsonl`.
-- Live E2E выполнен на `@yaminotoubot` в группе `тестирование trackmate v2`: `Сегодня` topic `10`, `Прогресс` topic `11`, `Рутины` topic `339`, `Цели` topic `340`.
-- Пройдены: setup, Today add/create/block/report statuses/wrong-topic/photo dedupe/progress/edit sync/alert ack, Routine configure/check-in/reason/reflection/leaderboard, Goals configure/weekly/final, deterministic goal nudge.
-- Найдено и исправлено:
-  - scenario wait для уже видимой routine-card заменен на `assert_visible_text`;
-  - scenario wait для weekly/final goals prompts заменен на `assert_visible_text`;
-  - final review целей теперь сравнивает дату окончания как локальную дату workspace, а не UTC instant.
-- Видимые примеры оставлены в Telegram; финальный snapshot: `tmp/e2e-live-logs/98-dump-review-state.log`.
+- Docker доступен; локальные DB tests можно запускать через `TRACKMATE_TEST_DATABASE_URL`.
+- Предыдущий live E2E оставил видимые примеры в тестовой группе; текущий шаг может потребовать нового прогона только если пользователь попросит свежий визуальный Telegram review.
+- Проверки STEP-004 прошли: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`, `make test`, `make lint`.

@@ -15,7 +15,7 @@ import (
 func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -48,7 +48,7 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 
 func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {
 	if strings.TrimSpace(messagePlainText(message)) == "" {
-		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), "⚠️ <b>Пришли цели текстом.</b>\n\n"+ui.SeasonalGoalsPrompt(), nil)
+		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), "⚠️ <b>Пришли цели текстом</b>\n\n"+ui.SeasonalGoalsPrompt(), nil)
 		return nil
 	}
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -89,7 +89,7 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 				return err
 			}
 		}
-		text := "✅ <b>Цели сохранены.</b>\nРаз в неделю я буду просить короткий review в этой теме."
+		text := "✅ <b>Цели сохранены</b>\nРаз в неделю я попрошу короткий обзор в этой теме"
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}
@@ -121,7 +121,7 @@ func (s *Service) consumeGoalWeeklyReview(ctx context.Context, workspace postgre
 func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.CallbackQuery, goalSetID int64, status domain.GoalFinalStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -130,11 +130,11 @@ func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.C
 			return err
 		}
 		if !found {
-			answer.Text = "Цели не найдены."
+			answer.Text = "Цели не найдены"
 			return nil
 		}
 		if goalSet.OwnerUserID != callback.From.ID {
-			answer.Text = "Финальный review может оставить только автор целей."
+			answer.Text = "Итог периода может оставить только автор целей"
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {

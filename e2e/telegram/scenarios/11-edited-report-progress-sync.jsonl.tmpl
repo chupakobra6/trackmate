@@ -1,21 +1,21 @@
-# Проверяет, что редактирование исходного сообщения отчета тихо обновляет карточку в «Сегодня» и событие в «Прогресс».
+# Проверяет, что редактирование исходного сообщения итога тихо обновляет карточку в «Сегодня» и событие в «Прогресс».
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_task","action":"send_text","text":"Проверить редактирование отчета в прогрессе"}
+{"id":"send_task","action":"send_text","text":"Проверить редактирование итога в прогрессе"}
 {"id":"wait_task_card","action":"wait","timeout_ms":90000}
-{"id":"open_report_flow","action":"click_button","button_text":"🏁 Отчитаться","message_text":"Проверить редактирование отчета в прогрессе","timeout_ms":60000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Подвести итог","message_text":"Проверить редактирование итога в прогрессе","timeout_ms":60000}
 {"id":"wait_status_picker","action":"wait","timeout_ms":60000}
 {"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","message_text":"Выбери итог дня","timeout_ms":60000}
 {"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_report","action":"send_text","text":"E2E edit old report: результат до правки."}
+{"id":"send_report","action":"send_text","text":"Правка итога: результат до правки."}
 {"id":"wait_report_saved","action":"wait","timeout_ms":90000}
 {"id":"select_progress_before_edit","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
-{"id":"assert_old_report_published","action":"assert_visible_text","text":"E2E edit old report: результат до правки.","timeout_ms":120000}
+{"id":"assert_old_report_published","action":"assert_visible_text","text":"Правка итога: результат до правки.","timeout_ms":120000}
 {"id":"select_today_for_edit","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
-{"id":"edit_report_message","action":"edit_text","message_text":"E2E edit old report: результат до правки.","text":"E2E edit updated report: результат после правки."}
-{"id":"assert_old_report_gone_today","action":"assert_not_visible_text","text":"E2E edit old report: результат до правки.","timeout_ms":120000}
-{"id":"assert_new_report_today","action":"assert_visible_text","text":"E2E edit updated report: результат после правки.","timeout_ms":120000}
+{"id":"edit_report_message","action":"edit_text","message_text":"Правка итога: результат до правки.","text":"Правка итога: результат после правки."}
+{"id":"assert_old_report_gone_today","action":"assert_not_visible_text","text":"Правка итога: результат до правки.","timeout_ms":120000}
+{"id":"assert_new_report_today","action":"assert_visible_text","text":"Правка итога: результат после правки.","timeout_ms":120000}
 {"id":"select_progress_after_edit","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
-{"id":"assert_old_report_gone_progress","action":"assert_not_visible_text","text":"E2E edit old report: результат до правки.","timeout_ms":120000}
-{"id":"assert_new_report_progress","action":"assert_visible_text","text":"E2E edit updated report: результат после правки.","timeout_ms":120000}
+{"id":"assert_old_report_gone_progress","action":"assert_not_visible_text","text":"Правка итога: результат до правки.","timeout_ms":120000}
+{"id":"assert_new_report_progress","action":"assert_visible_text","text":"Правка итога: результат после правки.","timeout_ms":120000}

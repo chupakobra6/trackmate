@@ -139,11 +139,11 @@ func (s *Service) handleEditedMessage(ctx context.Context, message telegram.Mess
 
 func (s *Service) handleCallback(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	if callback.Message == nil {
-		return CallbackAnswer{Text: "Кнопка устарела."}, nil
+		return CallbackAnswer{Text: "Кнопка устарела"}, nil
 	}
 	parsed, err := domain.ParseCallback(callback.Data)
 	if err != nil {
-		return CallbackAnswer{Text: "Кнопка устарела."}, nil
+		return CallbackAnswer{Text: "Кнопка устарела"}, nil
 	}
 	switch parsed.Kind {
 	case domain.CallbackSetupCheck:
@@ -167,7 +167,7 @@ func (s *Service) handleCallback(ctx context.Context, callback telegram.Callback
 	case domain.CallbackGoalFinalStatus:
 		return s.handleGoalFinalStatus(ctx, callback, parsed.GoalSetID, parsed.GoalFinalStatus)
 	default:
-		return CallbackAnswer{Text: "Кнопка устарела."}, nil
+		return CallbackAnswer{Text: "Кнопка устарела"}, nil
 	}
 }
 
@@ -230,14 +230,14 @@ func (s *Service) handleSetupStart(ctx context.Context, callback telegram.Callba
 		return CallbackAnswer{}, err
 	}
 	if !isAdmin {
-		return CallbackAnswer{Text: "Оформить группу может только администратор."}, nil
+		return CallbackAnswer{Text: "Оформить группу может только администратор"}, nil
 	}
 	prerequisites, err := s.Setup.CheckPrerequisites(ctx, chat.ID)
 	if err != nil {
 		return CallbackAnswer{}, err
 	}
 	if !prerequisites.IsReady() {
-		return CallbackAnswer{Text: "Сначала закрой пункты выше, а потом запускай оформление."}, nil
+		return CallbackAnswer{Text: "Сначала закрой пункты выше, а потом запускай оформление"}, nil
 	}
 	workspace, err := s.ensureWorkspace(ctx, chat.ID, chat.Title)
 	if err != nil {
@@ -308,13 +308,13 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		if _, found, err := q.GetTaskForDate(ctx, workspace.ID, participant.ID, taskDate); err != nil {
 			return err
 		} else if found {
-			answer.Text = "Задача на сегодня уже зафиксирована."
+			answer.Text = "Задача на сегодня уже зафиксирована"
 			return nil
 		}
 		if _, found, err := q.GetOpenTask(ctx, workspace.ID, participant.ID); err != nil {
 			return err
 		} else if found {
-			answer.Text = "Сначала закрой предыдущую задачу."
+			answer.Text = "Сначала закрой предыдущую задачу"
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID); err != nil {
@@ -405,9 +405,9 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 			return err
 		}
 		if !created {
-			text := "⚠️ <b>Задача на сегодня уже зафиксирована.</b>"
+			text := "⚠️ <b>Задача на сегодня уже зафиксирована</b>"
 			if task.ID == 0 || task.TaskDate.Format("2006-01-02") != taskDate.Format("2006-01-02") {
-				text = "⚠️ <b>Сначала закрой предыдущую задачу.</b>"
+				text = "⚠️ <b>Сначала закрой предыдущую задачу</b>"
 			}
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 				ChatID:              message.Chat.ID,
@@ -445,9 +445,9 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 			return err
 		}
 		if !submitted {
-			text := "Отчет не принят."
+			text := "Итог не принят"
 			if task, found, err := q.GetTask(ctx, taskID); err == nil && found && !task.Status.IsOpen() {
-				text = "Отчет не принят: задача уже закрыта."
+				text = "Итог не принят: задача уже закрыта"
 			}
 			if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
@@ -468,7 +468,7 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 				Text:      ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
 			})
 		}
-		text := "✅ <b>Отчет сохранен.</b>"
+		text := "✅ <b>Итог сохранен</b>"
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}
@@ -484,18 +484,18 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			return err
 		}
 		if !found {
-			answer.Text = "Задача не найдена."
+			answer.Text = "Задача не найдена"
 			return nil
 		}
 		if callback.From.ID != task.OwnerUserID {
-			answer.Text = "Отчитаться может только автор задачи."
+			answer.Text = "Итог может оставить только автор задачи"
 			return nil
 		}
 		if !task.Status.IsOpen() {
 			if err := s.dismissTaskAlerts(ctx, q, callback.Message.Chat.ID, taskID); err != nil {
 				return err
 			}
-			answer.Text = "Эта задача уже закрыта."
+			answer.Text = "Эта задача уже закрыта"
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, task.WorkspaceGroupID, callback.From.ID); err != nil {
@@ -507,7 +507,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 		_, err = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              callback.Message.Chat.ID,
 			MessageThreadID:     callback.Message.MessageThreadID,
-			Text:                "🧾 <b>Выбери итог дня.</b>",
+			Text:                "🧾 <b>Выбери итог дня</b>",
 			ReplyMarkup:         ui.DailyTaskStatusKeyboard(taskID),
 			DisableNotification: true,
 		})
@@ -519,7 +519,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.CallbackQuery, taskID int64, status domain.DailyTaskStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -528,15 +528,15 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			return err
 		}
 		if !found {
-			answer.Text = "Задача не найдена."
+			answer.Text = "Задача не найдена"
 			return nil
 		}
 		if callback.From.ID != task.OwnerUserID {
-			answer.Text = "Отчитаться может только автор задачи."
+			answer.Text = "Итог может оставить только автор задачи"
 			return nil
 		}
 		if !task.Status.IsOpen() {
-			answer.Text = "Эта задача уже закрыта."
+			answer.Text = "Эта задача уже закрыта"
 			return nil
 		}
 		if previous, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
@@ -592,7 +592,7 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 		if err := s.dismissAlertMessage(ctx, q, callback.Message.Chat.ID, alert); err != nil {
 			return err
 		}
-		answer.Text = "Алерт скрыт."
+		answer.Text = "Напоминание скрыто"
 		return nil
 	})
 	return answer, err
@@ -732,23 +732,23 @@ func messagePlainText(message telegram.Message) string {
 func pendingBusyText(kind domain.PendingInputKind) string {
 	switch kind {
 	case domain.PendingDailyTaskText:
-		return "Я уже жду формулировку задачи."
+		return "Я уже жду формулировку задачи"
 	case domain.PendingDailyTaskReport:
-		return "Сначала закончи текущий отчет."
+		return "Сначала закончи текущий итог"
 	case domain.PendingRoutinePlan:
-		return "Я уже жду список рутины."
+		return "Я уже жду список рутины"
 	case domain.PendingRoutineReason:
-		return "Я уже жду короткую причину по рутине."
+		return "Я уже жду короткую причину по рутине"
 	case domain.PendingRoutineReflection:
-		return "Сначала закончи итог по рутине."
+		return "Сначала закончи итог по рутине"
 	case domain.PendingSeasonalGoals:
-		return "Я уже жду список сезонных целей."
+		return "Я уже жду список сезонных целей"
 	case domain.PendingGoalWeeklyReview:
-		return "Сначала закончи weekly review по целям."
+		return "Сначала закончи недельный обзор целей"
 	case domain.PendingGoalFinalReflection:
-		return "Сначала закончи финальный итог по целям."
+		return "Сначала закончи финальный итог по целям"
 	default:
-		return "Сначала закончи текущий ввод."
+		return "Сначала закончи текущий ввод"
 	}
 }
 

@@ -1,12 +1,12 @@
-# Проверяет настройку рутины и один daily check-in в теме «Рутины».
-# Перед шагом wait_routine_card подготовь карточку через local control API:
-# clock на следующее утро после настройки + POST /control/tick.
+# Проверяет настройку рутины и одну ежедневную проверку в теме «Рутины».
+# Перед шагом wait_routine_card подготовь карточку через локальный control API:
+# часы на следующее утро после настройки + POST /control/tick.
 {"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}
 {"id":"open_routine_setup","action":"click_button","button_text":"✏️ Настроить рутину","timeout_ms":60000}
 {"id":"wait_routine_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_routine_items","action":"send_text","text":"зарядка\nйога"}
 {"id":"wait_routine_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_routine_card","action":"assert_visible_text","text":"Пункт 1/2: зарядка?","timeout_ms":120000}
+{"id":"wait_routine_card","action":"assert_visible_text","text":"1/2 зарядка?","timeout_ms":120000}
 {"id":"mark_first_done","action":"click_button","button_text":"✅ Да","message_text":"зарядка?","timeout_ms":60000}
 {"id":"wait_second_item","action":"wait","timeout_ms":60000}
 {"id":"mark_second_partial","action":"click_button","button_text":"🔸 Частично","message_text":"йога?","timeout_ms":60000}
@@ -14,4 +14,4 @@
 {"id":"send_reason","action":"send_text","text":"Сорвался график."}
 {"id":"wait_reflection_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_reflection","action":"send_text","text":"Помогло: планирование. Завтра начну раньше."}
-{"id":"wait_leaderboard","action":"wait","timeout_ms":90000}
+{"id":"wait_routine_table","action":"wait","timeout_ms":90000}
