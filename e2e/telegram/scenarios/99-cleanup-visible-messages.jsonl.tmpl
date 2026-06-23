@@ -2,5 +2,9 @@
 # Runner сохраняет service-сообщения Telegram, starter топика и закреп.
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"cleanup_today","action":"delete_visible_messages","max_batches":12}
+{"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}
+{"id":"cleanup_routine","action":"delete_visible_messages","max_batches":12}
+{"id":"select_goals","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{GOALS_THREAD_ID}}}
+{"id":"cleanup_goals","action":"delete_visible_messages","max_batches":12}
 {"id":"select_progress","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
 {"id":"cleanup_progress","action":"delete_visible_messages","max_batches":12}

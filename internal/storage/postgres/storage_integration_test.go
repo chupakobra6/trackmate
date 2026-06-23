@@ -25,6 +25,12 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicProgress, 12, "Прогресс"); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 13, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
+		t.Fatal(err)
+	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
 	if err != nil {
 		t.Fatal(err)
@@ -89,10 +95,83 @@ func TestStorageIntegrationContracts(t *testing.T) {
 		t.Fatalf("second progress claim ok=%v err=%v", ok, err)
 	}
 
+	routinePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, routinePlan, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(checkin.Items) != 2 {
+		t.Fatalf("routine items = %d, want 2", len(checkin.Items))
+	}
+	if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkin.ID, participant.UserID, 0, domain.RoutineItemDone, nil); err != nil || !ok {
+		t.Fatalf("routine item status ok=%v err=%v", ok, err)
+	}
+	reason := "не хватило времени"
+	if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkin.ID, participant.UserID, 1, domain.RoutineItemPartial, &reason); err != nil || !ok {
+		t.Fatalf("routine partial ok=%v err=%v", ok, err)
+	}
+	completed, ok, err := q.CompleteRoutineCheckin(ctx, checkin.ID, participant.UserID, "Что помогло / что мешало / правка")
+	if err != nil || !ok {
+		t.Fatalf("routine complete ok=%v err=%v", ok, err)
+	}
+	if completed.CompletedAt == nil || completed.ReflectionText == nil {
+		t.Fatalf("routine completion not stored: %+v", completed)
+	}
+	leaderboard, err := q.GetRoutineLeaderboard(ctx, workspace.ID, time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(leaderboard) != 1 || leaderboard[0].CurrentStreak != 0 || leaderboard[0].CompletionRate != 75 {
+		t.Fatalf("unexpected routine leaderboard: %+v", leaderboard)
+	}
+
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: оффер\nМетрика: 10 откликов")
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasGoals, err := q.HasSeasonalGoalSetForParticipant(ctx, workspace.ID, participant.ID, "summer-2026")
+	if err != nil || !hasGoals {
+		t.Fatalf("has goals=%v err=%v", hasGoals, err)
+	}
+	weekly, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalWeeklyReviewPrompt(ctx, weekly.ID, 701, 14); err != nil {
+		t.Fatal(err)
+	}
+	weekly, ok, err = q.SubmitGoalWeeklyReview(ctx, weekly.ID, participant.UserID, "Сдвинулось: 6 откликов")
+	if err != nil || !ok || weekly.ResponseText == nil {
+		t.Fatalf("weekly submit ok=%v review=%+v err=%v", ok, weekly, err)
+	}
+	final, err := q.GetOrCreateGoalFinalReview(ctx, goalSet.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalFinalReviewPrompt(ctx, final.ID, 702, 14); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := q.SetGoalFinalReviewStatus(ctx, goalSet.ID, participant.UserID, domain.GoalFinalPartial); err != nil || !ok {
+		t.Fatalf("final status ok=%v err=%v", ok, err)
+	}
+	final, ok, err = q.CompleteGoalFinalReview(ctx, goalSet.ID, participant.UserID, "Получилось частично")
+	if err != nil || !ok || final.CompletedAt == nil {
+		t.Fatalf("final complete ok=%v review=%+v err=%v", ok, final, err)
+	}
+
 	assertNoTable(t, store, "material_batches")
 	assertNoTable(t, store, "material_items")
 	assertNoTable(t, store, "material_participant_progresses")
-	assertEnumLabels(t, store, "topickey", []string{"today", "progress"})
+	assertEnumLabels(t, store, "topickey", []string{"today", "progress", "routine", "goals"})
 	assertEnumLabels(t, store, "progresseventtype", []string{"daily_task.closed", "daily_task.auto_failed", "system_alert", "custom_update"})
 
 	if err := q.SetSetupMessageID(ctx, workspace.ID, 777); err != nil {
@@ -105,7 +184,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reset.DeletedTasks != 1 || reset.DeletedAlerts != 1 || reset.DeletedPending != 0 || reset.DeletedProgress != 1 || reset.ResetSetup != 1 {
+	if reset.DeletedTasks != 1 || reset.DeletedAlerts != 1 || reset.DeletedPending != 0 || reset.DeletedProgress != 1 || reset.DeletedRoutines != 1 || reset.DeletedGoals != 1 || reset.ResetSetup != 1 {
 		t.Fatalf("unexpected reset result: %+v", reset)
 	}
 	reloaded, found, err := q.GetWorkspaceByChatID(ctx, workspace.ChatID)
@@ -117,7 +196,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	}
 	if bindings, err := q.ListTopicBindings(ctx, workspace.ID); err != nil {
 		t.Fatal(err)
-	} else if len(bindings) != 2 {
+	} else if len(bindings) != 4 {
 		t.Fatalf("topic bindings should stay intact after reset, got %d", len(bindings))
 	}
 }

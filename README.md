@@ -1,6 +1,6 @@
 # Trackmate
 
-Trackmate is a Telegram accountability bot for one daily focus task per participant and a shared progress stream.
+Trackmate is a Telegram accountability bot for one daily focus task per participant, recurring routines, seasonal goals, and a shared progress stream.
 
 Trackmate 2.0 is Go-only. The active local runtime is:
 
@@ -9,12 +9,14 @@ Trackmate 2.0 is Go-only. The active local runtime is:
 - `migrate`: goose migrations.
 - PostgreSQL: primary state store.
 
-The product owns two forum topics:
+The product owns four forum topics:
 
 - `Сегодня`
+- `Рутины`
+- `Цели`
 - `Прогресс`
 
-The old Materials feature was removed from runtime and schema. Migrations preserve daily tasks, reports, alerts, participants, workspaces, topic bindings for Today/Progress, and non-material progress events. Material batches/items/progress and the Materials topic binding are intentionally dropped.
+The old Materials feature was removed from runtime and schema. Migrations preserve daily tasks, reports, alerts, participants, workspaces, active product topic bindings, and non-material progress events. Material batches/items/progress and the Materials topic binding are intentionally dropped.
 
 ## Environment
 

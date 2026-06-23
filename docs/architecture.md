@@ -21,9 +21,9 @@ command.
   classification, and input extraction.
 - `internal/dispatcher`: mailbox ordering by workspace/user so related updates
   are processed serially.
-- `internal/bot`: explicit update router for setup, Today, reports, and alert
-  acknowledgements.
-- `internal/app/setup`: forum/admin checks and Today/Progress topic repair.
+- `internal/bot`: explicit update router for setup, Today, reports, routines,
+  seasonal goals, and alert acknowledgements.
+- `internal/app/setup`: forum/admin checks and product topic repair.
 - `internal/app/today`: daily task rules and report state transitions.
 - `internal/app/progress`: progress outbox formatting and publishing.
 - `internal/storage/postgres`: pgx storage, transactions, idempotency, DB
@@ -33,13 +33,17 @@ command.
 
 ## Product Surface
 
-Trackmate owns exactly two Telegram forum topics:
+Trackmate owns four Telegram forum topics:
 
 - `today`: title `Сегодня`; contains the control message, task cards, report
   prompts, and alerts.
+- `routine`: title `Рутины`; contains routine setup, daily check-in cards, and
+  the routine leaderboard.
+- `goals`: title `Цели`; contains seasonal goal setup, weekly reviews, and final
+  period reviews.
 - `progress`: title `Прогресс`; contains published progress events.
 
-Setup is idempotent. It creates or repairs only these two topics, stores their
+Setup is idempotent. It creates or repairs only these topics, stores their
 thread IDs and message IDs in PostgreSQL, and does not create a Materials topic.
 
 Materials is deleted from runtime and schema. The bot does not parse
@@ -74,6 +78,49 @@ existing task progress payload. Report edits update the stored report, the Today
 card, pending progress payloads, and already published Progress messages. This
 path is silent: no additional Telegram messages are sent to the group.
 
+## Routine Flow
+
+`routine:configure` creates one pending `routine_plan` input scoped to the
+Routines thread. The user sends a text list, one item per line. The parser
+accepts plain lines, bullets, and numbered lists, and caps the list at 9 daily
+items.
+
+The worker creates one routine check-in card per participant per local day after
+09:00, starting the morning after the plan was configured. The card is advanced
+in place with `routine:item:<checkin_id>:<index>:<done|partial|failed>`.
+
+`partial` and `failed` ask for one short reason. After all items are answered,
+the same card asks for one reflection:
+
+`Что помогло / что помешало / какую одну правку сделаешь завтра?`
+
+Routine results stay in `Рутины`. They do not create `progress_events`.
+
+The Routines topic also keeps a leaderboard message with current streak, best
+streak, and 7-day completion rate.
+
+## Goals Flow
+
+`goals:configure` creates one pending `seasonal_goals` input scoped to the Goals
+thread. Goals are stored as raw Telegram HTML for the current season. The
+instruction asks for a measurable format:
+
+- `Результат`
+- `Метрика`
+- `Еженедельный шаг`
+- `Почему важно`
+
+The first live period is `Лето 2026`, ending on `2026-09-01`; the period helper
+then follows calendar seasons.
+
+On Sunday after 20:00 local time, the worker sends one weekly review prompt in
+`Цели` and stores the response as `goal_weekly_review`. On and after the period
+end date, the worker sends a final review prompt with buttons
+`done|partial|failed`; after the button, the user writes one final summary.
+
+Today can show a rare deterministic 10% goal nudge when a participant already
+has seasonal goals for the current period.
+
 ## Worker Flow
 
 Each tick takes a PostgreSQL advisory lock before transitions.
@@ -91,6 +138,10 @@ transient failures are requeued; permanent failures are marked failed.
 Alert acknowledgement deletes the visible alert card, marks `acknowledged_at`,
 and clears the stored Telegram message ID.
 
+The same tick also dispatches due routine check-ins, weekly goal reviews, and
+final goal reviews. These are idempotent through stored Telegram message IDs and
+do not pass through the Progress outbox.
+
 ## Data Model
 
 Core tables:
@@ -102,12 +153,20 @@ Core tables:
 - `daily_task_alerts`
 - `pending_inputs`
 - `progress_events`
+- `routine_plans`
+- `routine_checkins`
+- `routine_checkin_items`
+- `seasonal_goal_sets`
+- `seasonal_goal_weekly_reviews`
+- `seasonal_goal_final_reviews`
 - `app_clock`
 
 Important enum values:
 
-- `topickey`: `today`, `progress`
+- `topickey`: `today`, `progress`, `routine`, `goals`
 - `dailytaskstatus`: `active`, `awaiting_report`, `done`, `partial`, `failed`
+- `routineitemstatus`: `done`, `partial`, `failed`
+- `goalfinalstatus`: `done`, `partial`, `failed`
 - `alertkind`: `day_closed_pending_report`, `overdue_task_failed`
 - `alertdispatchstatus`: `pending`, `dispatching`, `sent`
 - `progresseventtype`: `daily_task.closed`, `daily_task.auto_failed`,

@@ -11,6 +11,8 @@ import (
 var TopicTitles = map[domain.TopicKey]string{
 	domain.TopicToday:    "Сегодня",
 	domain.TopicProgress: "Прогресс",
+	domain.TopicRoutine:  "Рутины",
+	domain.TopicGoals:    "Цели",
 }
 
 type Prerequisites struct {
@@ -72,7 +74,7 @@ func (s *Service) EnsureWorkspaceTopics(ctx context.Context, chatID int64, title
 		if err != nil {
 			return err
 		}
-		for _, key := range []domain.TopicKey{domain.TopicToday, domain.TopicProgress} {
+		for _, key := range []domain.TopicKey{domain.TopicToday, domain.TopicRoutine, domain.TopicGoals, domain.TopicProgress} {
 			threadID, topicChanged, err := s.ensureTopicBinding(ctx, q, workspace.ID, existing, chatID, key)
 			if err != nil {
 				return err

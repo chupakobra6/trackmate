@@ -6,7 +6,7 @@
 
 ## Что Проверяем
 
-- setup создает и чинит только темы `Сегодня` и `Прогресс`;
+- setup создает и чинит темы `Сегодня`, `Рутины`, `Цели` и `Прогресс`;
 - задача дня создается только в теме `Сегодня`;
 - второй открытый фокус для того же участника блокируется;
 - отчеты закрывают задачу со статусами `выполнена`, `выполнена частично`,
@@ -16,6 +16,8 @@
 - worker публикует событие в теме `Прогресс`;
 - редактирование исходного сообщения отчета обновляет `Сегодня` и `Прогресс`;
 - напоминание подтверждается кнопкой `👀 Понял`.
+- routine check-in идет в теме `Рутины` и не публикуется в `Прогресс`;
+- weekly/final review целей идет в теме `Цели`.
 
 ## Подготовка
 
@@ -50,6 +52,8 @@ make chats CHAT_GROUPS=1 CHAT_FILTER=TrackMate CHAT_TOPICS=1 CHAT_ADMINS=1
 
 - `target=` -> `TRACKMATE_CHAT`;
 - `topic_id=` для `Сегодня` -> `TODAY_THREAD_ID`;
+- `topic_id=` для `Рутины` -> `ROUTINE_THREAD_ID`;
+- `topic_id=` для `Цели` -> `GOALS_THREAD_ID`;
 - `topic_id=` для `Прогресс` -> `PROGRESS_THREAD_ID`;
 - `WRONG_THREAD_ID` можно поставить равным `PROGRESS_THREAD_ID` для проверки
   wrong-topic pending input.
@@ -59,7 +63,9 @@ make chats CHAT_GROUPS=1 CHAT_FILTER=TrackMate CHAT_TOPICS=1 CHAT_ADMINS=1
 ```bash
 export TRACKMATE_CHAT='3871708263'
 export TODAY_THREAD_ID='10'
-export PROGRESS_THREAD_ID='11'
+export ROUTINE_THREAD_ID='11'
+export GOALS_THREAD_ID='12'
+export PROGRESS_THREAD_ID='13'
 export WRONG_THREAD_ID="$PROGRESS_THREAD_ID"
 
 mkdir -p tmp/e2e-rendered
@@ -68,6 +74,8 @@ for src in e2e/telegram/scenarios/*.jsonl.tmpl; do
   sed \
     -e "s/{{CHAT}}/$TRACKMATE_CHAT/g" \
     -e "s/{{TODAY_THREAD_ID}}/$TODAY_THREAD_ID/g" \
+    -e "s/{{ROUTINE_THREAD_ID}}/$ROUTINE_THREAD_ID/g" \
+    -e "s/{{GOALS_THREAD_ID}}/$GOALS_THREAD_ID/g" \
     -e "s/{{PROGRESS_THREAD_ID}}/$PROGRESS_THREAD_ID/g" \
     -e "s/{{WRONG_THREAD_ID}}/$WRONG_THREAD_ID/g" \
     "$src" > "$dst"
@@ -117,8 +125,11 @@ Cleanup не удаляет темы, service-сообщения Telegram, start
 - `10-alert-ack.jsonl.tmpl`: кнопка `👀 Понял` подтверждает напоминание.
 - `11-edited-report-progress-sync.jsonl.tmpl`: правка исходного сообщения отчета
   обновляет карточку в `Сегодня` и опубликованное событие в `Прогресс`.
+- `12-routine-checkin.jsonl.tmpl`: routine setup и daily check-in в `Рутины`.
+- `13-goals-weekly-final.jsonl.tmpl`: seasonal goals setup, weekly review и
+  final review в `Цели`.
 - `99-cleanup-visible-messages.jsonl.tmpl`: удаляет видимые тестовые сообщения в
-  `Сегодня` и `Прогресс` после прогона.
+  `Сегодня`, `Рутины`, `Цели` и `Прогресс` после прогона.
 
 ## Детерминированные Worker-Сценарии
 

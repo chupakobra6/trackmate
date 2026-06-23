@@ -2,6 +2,7 @@ package bot_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +14,7 @@ import (
 	"github.com/igor/trackmate/internal/testsupport"
 )
 
-func TestSetupCreatesOnlyTodayAndProgress(t *testing.T) {
+func TestSetupCreatesTodayRoutineGoalsAndProgress(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	fake := newFakeTelegram()
 	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
@@ -32,10 +33,10 @@ func TestSetupCreatesOnlyTodayAndProgress(t *testing.T) {
 	if answer.Text != "" {
 		t.Fatalf("unexpected callback answer: %q", answer.Text)
 	}
-	if len(fake.createdTopics) != 2 {
-		t.Fatalf("expected two active topics, got %v", fake.createdTopics)
+	if len(fake.createdTopics) != 4 {
+		t.Fatalf("expected four active topics, got %v", fake.createdTopics)
 	}
-	if fake.createdTopics[0] != "Сегодня" || fake.createdTopics[1] != "Прогресс" {
+	if fake.createdTopics[0] != "Сегодня" || fake.createdTopics[1] != "Рутины" || fake.createdTopics[2] != "Цели" || fake.createdTopics[3] != "Прогресс" {
 		t.Fatalf("unexpected topics: %v", fake.createdTopics)
 	}
 	workspace, found, err := store.Queries().GetWorkspaceByChatID(context.Background(), -1001234567890)
@@ -51,6 +52,12 @@ func TestSetupCreatesOnlyTodayAndProgress(t *testing.T) {
 	}
 	if _, ok := bindings[domain.TopicProgress]; !ok {
 		t.Fatal("progress binding missing")
+	}
+	if _, ok := bindings[domain.TopicRoutine]; !ok {
+		t.Fatal("routine binding missing")
+	}
+	if _, ok := bindings[domain.TopicGoals]; !ok {
+		t.Fatal("goals binding missing")
 	}
 }
 
@@ -268,11 +275,121 @@ WHERE id = $1
 	}
 }
 
+func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 13, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	leaderboardMessageID := int64(900)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &leaderboardMessageID, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetRoutineCheckinCardMessageID(ctx, checkin.ID, 100, 13); err != nil {
+		t.Fatal(err)
+	}
+
+	cardMessage := &telegram.Message{
+		MessageID:       100,
+		MessageThreadID: 13,
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:      "routine-done",
+		From:    telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Data:    fmt.Sprintf("routine:item:%d:0:done", checkin.ID),
+		Message: cardMessage,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	edit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(edit.Text, "йога?") {
+		t.Fatalf("expected next routine item edit, found=%v edit=%+v", ok, edit)
+	}
+
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:      "routine-partial",
+		From:    telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Data:    fmt.Sprintf("routine:item:%d:1:partial", checkin.ID),
+		Message: cardMessage,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
+		t.Fatalf("routine reason pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+
+	reason := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 13,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Сорвался график",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reason}); err != nil {
+		t.Fatal(err)
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingRoutineReflection {
+		t.Fatalf("routine reflection pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+	reflectionEdit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(reflectionEdit.Text, "какую одну правку сделаешь завтра") {
+		t.Fatalf("expected reflection prompt, found=%v edit=%+v", ok, reflectionEdit)
+	}
+
+	reflection := reason
+	reflection.MessageID = 302
+	reflection.Text = "Помогло: планирование. Завтра начну раньше."
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reflection}); err != nil {
+		t.Fatal(err)
+	}
+	updated, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found {
+		t.Fatalf("routine checkin found=%v err=%v", found, err)
+	}
+	if updated.CompletedAt == nil || updated.ReflectionText == nil {
+		t.Fatalf("routine not completed: %+v", updated)
+	}
+	leaderboardEdit, ok := fake.findEdit(900)
+	if !ok || !strings.Contains(leaderboardEdit.Text, "Рутины: лидерборд") {
+		t.Fatalf("leaderboard edit missing: found=%v edit=%+v", ok, leaderboardEdit)
+	}
+	var progressCount int
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM progress_events WHERE workspace_group_id = $1`, workspace.ID).Scan(&progressCount); err != nil {
+		t.Fatal(err)
+	}
+	if progressCount != 0 {
+		t.Fatalf("routine flow must not publish progress events, got %d", progressCount)
+	}
+}
+
 type fakeTelegram struct {
 	createdTopics []string
 	nextThreadID  int64
 	nextMessageID int64
 	edits         []telegram.EditMessageTextRequest
+	sent          []telegram.SendMessageRequest
 }
 
 func newFakeTelegram() *fakeTelegram {
@@ -287,6 +404,7 @@ func (f *fakeTelegram) AnswerCallbackQuery(context.Context, telegram.AnswerCallb
 }
 func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessageRequest) (telegram.Message, error) {
 	f.nextMessageID++
+	f.sent = append(f.sent, request)
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
 func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditMessageTextRequest) error {

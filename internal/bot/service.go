@@ -158,6 +158,14 @@ func (s *Service) handleCallback(ctx context.Context, callback telegram.Callback
 		return s.handleTaskStatus(ctx, callback, parsed.TaskID, parsed.TaskStatus)
 	case domain.CallbackAlertAck:
 		return s.handleAlertAck(ctx, callback, parsed.AlertID)
+	case domain.CallbackRoutineConfigure:
+		return s.handleRoutineConfigure(ctx, callback)
+	case domain.CallbackRoutineItem:
+		return s.handleRoutineItem(ctx, callback, parsed.RoutineCheckinID, parsed.RoutineItemIndex, parsed.RoutineItemStatus)
+	case domain.CallbackGoalsConfigure:
+		return s.handleGoalsConfigure(ctx, callback)
+	case domain.CallbackGoalFinalStatus:
+		return s.handleGoalFinalStatus(ctx, callback, parsed.GoalSetID, parsed.GoalFinalStatus)
 	default:
 		return CallbackAnswer{Text: "Кнопка устарела."}, nil
 	}
@@ -248,6 +256,19 @@ func (s *Service) handleSetupStart(ctx context.Context, callback telegram.Callba
 			changed = true
 		}
 	}
+	if binding, ok := bindings[domain.TopicRoutine]; ok {
+		if s.ensureTopicMessage(ctx, workspace.ID, chat.ID, topicIDs[domain.TopicRoutine], domain.TopicRoutine, binding.ControlMessageID, ui.RoutineControlText, ui.RoutineControlKeyboard(), true, true) {
+			changed = true
+		}
+		if s.ensureTopicMessage(ctx, workspace.ID, chat.ID, topicIDs[domain.TopicRoutine], domain.TopicRoutine, binding.IntroMessageID, ui.FormatRoutineLeaderboard(nil), nil, false, false) {
+			changed = true
+		}
+	}
+	if binding, ok := bindings[domain.TopicGoals]; ok {
+		if s.ensureTopicMessage(ctx, workspace.ID, chat.ID, topicIDs[domain.TopicGoals], domain.TopicGoals, binding.ControlMessageID, ui.GoalsControlText, ui.GoalsControlKeyboard(), true, true) {
+			changed = true
+		}
+	}
 	if binding, ok := bindings[domain.TopicProgress]; ok {
 		if s.ensureTopicMessage(ctx, workspace.ID, chat.ID, topicIDs[domain.TopicProgress], domain.TopicProgress, binding.IntroMessageID, ui.ProgressIntroText, nil, false, false) {
 			changed = true
@@ -298,17 +319,18 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID); err != nil {
 			return err
-		} else if found && pending.Kind == domain.PendingDailyTaskText {
-			answer.Text = "Я уже жду формулировку задачи."
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
 			return nil
-		} else if found && pending.Kind == domain.PendingDailyTaskReport {
-			answer.Text = "Сначала закончи текущий отчет."
-			return nil
+		}
+		nudge, err := s.goalNudge(ctx, q, workspace, participant, "task_text:"+taskDate.Format("2006-01-02"), "")
+		if err != nil {
+			return err
 		}
 		prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              callback.Message.Chat.ID,
 			MessageThreadID:     callback.Message.MessageThreadID,
-			Text:                "✍️ <b>Напиши одну главную задачу дня одним сообщением. Можно текстом, голосовым или медиа.</b>",
+			Text:                ui.DailyTaskTextPrompt(nudge),
 			DisableNotification: true,
 		})
 		if err != nil {
@@ -332,9 +354,6 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 	if err != nil || !found {
 		return err
 	}
-	if pending.Kind != domain.PendingDailyTaskText && pending.Kind != domain.PendingDailyTaskReport {
-		return nil
-	}
 	if !pendingInputMatchesThread(pending.Payload, message.MessageThreadID) {
 		return nil
 	}
@@ -343,6 +362,18 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 		return s.consumeDailyTaskText(ctx, workspace, message)
 	case domain.PendingDailyTaskReport:
 		return s.consumeDailyTaskReport(ctx, workspace, message)
+	case domain.PendingRoutinePlan:
+		return s.consumeRoutinePlan(ctx, workspace, message, pending)
+	case domain.PendingRoutineReason:
+		return s.consumeRoutineReason(ctx, workspace, message)
+	case domain.PendingRoutineReflection:
+		return s.consumeRoutineReflection(ctx, workspace, message)
+	case domain.PendingSeasonalGoals:
+		return s.consumeSeasonalGoals(ctx, workspace, message, pending)
+	case domain.PendingGoalWeeklyReview:
+		return s.consumeGoalWeeklyReview(ctx, workspace, message)
+	case domain.PendingGoalFinalReflection:
+		return s.consumeGoalFinalReflection(ctx, workspace, message)
 	default:
 		return nil
 	}
@@ -469,8 +500,8 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 		}
 		if pending, found, err := q.GetPendingInput(ctx, task.WorkspaceGroupID, callback.From.ID); err != nil {
 			return err
-		} else if found && pending.Kind == domain.PendingDailyTaskReport {
-			answer.Text = "Я уже жду короткий результат."
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
 			return nil
 		}
 		_, err = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
@@ -512,11 +543,22 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			return err
 		} else if found && previous.Kind == domain.PendingDailyTaskReport {
 			_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, payloadInt64(previous.Payload, "prompt_message_id"))
+		} else if found {
+			answer.Text = pendingBusyText(previous.Kind)
+			return nil
+		}
+		participant, _, err := q.GetParticipantByID(ctx, task.ParticipantID)
+		if err != nil {
+			return err
+		}
+		nudge, err := s.goalNudge(ctx, q, workspace, participant, fmt.Sprintf("task_status:%d:%s", task.ID, status), string(status))
+		if err != nil {
+			return err
 		}
 		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 			ChatID:    callback.Message.Chat.ID,
 			MessageID: callback.Message.MessageID,
-			Text:      "✍️ <b>Теперь напиши короткий результат одним сообщением. Можно текстом, голосовым или медиа.</b>",
+			Text:      ui.DailyTaskReportPrompt(nudge),
 		})
 		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingDailyTaskReport, map[string]any{
 			"task_id":           taskID,
@@ -527,6 +569,385 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 		return err
 	})
 	return answer, err
+}
+
+func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
+	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
+	if err != nil || workspace.ID == 0 {
+		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+	}
+	var answer CallbackAnswer
+	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+			return err
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
+		}
+		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
+			return err
+		}
+		prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+			ChatID:              callback.Message.Chat.ID,
+			MessageThreadID:     callback.Message.MessageThreadID,
+			Text:                ui.RoutinePlanPrompt(),
+			DisableNotification: true,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingRoutinePlan, map[string]any{
+			"thread_id":         callback.Message.MessageThreadID,
+			"prompt_message_id": prompt.MessageID,
+		})
+		return err
+	})
+	return answer, err
+}
+
+func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {
+	raw := messagePlainText(message)
+	items, parseErr := domain.ParseRoutineItems(raw)
+	if raw == "" || parseErr != nil {
+		text := "⚠️ <b>Пришли список текстом: один пункт на строку.</b>"
+		if parseErr != nil && strings.Contains(parseErr.Error(), "max") {
+			text = "⚠️ <b>Слишком много для daily check-in, сократи до 9 пунктов.</b>"
+		}
+		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text+"\n\n"+ui.RoutinePlanPrompt(), nil)
+		return nil
+	}
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutinePlan); err != nil || !ok {
+			return err
+		}
+		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
+		if err != nil {
+			return err
+		}
+		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
+			return err
+		}
+		text := fmt.Sprintf("✅ <b>Рутина сохранена.</b>\nПунктов: %d. С завтрашнего утра буду присылать одну check-in карточку.", len(items))
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+		}
+		return nil
+	})
+}
+
+func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.CallbackQuery, checkinID int64, itemIndex int, status domain.RoutineItemStatus) (CallbackAnswer, error) {
+	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
+	if err != nil || workspace.ID == 0 {
+		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+	}
+	var answer CallbackAnswer
+	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		checkin, found, err := q.GetRoutineCheckin(ctx, checkinID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			answer.Text = "Check-in не найден."
+			return nil
+		}
+		if checkin.OwnerUserID != callback.From.ID {
+			answer.Text = "Отметить рутину может только ее автор."
+			return nil
+		}
+		if checkin.CompletedAt != nil {
+			answer.Text = "Этот check-in уже завершен."
+			return nil
+		}
+		nextIndex := ui.NextRoutineItemIndex(checkin)
+		if nextIndex != itemIndex {
+			answer.Text = "Этот пункт уже не актуален."
+			return nil
+		}
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+			return err
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
+		}
+		if status == domain.RoutineItemPartial || status == domain.RoutineItemFailed {
+			_, err := q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingRoutineReason, map[string]any{
+				"checkin_id":        checkinID,
+				"item_index":        itemIndex,
+				"status":            string(status),
+				"prompt_message_id": callback.Message.MessageID,
+				"thread_id":         callback.Message.MessageThreadID,
+			})
+			if err != nil {
+				return err
+			}
+			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+				ChatID:    callback.Message.Chat.ID,
+				MessageID: callback.Message.MessageID,
+				Text:      ui.FormatRoutineReasonPrompt(checkin, itemIndex),
+			})
+			return nil
+		}
+		updated, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkinID, callback.From.ID, itemIndex, status, nil)
+		if err != nil || !ok {
+			return err
+		}
+		return s.advanceRoutineCheckin(ctx, q, workspace, callback.Message.Chat.ID, callback.Message.MessageID, callback.Message.MessageThreadID, callback.From, updated)
+	})
+	return answer, err
+}
+
+func (s *Service) consumeRoutineReason(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutineReason)
+		if err != nil || !ok {
+			return err
+		}
+		checkinID := payloadInt64(pending.Payload, "checkin_id")
+		itemIndex := int(payloadInt64(pending.Payload, "item_index"))
+		status := domain.RoutineItemStatus(payloadString(pending.Payload, "status"))
+		input := telegram.NewMessageInput(message)
+		reason := input.TextHTML
+		updated, saved, err := q.SetRoutineCheckinItemStatus(ctx, checkinID, message.From.ID, itemIndex, status, &reason)
+		if err != nil || !saved {
+			return err
+		}
+		return s.advanceRoutineCheckin(ctx, q, workspace, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), message.MessageThreadID, *message.From, updated)
+	})
+}
+
+func (s *Service) consumeRoutineReflection(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutineReflection)
+		if err != nil || !ok {
+			return err
+		}
+		checkinID := payloadInt64(pending.Payload, "checkin_id")
+		input := telegram.NewMessageInput(message)
+		checkin, completed, err := q.CompleteRoutineCheckin(ctx, checkinID, message.From.ID, input.TextHTML)
+		if err != nil || !completed {
+			return err
+		}
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:    message.Chat.ID,
+			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
+			Text:      ui.FormatRoutineCheckinCard(checkin, telegram.DisplayName(*message.From), message.From.Username, ""),
+		})
+		return s.refreshRoutineLeaderboard(ctx, q, workspace, message.Chat.ID)
+	})
+}
+
+func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries, workspace postgres.Workspace, chatID int64, messageID int64, threadID int64, user telegram.User, checkin postgres.RoutineCheckin) error {
+	nextIndex := ui.NextRoutineItemIndex(checkin)
+	if nextIndex >= 0 {
+		return s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:      chatID,
+			MessageID:   messageID,
+			Text:        ui.FormatRoutineCheckinCard(checkin, telegram.DisplayName(user), user.Username, ""),
+			ReplyMarkup: ui.RoutineItemKeyboard(checkin.ID, nextIndex),
+		})
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID); err != nil {
+		return err
+	} else if found && pending.Kind != domain.PendingRoutineReflection {
+		return nil
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, user.ID, domain.PendingRoutineReflection, map[string]any{
+		"checkin_id":        checkin.ID,
+		"prompt_message_id": messageID,
+		"thread_id":         threadID,
+	}); err != nil {
+		return err
+	}
+	return s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+		ChatID:    chatID,
+		MessageID: messageID,
+		Text:      ui.FormatRoutineReflectionPrompt(checkin, telegram.DisplayName(user), user.Username),
+	})
+}
+
+func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
+	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
+	if err != nil || workspace.ID == 0 {
+		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+	}
+	var answer CallbackAnswer
+	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+			return err
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
+		}
+		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
+			return err
+		}
+		prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+			ChatID:              callback.Message.Chat.ID,
+			MessageThreadID:     callback.Message.MessageThreadID,
+			Text:                ui.SeasonalGoalsPrompt(),
+			DisableNotification: true,
+		})
+		if err != nil {
+			return err
+		}
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingSeasonalGoals, map[string]any{
+			"thread_id":         callback.Message.MessageThreadID,
+			"prompt_message_id": prompt.MessageID,
+		})
+		return err
+	})
+	return answer, err
+}
+
+func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {
+	if strings.TrimSpace(messagePlainText(message)) == "" {
+		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), "⚠️ <b>Пришли цели текстом.</b>\n\n"+ui.SeasonalGoalsPrompt(), nil)
+		return nil
+	}
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingSeasonalGoals); err != nil || !ok {
+			return err
+		}
+		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
+		if err != nil {
+			return err
+		}
+		now, err := q.CurrentNow(ctx, time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		period, err := domain.CurrentGoalPeriod(workspace.Timezone, now)
+		if err != nil {
+			return err
+		}
+		input := telegram.NewMessageInput(message)
+		goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, message.From.ID, period, input.TextHTML)
+		if err != nil {
+			return err
+		}
+		cardText := ui.FormatSeasonalGoalCard(goalSet, telegram.DisplayName(*message.From), message.From.Username, "")
+		if goalSet.CardMessageID != nil {
+			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{ChatID: message.Chat.ID, MessageID: *goalSet.CardMessageID, Text: cardText})
+		} else {
+			card, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+				ChatID:              message.Chat.ID,
+				MessageThreadID:     message.MessageThreadID,
+				Text:                cardText,
+				DisableNotification: true,
+			})
+			if err != nil {
+				return err
+			}
+			if err := q.SetSeasonalGoalCardMessageID(ctx, goalSet.ID, card.MessageID, message.MessageThreadID); err != nil {
+				return err
+			}
+		}
+		text := "✅ <b>Цели сохранены.</b>\nРаз в неделю я буду просить короткий review в этой теме."
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+		}
+		return nil
+	})
+}
+
+func (s *Service) consumeGoalWeeklyReview(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingGoalWeeklyReview)
+		if err != nil || !ok {
+			return err
+		}
+		reviewID := payloadInt64(pending.Payload, "review_id")
+		input := telegram.NewMessageInput(message)
+		review, saved, err := q.SubmitGoalWeeklyReview(ctx, reviewID, message.From.ID, input.TextHTML)
+		if err != nil || !saved {
+			return err
+		}
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:    message.Chat.ID,
+			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
+			Text:      ui.FormatGoalWeeklyReviewSaved(review),
+		})
+		return nil
+	})
+}
+
+func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.CallbackQuery, goalSetID int64, status domain.GoalFinalStatus) (CallbackAnswer, error) {
+	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
+	if err != nil || workspace.ID == 0 {
+		return CallbackAnswer{Text: "Не получилось найти настройки группы."}, err
+	}
+	var answer CallbackAnswer
+	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		goalSet, found, err := q.GetSeasonalGoalSet(ctx, goalSetID)
+		if err != nil {
+			return err
+		}
+		if !found {
+			answer.Text = "Цели не найдены."
+			return nil
+		}
+		if goalSet.OwnerUserID != callback.From.ID {
+			answer.Text = "Финальный review может оставить только автор целей."
+			return nil
+		}
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+			return err
+		} else if found {
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
+		}
+		if _, err := q.GetOrCreateGoalFinalReview(ctx, goalSetID); err != nil {
+			return err
+		}
+		review, saved, err := q.SetGoalFinalReviewStatus(ctx, goalSetID, callback.From.ID, status)
+		if err != nil || !saved {
+			return err
+		}
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingGoalFinalReflection, map[string]any{
+			"goal_set_id":       goalSetID,
+			"prompt_message_id": callback.Message.MessageID,
+			"thread_id":         callback.Message.MessageThreadID,
+		})
+		if err != nil {
+			return err
+		}
+		selected := status
+		if review.Status != nil {
+			selected = *review.Status
+		}
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:    callback.Message.Chat.ID,
+			MessageID: callback.Message.MessageID,
+			Text:      ui.FormatGoalFinalReflectionPrompt(goalSet, selected),
+		})
+		return nil
+	})
+	return answer, err
+}
+
+func (s *Service) consumeGoalFinalReflection(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingGoalFinalReflection)
+		if err != nil || !ok {
+			return err
+		}
+		goalSetID := payloadInt64(pending.Payload, "goal_set_id")
+		goalSet, found, err := q.GetSeasonalGoalSet(ctx, goalSetID)
+		if err != nil || !found {
+			return err
+		}
+		input := telegram.NewMessageInput(message)
+		review, saved, err := q.CompleteGoalFinalReview(ctx, goalSetID, message.From.ID, input.TextHTML)
+		if err != nil || !saved {
+			return err
+		}
+		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:    message.Chat.ID,
+			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
+			Text:      ui.FormatGoalFinalReviewSaved(goalSet, review),
+		})
+		return nil
+	})
 }
 
 func (s *Service) handleAlertAck(ctx context.Context, callback telegram.CallbackQuery, alertID int64) (CallbackAnswer, error) {
@@ -680,11 +1101,101 @@ func payloadString(payload map[string]any, key string) string {
 	return ""
 }
 
+func messagePlainText(message telegram.Message) string {
+	if message.Text != "" {
+		return message.Text
+	}
+	return message.Caption
+}
+
+func pendingBusyText(kind domain.PendingInputKind) string {
+	switch kind {
+	case domain.PendingDailyTaskText:
+		return "Я уже жду формулировку задачи."
+	case domain.PendingDailyTaskReport:
+		return "Сначала закончи текущий отчет."
+	case domain.PendingRoutinePlan:
+		return "Я уже жду список рутины."
+	case domain.PendingRoutineReason:
+		return "Я уже жду короткую причину по рутине."
+	case domain.PendingRoutineReflection:
+		return "Сначала закончи итог по рутине."
+	case domain.PendingSeasonalGoals:
+		return "Я уже жду список сезонных целей."
+	case domain.PendingGoalWeeklyReview:
+		return "Сначала закончи weekly review по целям."
+	case domain.PendingGoalFinalReflection:
+		return "Сначала закончи финальный итог по целям."
+	default:
+		return "Сначала закончи текущий ввод."
+	}
+}
+
 func optionalInt64(value *int64) int64 {
 	if value == nil {
 		return 0
 	}
 	return *value
+}
+
+func (s *Service) goalNudge(ctx context.Context, q *postgres.Queries, workspace postgres.Workspace, participant postgres.Participant, seed string, status string) (string, error) {
+	if participant.ID == 0 {
+		return "", nil
+	}
+	now, err := q.CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return "", err
+	}
+	period, err := domain.CurrentGoalPeriod(workspace.Timezone, now)
+	if err != nil {
+		return "", err
+	}
+	hasGoals, err := q.HasSeasonalGoalSetForParticipant(ctx, workspace.ID, participant.ID, period.Key)
+	if err != nil || !hasGoals {
+		return "", err
+	}
+	if !domain.ShouldShowGoalNudge(fmt.Sprintf("%s:%d:%s", seed, participant.ID, period.Key)) {
+		return "", nil
+	}
+	switch status {
+	case string(domain.DailyTaskFailed):
+		return "Не расстраивайся. Подумай, критичен ли этот провал для твоих целей до 1 сентября?", nil
+	case string(domain.DailyTaskDone), string(domain.DailyTaskPartial):
+		return "Как выполнение этой задачи повлияло на твои глобальные цели?", nil
+	default:
+		return "Хей! А эта задача приближает тебя к сезонным целям на лето?", nil
+	}
+}
+
+func (s *Service) refreshRoutineLeaderboard(ctx context.Context, q *postgres.Queries, workspace postgres.Workspace, chatID int64) error {
+	binding, found, err := q.GetTopicBinding(ctx, workspace.ID, domain.TopicRoutine)
+	if err != nil || !found {
+		return err
+	}
+	now, err := q.CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	entries, err := q.GetRoutineLeaderboard(ctx, workspace.ID, now)
+	if err != nil {
+		return err
+	}
+	text := ui.FormatRoutineLeaderboard(entries)
+	if binding.IntroMessageID != nil {
+		if s.editMessageSafe(ctx, chatID, *binding.IntroMessageID, text, nil) {
+			return nil
+		}
+	}
+	message, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+		ChatID:              chatID,
+		MessageThreadID:     binding.ThreadID,
+		Text:                text,
+		DisableNotification: true,
+	})
+	if err != nil {
+		return err
+	}
+	return q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &message.MessageID, nil, false, false)
 }
 
 func (s *Service) DebugSummary() string {

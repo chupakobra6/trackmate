@@ -94,6 +94,99 @@ type ProgressEvent struct {
 	PublishedAt        *time.Time
 }
 
+type RoutinePlan struct {
+	ID               int64
+	WorkspaceGroupID int64
+	ParticipantID    int64
+	OwnerUserID      int64
+	Items            []string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type RoutineCheckin struct {
+	ID                  int64
+	WorkspaceGroupID    int64
+	ParticipantID       int64
+	OwnerUserID         int64
+	CheckinDate         time.Time
+	CardMessageID       *int64
+	CardMessageThreadID *int64
+	ReflectionText      *string
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	CompletedAt         *time.Time
+	Items               []RoutineCheckinItem
+}
+
+type RoutineCheckinItem struct {
+	ID               int64
+	RoutineCheckinID int64
+	ItemIndex        int
+	Text             string
+	Status           *domain.RoutineItemStatus
+	ReasonText       *string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type RoutinePlanContext struct {
+	Plan        RoutinePlan
+	Workspace   Workspace
+	Participant Participant
+}
+
+type RoutineLeaderboardEntry struct {
+	Participant    Participant
+	CurrentStreak  int
+	MaxStreak      int
+	CompletionRate float64
+}
+
+type SeasonalGoalSet struct {
+	ID                  int64
+	WorkspaceGroupID    int64
+	ParticipantID       int64
+	OwnerUserID         int64
+	PeriodKey           string
+	PeriodTitle         string
+	PeriodStartsOn      time.Time
+	PeriodEndsOn        time.Time
+	GoalsText           string
+	CardMessageID       *int64
+	CardMessageThreadID *int64
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type SeasonalGoalSetContext struct {
+	GoalSet     SeasonalGoalSet
+	Workspace   Workspace
+	Participant Participant
+}
+
+type GoalWeeklyReview struct {
+	ID                    int64
+	GoalSetID             int64
+	ReviewWeekStart       time.Time
+	PromptMessageID       *int64
+	PromptMessageThreadID *int64
+	ResponseText          *string
+	RequestedAt           time.Time
+	RespondedAt           *time.Time
+}
+
+type GoalFinalReview struct {
+	ID                    int64
+	GoalSetID             int64
+	Status                *domain.GoalFinalStatus
+	PromptMessageID       *int64
+	PromptMessageThreadID *int64
+	SummaryText           *string
+	RequestedAt           time.Time
+	CompletedAt           *time.Time
+}
+
 func strPtr(value string) *string {
 	if value == "" {
 		return nil
@@ -132,6 +225,22 @@ func statusFromPg(value pgtype.Text) *domain.DailyTaskStatus {
 	return &status
 }
 
+func routineStatusFromPg(value pgtype.Text) *domain.RoutineItemStatus {
+	if !value.Valid {
+		return nil
+	}
+	status := domain.RoutineItemStatus(value.String)
+	return &status
+}
+
+func goalFinalStatusFromPg(value pgtype.Text) *domain.GoalFinalStatus {
+	if !value.Valid {
+		return nil
+	}
+	status := domain.GoalFinalStatus(value.String)
+	return &status
+}
+
 func encodePayload(payload map[string]any) ([]byte, error) {
 	if payload == nil {
 		payload = map[string]any{}
@@ -148,6 +257,17 @@ func decodePayload(raw []byte) map[string]any {
 		return map[string]any{"raw": string(raw)}
 	}
 	return payload
+}
+
+func decodeStringSlice(raw []byte) []string {
+	if len(raw) == 0 {
+		return nil
+	}
+	var values []string
+	if err := json.Unmarshal(raw, &values); err != nil {
+		return nil
+	}
+	return values
 }
 
 func payloadInt64(payload map[string]any, key string) int64 {

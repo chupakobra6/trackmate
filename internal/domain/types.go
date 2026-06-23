@@ -13,6 +13,8 @@ type TopicKey string
 const (
 	TopicToday    TopicKey = "today"
 	TopicProgress TopicKey = "progress"
+	TopicRoutine  TopicKey = "routine"
+	TopicGoals    TopicKey = "goals"
 )
 
 type DailyTaskStatus string
@@ -69,6 +71,36 @@ const (
 type PendingInputKind string
 
 const (
-	PendingDailyTaskText   PendingInputKind = "daily_task_text"
-	PendingDailyTaskReport PendingInputKind = "daily_task_report"
+	PendingDailyTaskText       PendingInputKind = "daily_task_text"
+	PendingDailyTaskReport     PendingInputKind = "daily_task_report"
+	PendingRoutinePlan         PendingInputKind = "routine_plan"
+	PendingRoutineReason       PendingInputKind = "routine_reason"
+	PendingRoutineReflection   PendingInputKind = "routine_reflection"
+	PendingSeasonalGoals       PendingInputKind = "seasonal_goals"
+	PendingGoalWeeklyReview    PendingInputKind = "goal_weekly_review"
+	PendingGoalFinalReflection PendingInputKind = "goal_final_reflection"
 )
+
+type RoutineItemStatus string
+
+const (
+	RoutineItemDone    RoutineItemStatus = "done"
+	RoutineItemPartial RoutineItemStatus = "partial"
+	RoutineItemFailed  RoutineItemStatus = "failed"
+)
+
+func (s RoutineItemStatus) IsValid() bool {
+	return s == RoutineItemDone || s == RoutineItemPartial || s == RoutineItemFailed
+}
+
+type GoalFinalStatus string
+
+const (
+	GoalFinalDone    GoalFinalStatus = "done"
+	GoalFinalPartial GoalFinalStatus = "partial"
+	GoalFinalFailed  GoalFinalStatus = "failed"
+)
+
+func (s GoalFinalStatus) IsValid() bool {
+	return s == GoalFinalDone || s == GoalFinalPartial || s == GoalFinalFailed
+}

@@ -29,3 +29,23 @@ func TestParseCallbackRejectsRemovedMaterialsCallbacks(t *testing.T) {
 		}
 	}
 }
+
+func TestParseRoutineItemCallback(t *testing.T) {
+	got, err := ParseCallback("routine:item:42:2:partial")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != CallbackRoutineItem || got.RoutineCheckinID != 42 || got.RoutineItemIndex != 2 || got.RoutineItemStatus != RoutineItemPartial {
+		t.Fatalf("unexpected callback: %+v", got)
+	}
+}
+
+func TestParseGoalFinalCallback(t *testing.T) {
+	got, err := ParseCallback("goals:final:77:done")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != CallbackGoalFinalStatus || got.GoalSetID != 77 || got.GoalFinalStatus != GoalFinalDone {
+		t.Fatalf("unexpected callback: %+v", got)
+	}
+}
