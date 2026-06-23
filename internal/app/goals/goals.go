@@ -166,7 +166,9 @@ func nowBeforeLocalDate(nowUTC time.Time, timezoneName string, date time.Time) b
 	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
-	return localDate.Before(date)
+	dateYear, dateMonth, dateDay := date.In(location).Date()
+	targetDate := time.Date(dateYear, dateMonth, dateDay, 0, 0, 0, 0, location)
+	return localDate.Before(targetDate)
 }
 
 func participantUsername(participant postgres.Participant) string {

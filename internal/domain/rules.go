@@ -140,7 +140,9 @@ func GoalFinalReviewDue(period GoalPeriod, workspaceTimezone string, nowUTC time
 	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
-	return !localDate.Before(period.EndsOn), nil
+	endYear, endMonth, endDay := period.EndsOn.In(location).Date()
+	endDate := time.Date(endYear, endMonth, endDay, 0, 0, 0, 0, location)
+	return !localDate.Before(endDate), nil
 }
 
 func ShouldShowGoalNudge(seed string) bool {

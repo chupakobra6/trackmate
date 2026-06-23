@@ -6,10 +6,10 @@
 {"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_goals","action":"send_text","text":"1. Работа\nРезультат: получить оффер Go/backend до 01.09.2026.\nМетрика: 10 релевантных откликов в неделю.\nЕженедельный шаг: 2 сессии подготовки + 5 откликов.\nПочему важно: вернуть доход."}
 {"id":"wait_goals_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_weekly_review_prompt","action":"wait","timeout_ms":120000}
+{"id":"wait_weekly_review_prompt","action":"assert_visible_text","text":"Еженедельная проверка целей","timeout_ms":120000}
 {"id":"send_weekly_review","action":"send_text","text":"Сдвинулось: 6 откликов.\nМешало: режим.\nСледующая неделя: 10 откликов + 2 мок-собеса."}
 {"id":"wait_weekly_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_final_review_prompt","action":"wait","timeout_ms":120000}
+{"id":"wait_final_review_prompt","action":"assert_visible_text","text":"Финал периода","timeout_ms":120000}
 {"id":"choose_final_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Финал периода","timeout_ms":60000}
 {"id":"wait_final_summary_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_final_summary","action":"send_text","text":"Получилось: регулярные отклики. Не получилось: стабильный режим. Вывод: планировать неделю заранее."}

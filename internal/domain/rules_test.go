@@ -122,3 +122,14 @@ func TestGoalNudgeAllowedUsesThreeDayCooldown(t *testing.T) {
 		t.Fatal("nudge should be allowed after cooldown")
 	}
 }
+
+func TestGoalFinalReviewDueUsesWorkspaceLocalDate(t *testing.T) {
+	period := GoalPeriod{EndsOn: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
+	due, err := GoalFinalReviewDue(period, "Europe/Moscow", time.Date(2026, 8, 31, 21, 5, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !due {
+		t.Fatal("expected final review after local midnight on period end date")
+	}
+}
