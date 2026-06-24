@@ -45,10 +45,10 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if !fake.hasSentToThread(40, "Еженедельная проверка целей") {
 		t.Fatalf("weekly review was not sent to goals topic: %+v", fake.sent)
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
 		t.Fatalf("weekly pending found=%v pending=%+v err=%v", found, pending, err)
 	}
-	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID); err != nil {
+	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil {
 		t.Fatal(err)
 	}
 

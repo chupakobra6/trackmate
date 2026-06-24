@@ -113,10 +113,10 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if fake.hasThread(20) {
 		t.Fatalf("routine/goals worker should not publish progress events: %+v", fake.sent)
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
 		t.Fatalf("weekly pending found=%v pending=%+v err=%v", found, pending, err)
 	}
-	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID); err != nil {
+	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil {
 		t.Fatal(err)
 	}
 

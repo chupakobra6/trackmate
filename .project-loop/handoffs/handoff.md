@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-009`
+- active step: `STEP-010`
 - status: `готово`
 
 ## Завершено
@@ -53,6 +53,13 @@
   - цели сохраняются с единым коротким ответом без отдельной карточки с полным текстом целей;
   - старые goal card messages удаляются при следующем сохранении целей;
   - в текстах рутины явно указано, что ежедневная карточка приходит после 09:00.
+- Закрыт STEP-010 по S009:
+  - `pending_inputs` теперь topic-scoped: явный `message_thread_id`, уникальность `workspace/user/thread`, сообщения и callbacks ищут pending только в текущей теме;
+  - поведение S008 со сбросом setup-черновиков между `Рутины` и `Цели` заменено: чужой топик не сбрасывается, wrong-topic сообщения игнорируются;
+  - worker тихо чистит pending старше 24 часов и удаляет сохраненные prompt/user message IDs без сообщений в чат;
+  - рутина приходит после 20:00 локального времени; если список сохранен до 20:00, первая карточка может прийти в тот же день;
+  - для незакрытой рутины worker отправляет напоминание после конца дня и в 12:00 следующего дня закрывает неотмеченные пункты как `failed`;
+  - автозакрытие рутины остается в `Рутины`, не создает `progress_events`, обновляет карточку и таблицу рутин.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -85,6 +92,11 @@
 - STEP-009 UX после production: `make test`: pass.
 - STEP-009 UX после production: `make lint`: pass.
 - STEP-009 UX после production: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-010 topic-scoped pending/routine flow: `go test ./internal/domain ./internal/storage/postgres ./internal/app/pending ./internal/app/routine ./internal/app/goals ./internal/worker ./internal/bot ./internal/ui`: pass.
+- STEP-010: `go test ./... -count=1`: pass.
+- STEP-010: `make test`: pass.
+- STEP-010: `make lint`: pass.
+- STEP-010 DB-backed integration tests and migration dry-run: blocked locally because PostgreSQL was not listening on `localhost:5432` and `make docker-up` could not connect to Docker daemon.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -96,11 +108,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Текущий STEP-009 закоммичен локально, но не выкачен на production.
-- Для production hotfix нужен отдельный approval, затем короткий update без новых миграций.
+- Текущий STEP-010 требует новой миграции `202606240001_topic_scoped_pending_and_routine_deadlines.sql`; DB integration и SQL dry-run на локальной PostgreSQL не выполнены из-за недоступного Docker daemon.
+- Production сейчас отстает от локального `main`; для выката нужен отдельный approval, backup, миграция и smoke-check.
 
 ## Следующее Действие
-- Показать STEP-009 Игорю. После approval на hotfix: push, production backup/counts, `git pull --ff-only`, `docker compose up -d --build`, smoke-check pending cleanup и goals confirmation.
+- Показать STEP-010 Игорю. После approval на выкатку: push, production backup/counts, `git pull --ff-only`, применить миграцию, `docker compose up -d --build`, smoke-check topic-scoped pending, routine evening card/reminder/auto-close и goals confirmation.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

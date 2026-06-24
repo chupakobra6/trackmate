@@ -20,19 +20,11 @@ func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
-			cancelled, err := s.cancelSwitchableSetupInput(ctx, q, callback.Message.Chat.ID, pending)
-			if err != nil {
-				return err
-			}
-			if cancelled {
-				answer.Text = "Предыдущий ввод сброшен"
-			} else {
-				answer.Text = pendingBusyText(pending.Kind)
-				return nil
-			}
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
 		}
 		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
 			return err
@@ -46,7 +38,7 @@ func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.
 		if err != nil {
 			return err
 		}
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingRoutinePlan, map[string]any{
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingRoutinePlan, map[string]any{
 			"thread_id":         callback.Message.MessageThreadID,
 			"prompt_message_id": prompt.MessageID,
 		})
@@ -63,11 +55,12 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if parseErr != nil && strings.Contains(parseErr.Error(), "max") {
 			text = "⚠️ <b>Слишком много пунктов</b>\nОграничение — не более 9 рутин"
 		}
+		_ = s.refreshPendingInputActivity(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pending, message.MessageID)
 		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text+"\n\n"+ui.RoutinePlanPrompt(), nil)
 		return nil
 	}
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutinePlan); err != nil || !ok {
+		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutinePlan); err != nil || !ok {
 			return err
 		}
 		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
@@ -77,7 +70,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}
-		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nС завтрашнего дня после 09:00 буду присылать карточку для отметок", len(items))
+		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nПервая карточка придет сегодня после 20:00, если список сохранен до этого времени\nЗакрыть ее можно до 12:00 следующего дня", len(items))
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}
@@ -113,14 +106,14 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			answer.Text = "Этот пункт уже не актуален"
 			return nil
 		}
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
 			answer.Text = pendingBusyText(pending.Kind)
 			return nil
 		}
 		if status == domain.RoutineItemPartial || status == domain.RoutineItemFailed {
-			_, err := q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingRoutineReason, map[string]any{
+			_, err := q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingRoutineReason, map[string]any{
 				"checkin_id":        checkinID,
 				"item_index":        itemIndex,
 				"status":            string(status),
@@ -148,7 +141,7 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 
 func (s *Service) consumeRoutineReason(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutineReason)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutineReason)
 		if err != nil || !ok {
 			return err
 		}
@@ -167,7 +160,7 @@ func (s *Service) consumeRoutineReason(ctx context.Context, workspace postgres.W
 
 func (s *Service) consumeRoutineReflection(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingRoutineReflection)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutineReflection)
 		if err != nil || !ok {
 			return err
 		}
@@ -200,12 +193,12 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 			ReplyMarkup: ui.RoutineItemKeyboard(checkin.ID, nextIndex),
 		})
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID); err != nil {
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID, threadID); err != nil {
 		return err
 	} else if found && pending.Kind != domain.PendingRoutineReflection {
 		return nil
 	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, user.ID, domain.PendingRoutineReflection, map[string]any{
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, user.ID, threadID, domain.PendingRoutineReflection, map[string]any{
 		"checkin_id":        checkin.ID,
 		"prompt_message_id": messageID,
 		"thread_id":         threadID,

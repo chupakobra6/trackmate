@@ -89,7 +89,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport, map[string]any{
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 10, domain.PendingDailyTaskReport, map[string]any{
 		"thread_id":         10,
 		"task_id":           task.ID,
 		"status":            string(domain.DailyTaskDone),
@@ -125,7 +125,7 @@ func TestPhotoAlbumReportConsumesPendingInputOnce(t *testing.T) {
 	if updated.Status != domain.DailyTaskDone || updated.ReportText == nil || *updated.ReportText != "Фото к итогу: задача закрыта двумя изображениями." {
 		t.Fatalf("unexpected report state: %+v", updated)
 	}
-	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || found {
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 10); err != nil || found {
 		t.Fatalf("pending input found=%v err=%v", found, err)
 	}
 	var progressCount int
@@ -335,7 +335,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
 		t.Fatalf("routine reason pending found=%v pending=%+v err=%v", found, pending, err)
 	}
 
@@ -350,7 +350,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reason}); err != nil {
 		t.Fatal(err)
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID); err != nil || !found || pending.Kind != domain.PendingRoutineReflection {
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReflection {
 		t.Fatalf("routine reflection pending found=%v pending=%+v err=%v", found, pending, err)
 	}
 	reflectionEdit, ok := fake.findEdit(100)
@@ -384,7 +384,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}
 }
 
-func TestWrongTopicSetupInputCancelsDraftAndDeletesMessages(t *testing.T) {
+func TestWrongTopicPendingInputIsIgnoredAndKept(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	fake := newFakeTelegram()
 	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
@@ -395,7 +395,7 @@ func TestWrongTopicSetupInputCancelsDraftAndDeletesMessages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, domain.PendingRoutinePlan, map[string]any{
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, 13, domain.PendingRoutinePlan, map[string]any{
 		"thread_id":         13,
 		"prompt_message_id": 100,
 	}); err != nil {
@@ -413,15 +413,16 @@ func TestWrongTopicSetupInputCancelsDraftAndDeletesMessages(t *testing.T) {
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &message}); err != nil {
 		t.Fatal(err)
 	}
-	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42); err != nil || found {
-		t.Fatalf("pending input found=%v err=%v", found, err)
+	pending, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 13)
+	if err != nil || !found || pending.Kind != domain.PendingRoutinePlan {
+		t.Fatalf("routine pending should remain found=%v pending=%+v err=%v", found, pending, err)
 	}
-	if !fake.wasDeleted(100) || !fake.wasDeleted(301) {
-		t.Fatalf("expected old prompt and wrong-topic user message deletion, got %+v", fake.deleted)
+	if len(fake.deleted) != 0 {
+		t.Fatalf("wrong-topic input should not delete messages, got %+v", fake.deleted)
 	}
 }
 
-func TestConfigureGoalsReplacesUnfinishedRoutineDraft(t *testing.T) {
+func TestConfigureGoalsDoesNotTouchUnfinishedRoutineDraft(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	fake := newFakeTelegram()
 	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
@@ -435,7 +436,7 @@ func TestConfigureGoalsReplacesUnfinishedRoutineDraft(t *testing.T) {
 	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, domain.PendingRoutinePlan, map[string]any{
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, 13, domain.PendingRoutinePlan, map[string]any{
 		"thread_id":         13,
 		"prompt_message_id": 100,
 	}); err != nil {
@@ -455,15 +456,19 @@ func TestConfigureGoalsReplacesUnfinishedRoutineDraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if answer.Text != "Предыдущий ввод сброшен" {
+	if answer.Text != "" {
 		t.Fatalf("callback answer = %q", answer.Text)
 	}
-	if !fake.wasDeleted(100) {
-		t.Fatalf("old routine prompt was not deleted: %+v", fake.deleted)
+	if len(fake.deleted) != 0 {
+		t.Fatalf("goals configure should not delete routine prompt: %+v", fake.deleted)
 	}
-	pending, found, err := q.GetPendingInput(ctx, workspace.ID, 42)
-	if err != nil || !found || pending.Kind != domain.PendingSeasonalGoals || pending.Payload["thread_id"] != float64(14) {
-		t.Fatalf("unexpected pending found=%v pending=%+v err=%v", found, pending, err)
+	routinePending, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 13)
+	if err != nil || !found || routinePending.Kind != domain.PendingRoutinePlan {
+		t.Fatalf("routine pending should remain found=%v pending=%+v err=%v", found, routinePending, err)
+	}
+	goalsPending, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 14)
+	if err != nil || !found || goalsPending.Kind != domain.PendingSeasonalGoals || goalsPending.Payload["thread_id"] != float64(14) {
+		t.Fatalf("unexpected goals pending found=%v pending=%+v err=%v", found, goalsPending, err)
 	}
 	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли сезонные цели") {
 		t.Fatalf("expected one goals prompt, got %+v", fake.sent)
@@ -518,7 +523,7 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if !strings.Contains(edit.Text, "Цели записаны") || strings.Contains(edit.Text, "получить предложение") {
 		t.Fatalf("confirmation should be concise and not echo goals: %s", edit.Text)
 	}
-	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42); err != nil || found {
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 14); err != nil || found {
 		t.Fatalf("pending input found=%v err=%v", found, err)
 	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")

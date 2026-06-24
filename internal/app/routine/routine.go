@@ -62,6 +62,88 @@ func DispatchDueCheckins(ctx context.Context, store *postgres.Store, tg telegram
 	return nil
 }
 
+func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegram.API, logger *slog.Logger, nowUTC time.Time) error {
+	checkins, err := store.Queries().ListOpenRoutineCheckinContexts(ctx)
+	if err != nil {
+		return err
+	}
+	refreshed := map[int64]postgres.Workspace{}
+	for _, item := range checkins {
+		if item.Checkin.CardMessageID == nil || item.Checkin.CardMessageThreadID == nil {
+			continue
+		}
+		autoFailDue, err := domain.RoutineAutoFailDue(item.Checkin.CheckinDate, item.Workspace.Timezone, item.Checkin.CompletedAt, nowUTC)
+		if err != nil {
+			return err
+		}
+		if autoFailDue {
+			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
+				return err
+			}
+			updated, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
+			if err != nil {
+				return err
+			}
+			if !completed {
+				continue
+			}
+			_ = tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
+				ChatID:    item.Workspace.ChatID,
+				MessageID: *item.Checkin.CardMessageID,
+				Text: ui.FormatRoutineCheckinCard(
+					updated,
+					item.Participant.DisplayName,
+					participantUsername(item.Participant),
+					"Время вышло. Неотмеченные пункты засчитаны как невыполненные.",
+				),
+			})
+			if _, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
+				ChatID:              item.Workspace.ChatID,
+				MessageThreadID:     *item.Checkin.CardMessageThreadID,
+				Text:                ui.RoutineAutoClosedText(updated),
+				ReplyToMessageID:    *item.Checkin.CardMessageID,
+				DisableNotification: true,
+			}); err != nil {
+				if logger != nil {
+					logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", item.Checkin.ID, "error", err)
+				}
+				return err
+			}
+			refreshed[item.Workspace.ID] = item.Workspace
+			continue
+		}
+		reminderDue, err := domain.RoutineReminderDue(item.Checkin.CheckinDate, item.Workspace.Timezone, item.Checkin.ReminderSentAt, item.Checkin.CompletedAt, nowUTC)
+		if err != nil {
+			return err
+		}
+		if !reminderDue {
+			continue
+		}
+		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
+			ChatID:              item.Workspace.ChatID,
+			MessageThreadID:     *item.Checkin.CardMessageThreadID,
+			Text:                ui.RoutineReminderText(item.Checkin),
+			ReplyToMessageID:    *item.Checkin.CardMessageID,
+			DisableNotification: true,
+		})
+		if err != nil {
+			if logger != nil {
+				logger.WarnContext(ctx, "routine_reminder_dispatch_failed", "checkin_id", item.Checkin.ID, "error", err)
+			}
+			return err
+		}
+		if err := store.Queries().SetRoutineCheckinReminderMessageID(ctx, item.Checkin.ID, message.MessageID, nowUTC); err != nil {
+			return err
+		}
+	}
+	for _, workspace := range refreshed {
+		if err := RefreshLeaderboard(ctx, store.Queries(), tg, workspace, workspace.ChatID, nowUTC); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func RefreshLeaderboard(ctx context.Context, q *postgres.Queries, tg telegram.API, workspace postgres.Workspace, chatID int64, nowUTC time.Time) error {
 	binding, found, err := q.GetTopicBinding(ctx, workspace.ID, domain.TopicRoutine)
 	if err != nil || !found {

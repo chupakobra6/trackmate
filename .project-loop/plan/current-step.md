@@ -4,22 +4,21 @@
 Обновлено: 2026-06-24
 
 ## Активный Шаг
-- id: `STEP-009`
+- id: `STEP-010`
 - status: `готово`
-- objective: Починить UX настройки рутин/целей: сброс черновиков между топиками, короткое сохранение целей, явное время рутины.
-- requirement IDs: `REQ-022..REQ-024`
-- owned paths: `.project-loop/`, `internal/ui/`, `internal/bot/`, `internal/app/`, `e2e/telegram/`, tests
-- validation: `go test ./internal/bot ./internal/ui ./internal/storage/postgres ./internal/domain ./internal/app/routine ./internal/app/goals`; `make test`; `make lint`; `loopctl.py validate`
-- done criteria: черновики `routine_plan`/`seasonal_goals` сбрасываются при переходе в другой setup-топик; старые prompt и wrong-topic user message удаляются; goals setup больше не эхоит полный текст целей; routine check-in явно после 09:00; тесты проходят.
+- objective: Переделать pending inputs на изоляцию по топикам, добавить тихую очистку stale pending старше суток и перевести routine check-in на вечерний flow с напоминанием и автозакрытием.
+- requirement IDs: `REQ-025..REQ-027`, `VAL-006`
+- owned paths: `.project-loop/`, `migrations/`, `internal/domain/`, `internal/storage/postgres/`, `internal/bot/`, `internal/app/`, `internal/worker/`, `internal/ui/`, `docs/`, tests
+- validation: focused Go tests for pending/routine worker behavior; `go test ./... -count=1`; `make test`; `make lint`; `loopctl.py validate`
+- done criteria: pending input уникален по `workspace/user/thread`; сообщения и callbacks не блокируются pending из другого топика; stale cleanup удаляет старые prompt/user messages молча; routine card приходит вечером в день настройки при создании до вечернего времени; незакрытая routine получает напоминание после конца дня и автозакрывается в 12:00 следующего дня.
 
 ## Фокус Ревью
-- Pending setup cleanup между `Рутины` и `Цели`.
-- Единый короткий confirmation при сохранении целей без отдельной карточки с raw goals.
-- Точное объяснение времени рутины: после 09:00 local workspace time.
+- Миграция `pending_inputs` не теряет существующие pending payloads и переносит `thread_id` из payload в явную колонку.
+- В коде нет старого глобального ограничения `workspace/user`.
+- Worker cleanup не пишет новых сообщений в чат.
+- Routine transitions остаются внутри топика `Рутины` и не создают progress events.
 
 ## Примечания
-- STEP-009 закрыт: pending setup cleanup, короткий goals confirmation и время routine check-in реализованы.
-- Проверки STEP-009: `go test ./internal/bot ./internal/ui ./internal/storage/postgres ./internal/domain ./internal/app/routine ./internal/app/goals`, `make test`, `make lint`, `loopctl.py validate`.
-- Production уже на `v1.1`; текущий шаг пока локальная правка.
-- Docker доступен; локальные DB tests можно запускать через `TRACKMATE_TEST_DATABASE_URL`.
-- Routine dispatch time is defined by `domain.RoutineCheckinHour = 9`.
+- S009 заменяет часть поведения из S008: setup-ввод в другом топике больше не сбрасывает текущий черновик, а просто существует независимо.
+- Продакшн пока не трогаем без отдельного approval.
+- DB-backed integration tests и `TRACKMATE__DATABASE_URL=... make migrate` не удалось выполнить полноценно: PostgreSQL на `localhost:5432` недоступен, а `make docker-up` не смог подключиться к Docker daemon.

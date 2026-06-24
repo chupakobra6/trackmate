@@ -76,9 +76,15 @@ type PendingInput struct {
 	ID               int64
 	WorkspaceGroupID int64
 	UserID           int64
+	MessageThreadID  int64
 	Kind             domain.PendingInputKind
 	Payload          map[string]any
 	CreatedAt        time.Time
+}
+
+type PendingInputContext struct {
+	Pending   PendingInput
+	Workspace Workspace
 }
 
 type ProgressEvent struct {
@@ -112,10 +118,13 @@ type RoutineCheckin struct {
 	CheckinDate         time.Time
 	CardMessageID       *int64
 	CardMessageThreadID *int64
+	ReminderMessageID   *int64
 	ReflectionText      *string
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+	ReminderSentAt      *time.Time
 	CompletedAt         *time.Time
+	AutoFailedAt        *time.Time
 	Items               []RoutineCheckinItem
 }
 
@@ -132,6 +141,12 @@ type RoutineCheckinItem struct {
 
 type RoutinePlanContext struct {
 	Plan        RoutinePlan
+	Workspace   Workspace
+	Participant Participant
+}
+
+type RoutineCheckinContext struct {
+	Checkin     RoutineCheckin
 	Workspace   Workspace
 	Participant Participant
 }
@@ -255,6 +270,14 @@ func encodePayload(payload map[string]any) ([]byte, error) {
 		payload = map[string]any{}
 	}
 	return json.Marshal(payload)
+}
+
+func copyPayload(payload map[string]any) map[string]any {
+	copied := make(map[string]any, len(payload)+1)
+	for key, value := range payload {
+		copied[key] = value
+	}
+	return copied
 }
 
 func decodePayload(raw []byte) map[string]any {

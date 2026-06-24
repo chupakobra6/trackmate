@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -372,12 +373,12 @@ WHERE id = $1
 	return alert, err == nil, err
 }
 
-func (q *Queries) GetPendingInput(ctx context.Context, workspaceID int64, userID int64) (PendingInput, bool, error) {
+func (q *Queries) GetPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64) (PendingInput, bool, error) {
 	row := q.db.QueryRow(ctx, `
-SELECT id, workspace_group_id, user_id, kind, payload, created_at
+SELECT id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
 FROM pending_inputs
-WHERE workspace_group_id = $1 AND user_id = $2
-`, workspaceID, userID)
+WHERE workspace_group_id = $1 AND user_id = $2 AND message_thread_id = $3
+`, workspaceID, userID, threadID)
 	pending, err := scanPending(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PendingInput{}, false, nil
@@ -385,29 +386,31 @@ WHERE workspace_group_id = $1 AND user_id = $2
 	return pending, err == nil, err
 }
 
-func (q *Queries) UpsertPendingInput(ctx context.Context, workspaceID int64, userID int64, kind domain.PendingInputKind, payload map[string]any) (PendingInput, error) {
-	encoded, err := encodePayload(payload)
+func (q *Queries) UpsertPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64, kind domain.PendingInputKind, payload map[string]any) (PendingInput, error) {
+	payloadWithThread := copyPayload(payload)
+	payloadWithThread["thread_id"] = threadID
+	encoded, err := encodePayload(payloadWithThread)
 	if err != nil {
 		return PendingInput{}, err
 	}
 	row := q.db.QueryRow(ctx, `
-INSERT INTO pending_inputs (workspace_group_id, user_id, kind, payload, created_at)
-VALUES ($1, $2, $3, $4, now())
-ON CONFLICT (workspace_group_id, user_id) DO UPDATE SET
+INSERT INTO pending_inputs (workspace_group_id, user_id, message_thread_id, kind, payload, created_at)
+VALUES ($1, $2, $3, $4, $5, now())
+ON CONFLICT (workspace_group_id, user_id, message_thread_id) DO UPDATE SET
     kind = EXCLUDED.kind,
     payload = EXCLUDED.payload,
     created_at = now()
-RETURNING id, workspace_group_id, user_id, kind, payload, created_at
-`, workspaceID, userID, string(kind), encoded)
+RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
+`, workspaceID, userID, threadID, string(kind), encoded)
 	return scanPending(row)
 }
 
-func (q *Queries) ClaimPendingInput(ctx context.Context, workspaceID int64, userID int64, kind domain.PendingInputKind) (PendingInput, bool, error) {
+func (q *Queries) ClaimPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64, kind domain.PendingInputKind) (PendingInput, bool, error) {
 	row := q.db.QueryRow(ctx, `
 DELETE FROM pending_inputs
-WHERE workspace_group_id = $1 AND user_id = $2 AND kind = $3
-RETURNING id, workspace_group_id, user_id, kind, payload, created_at
-`, workspaceID, userID, string(kind))
+WHERE workspace_group_id = $1 AND user_id = $2 AND message_thread_id = $3 AND kind = $4
+RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
+`, workspaceID, userID, threadID, string(kind))
 	pending, err := scanPending(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PendingInput{}, false, nil
@@ -415,11 +418,74 @@ RETURNING id, workspace_group_id, user_id, kind, payload, created_at
 	return pending, err == nil, err
 }
 
-func (q *Queries) ClearPendingInput(ctx context.Context, workspaceID int64, userID int64) error {
+func (q *Queries) ClearPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64) error {
 	_, err := q.db.Exec(ctx, `
-DELETE FROM pending_inputs WHERE workspace_group_id = $1 AND user_id = $2
-`, workspaceID, userID)
+DELETE FROM pending_inputs
+WHERE workspace_group_id = $1 AND user_id = $2 AND message_thread_id = $3
+`, workspaceID, userID, threadID)
 	return err
+}
+
+func (q *Queries) ClearRoutineCheckinPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64, checkinID int64) error {
+	_, err := q.db.Exec(ctx, `
+DELETE FROM pending_inputs
+WHERE workspace_group_id = $1
+  AND user_id = $2
+  AND message_thread_id = $3
+  AND payload->>'checkin_id' = $4
+`, workspaceID, userID, threadID, fmt.Sprint(checkinID))
+	return err
+}
+
+func (q *Queries) ListStalePendingInputContexts(ctx context.Context, cutoff time.Time, limit int) ([]PendingInputContext, error) {
+	rows, err := q.db.Query(ctx, `
+SELECT pi.id, pi.workspace_group_id, pi.user_id, pi.message_thread_id, pi.kind, pi.payload, pi.created_at,
+       wg.id, wg.chat_id, wg.title, wg.timezone, wg.setup_status::text, wg.setup_message_id, wg.created_at, wg.updated_at
+FROM pending_inputs pi
+JOIN workspace_groups wg ON wg.id = pi.workspace_group_id
+WHERE pi.created_at <= $1
+ORDER BY pi.created_at ASC
+LIMIT $2
+`, cutoff.UTC(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var result []PendingInputContext
+	for rows.Next() {
+		var item PendingInputContext
+		var kind string
+		var raw []byte
+		var title pgtype.Text
+		var setupStatus string
+		var setupMessageID pgtype.Int4
+		if err := rows.Scan(
+			&item.Pending.ID, &item.Pending.WorkspaceGroupID, &item.Pending.UserID, &item.Pending.MessageThreadID, &kind, &raw, &item.Pending.CreatedAt,
+			&item.Workspace.ID, &item.Workspace.ChatID, &title, &item.Workspace.Timezone, &setupStatus, &setupMessageID, &item.Workspace.CreatedAt, &item.Workspace.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.Pending.Kind = domain.PendingInputKind(kind)
+		item.Pending.Payload = decodePayload(raw)
+		item.Workspace.Title = textFromPg(title)
+		item.Workspace.SetupStatus = domain.GroupSetupStatus(setupStatus)
+		item.Workspace.SetupMessageID = int64FromPgInt4(setupMessageID)
+		result = append(result, item)
+	}
+	return result, rows.Err()
+}
+
+func (q *Queries) ClaimStalePendingInput(ctx context.Context, pendingID int64, cutoff time.Time) (PendingInput, bool, error) {
+	row := q.db.QueryRow(ctx, `
+DELETE FROM pending_inputs
+WHERE id = $1 AND created_at <= $2
+RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
+`, pendingID, cutoff.UTC())
+	pending, err := scanPending(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return PendingInput{}, false, nil
+	}
+	return pending, err == nil, err
 }
 
 func scanDailyTask(row pgx.Row) (DailyTask, error) {
@@ -510,7 +576,7 @@ func scanPending(row pgx.Row) (PendingInput, error) {
 	var pending PendingInput
 	var kind string
 	var raw []byte
-	if err := row.Scan(&pending.ID, &pending.WorkspaceGroupID, &pending.UserID, &kind, &raw, &pending.CreatedAt); err != nil {
+	if err := row.Scan(&pending.ID, &pending.WorkspaceGroupID, &pending.UserID, &pending.MessageThreadID, &kind, &raw, &pending.CreatedAt); err != nil {
 		return PendingInput{}, err
 	}
 	pending.Kind = domain.PendingInputKind(kind)

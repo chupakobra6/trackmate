@@ -36,12 +36,12 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Pool().Exec(ctx, `UPDATE routine_plans SET created_at = $2 WHERE id = $1`, plan.ID, time.Date(2026, 6, 27, 8, 0, 0, 0, time.UTC)); err != nil {
+	if _, err := store.Pool().Exec(ctx, `UPDATE routine_plans SET created_at = $2 WHERE id = $1`, plan.ID, time.Date(2026, 6, 28, 8, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 
 	fake := &fakeTelegram{nextMessageID: 2000}
-	now := time.Date(2026, 6, 28, 9, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)
 	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, now); err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +62,85 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	edit, ok := fake.findEdit(introID)
 	if !ok || !strings.Contains(edit.Text, "Таблица рутин") {
 		t.Fatalf("routine table intro was not edited: found=%v edit=%+v", ok, edit)
+	}
+}
+
+func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000445, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 30, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	introID := int64(900)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &introID, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetRoutineCheckinCardMessageID(ctx, checkin.ID, 2100, 30); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 30, domain.PendingRoutineReflection, map[string]any{
+		"checkin_id":        checkin.ID,
+		"prompt_message_id": 2100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &fakeTelegram{nextMessageID: 3000}
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "еще не закрыта") || fake.sent[0].ReplyToMessageID != 2100 {
+		t.Fatalf("unexpected reminder send: %+v", fake.sent)
+	}
+	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || reminded.ReminderSentAt == nil || reminded.ReminderMessageID == nil {
+		t.Fatalf("reminder was not stored found=%v checkin=%+v err=%v", found, reminded, err)
+	}
+
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	closed, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found {
+		t.Fatalf("closed checkin found=%v err=%v", found, err)
+	}
+	if closed.CompletedAt == nil || closed.AutoFailedAt == nil {
+		t.Fatalf("checkin was not auto-closed: %+v", closed)
+	}
+	for _, item := range closed.Items {
+		if item.Status == nil || *item.Status != domain.RoutineItemFailed {
+			t.Fatalf("item was not failed: %+v", item)
+		}
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 30); err != nil || found {
+		t.Fatalf("routine pending should be cleared found=%v err=%v", found, err)
+	}
+	if edit, ok := fake.findEdit(2100); !ok || !strings.Contains(edit.Text, "невыполненные") {
+		t.Fatalf("routine card auto-close edit missing: found=%v edit=%+v", ok, edit)
+	}
+	if !fake.hasSentToThread(30, "Время вышло") {
+		t.Fatalf("auto-close notice missing: %+v", fake.sent)
+	}
+	if tableEdit, ok := fake.findEdit(introID); !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
+		t.Fatalf("routine table refresh missing: found=%v edit=%+v", ok, tableEdit)
 	}
 }
 
@@ -115,4 +194,13 @@ func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextReques
 		}
 	}
 	return telegram.EditMessageTextRequest{}, false
+}
+
+func (f *fakeTelegram) hasSentToThread(threadID int64, text string) bool {
+	for _, sent := range f.sent {
+		if sent.MessageThreadID == threadID && strings.Contains(sent.Text, text) {
+			return true
+		}
+	}
+	return false
 }

@@ -55,14 +55,38 @@ func TestStorageIntegrationContracts(t *testing.T) {
 		t.Fatalf("source message was not stored: %+v", firstTask)
 	}
 
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport, map[string]any{"thread_id": 11, "task_id": firstTask.ID}); err != nil {
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 11, domain.PendingDailyTaskReport, map[string]any{"task_id": firstTask.ID}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport); err != nil || !ok {
+	if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, participant.UserID, 11, domain.PendingDailyTaskReport); err != nil || !ok {
 		t.Fatalf("first claim ok=%v err=%v", ok, err)
 	}
-	if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, participant.UserID, domain.PendingDailyTaskReport); err != nil || ok {
+	if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, participant.UserID, 11, domain.PendingDailyTaskReport); err != nil || ok {
 		t.Fatalf("second claim ok=%v err=%v", ok, err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 13, domain.PendingRoutinePlan, map[string]any{"prompt_message_id": 301}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 14, domain.PendingSeasonalGoals, map[string]any{"prompt_message_id": 401}); err != nil {
+		t.Fatal(err)
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutinePlan || pending.MessageThreadID != 13 {
+		t.Fatalf("routine pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 14); err != nil || !found || pending.Kind != domain.PendingSeasonalGoals || pending.MessageThreadID != 14 {
+		t.Fatalf("goals pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || found {
+		t.Fatalf("routine pending after clear found=%v err=%v", found, err)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 14); err != nil || !found {
+		t.Fatalf("goals pending should remain found=%v err=%v", found, err)
+	}
+	if err := q.ClearPendingInput(ctx, workspace.ID, participant.UserID, 14); err != nil {
+		t.Fatal(err)
 	}
 
 	if _, err := q.GetOrCreateAlert(ctx, firstTask.ID, domain.AlertDayClosedPendingReport); err != nil {

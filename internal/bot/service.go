@@ -317,7 +317,7 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 			answer.Text = "Сначала закрой предыдущую задачу"
 			return nil
 		}
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
 			answer.Text = pendingBusyText(pending.Kind)
@@ -336,7 +336,7 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		if err != nil {
 			return err
 		}
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, user.ID, domain.PendingDailyTaskText, map[string]any{
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, user.ID, callback.Message.MessageThreadID, domain.PendingDailyTaskText, map[string]any{
 			"thread_id":         callback.Message.MessageThreadID,
 			"prompt_message_id": prompt.MessageID,
 		})
@@ -350,15 +350,9 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 	if err != nil || workspace.ID == 0 {
 		return err
 	}
-	pending, found, err := s.Store.Queries().GetPendingInput(ctx, workspace.ID, message.From.ID)
+	pending, found, err := s.Store.Queries().GetPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID)
 	if err != nil || !found {
 		return err
-	}
-	if !pendingInputMatchesThread(pending.Payload, message.MessageThreadID) {
-		if isSwitchableSetupInput(pending.Kind) {
-			return s.cancelWrongTopicSetupInput(ctx, workspace, message, pending.Kind)
-		}
-		return nil
 	}
 	switch pending.Kind {
 	case domain.PendingDailyTaskText:
@@ -382,24 +376,9 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 	}
 }
 
-func (s *Service) cancelWrongTopicSetupInput(ctx context.Context, workspace postgres.Workspace, message telegram.Message, kind domain.PendingInputKind) error {
-	var pending postgres.PendingInput
-	var found bool
-	if err := s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		var err error
-		pending, found, err = q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, kind)
-		return err
-	}); err != nil || !found {
-		return err
-	}
-	_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
-	_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
-	return nil
-}
-
 func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingDailyTaskText)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingDailyTaskText)
 		if err != nil || !ok {
 			return err
 		}
@@ -451,7 +430,7 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 
 func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingDailyTaskReport)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingDailyTaskReport)
 		if err != nil || !ok {
 			return err
 		}
@@ -516,7 +495,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			answer.Text = "Эта задача уже закрыта"
 			return nil
 		}
-		if pending, found, err := q.GetPendingInput(ctx, task.WorkspaceGroupID, callback.From.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, task.WorkspaceGroupID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
 			answer.Text = pendingBusyText(pending.Kind)
@@ -557,7 +536,7 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			answer.Text = "Эта задача уже закрыта"
 			return nil
 		}
-		if previous, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+		if previous, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found && previous.Kind == domain.PendingDailyTaskReport {
 			_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, payloadInt64(previous.Payload, "prompt_message_id"))
@@ -578,7 +557,7 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			MessageID: callback.Message.MessageID,
 			Text:      ui.DailyTaskReportPrompt(nudge),
 		})
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingDailyTaskReport, map[string]any{
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingDailyTaskReport, map[string]any{
 			"task_id":           taskID,
 			"status":            string(status),
 			"prompt_message_id": callback.Message.MessageID,
@@ -712,26 +691,6 @@ func isCommand(text string, command string) bool {
 	return token == command
 }
 
-func pendingInputMatchesThread(payload map[string]any, messageThreadID int64) bool {
-	expected := payloadInt64(payload, "thread_id")
-	return expected == 0 || expected == messageThreadID
-}
-
-func isSwitchableSetupInput(kind domain.PendingInputKind) bool {
-	return kind == domain.PendingRoutinePlan || kind == domain.PendingSeasonalGoals
-}
-
-func (s *Service) cancelSwitchableSetupInput(ctx context.Context, q *postgres.Queries, chatID int64, pending postgres.PendingInput) (bool, error) {
-	if !isSwitchableSetupInput(pending.Kind) {
-		return false, nil
-	}
-	if err := q.ClearPendingInput(ctx, pending.WorkspaceGroupID, pending.UserID); err != nil {
-		return false, err
-	}
-	_ = s.Telegram.DeleteMessage(ctx, chatID, payloadInt64(pending.Payload, "prompt_message_id"))
-	return true, nil
-}
-
 func payloadInt64(payload map[string]any, key string) int64 {
 	switch value := payload[key].(type) {
 	case float64:
@@ -753,6 +712,46 @@ func payloadString(payload map[string]any, key string) string {
 		return value
 	}
 	return ""
+}
+
+func (s *Service) refreshPendingInputActivity(ctx context.Context, workspaceID int64, userID int64, threadID int64, pending postgres.PendingInput, userMessageID int64) error {
+	payload := appendPayloadInt64(pending.Payload, "user_message_ids", userMessageID)
+	_, err := s.Store.Queries().UpsertPendingInput(ctx, workspaceID, userID, threadID, pending.Kind, payload)
+	return err
+}
+
+func appendPayloadInt64(payload map[string]any, key string, value int64) map[string]any {
+	result := make(map[string]any, len(payload)+1)
+	for existingKey, existingValue := range payload {
+		result[existingKey] = existingValue
+	}
+	var values []int64
+	switch raw := payload[key].(type) {
+	case []int64:
+		values = append(values, raw...)
+	case []any:
+		for _, item := range raw {
+			switch typed := item.(type) {
+			case float64:
+				values = append(values, int64(typed))
+			case int64:
+				values = append(values, typed)
+			case int:
+				values = append(values, int64(typed))
+			case json.Number:
+				parsed, _ := typed.Int64()
+				values = append(values, parsed)
+			}
+		}
+	}
+	for _, existing := range values {
+		if existing == value {
+			result[key] = values
+			return result
+		}
+	}
+	result[key] = append(values, value)
+	return result
 }
 
 func messagePlainText(message telegram.Message) string {

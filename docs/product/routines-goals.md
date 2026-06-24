@@ -21,7 +21,7 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 4. Accept routine setup as line-based text, supporting plain lines, dash bullets, bullet symbols, and numbered lines.
 5. Limit routine items to 9.
 6. Treat all routine items as daily in MVP.
-7. Send the daily routine check-in after 09:00 in the workspace timezone.
+7. Send the daily routine check-in after 20:00 in the workspace timezone.
 8. Use item-by-item routine check-in: done, partial, failed.
 9. Ask for a short reason after partial/failed.
 10. Ask final reflection: `Что помогло / что помешало / какую одну правку сделаешь завтра?`
@@ -29,10 +29,12 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 12. Add a Goals control message and seasonal goals format based on result, metric, weekly step, and why.
 13. Store goals as raw text in MVP; do not over-parse.
 14. Keep Goals setup confirmation concise; do not echo the full goals text as a separate card.
-15. Cancel unfinished Routines/Goals setup drafts when the user starts setup in another topic, deleting the previous bot prompt and wrong-topic user message.
+15. Scope unfinished input by topic: Routines, Goals, and Today drafts do not block or cancel each other.
 16. Weekly goals review asks one combined progress answer.
 17. Final seasonal review asks completed, partial, or failed plus a short summary.
 18. Add rare Today reminders that connect daily tasks with seasonal goals.
+19. Clean up unfinished input after 24 hours silently, deleting the stored bot prompt and known process messages.
+20. Remind about an unclosed routine after the local day ends and auto-close missing items as failed at 12:00 the next day.
 
 ## Non-goals for MVP
 

@@ -25,7 +25,8 @@ const ProgressIntroText = "✨ <b>Прогресс</b>\n" +
 
 const RoutineControlText = "🔁 <b>Рутины</b>\n" +
 	"Здесь живут повторяющиеся действия: зарядка, английский, йога, режим и другие ежедневные опоры.\n\n" +
-	"Нажми кнопку ниже и пришли список. Я буду присылать одну карточку для отметки каждый день после 09:00."
+	"Нажми кнопку ниже и пришли список. Я буду присылать одну карточку для отметки каждый день после 20:00.\n\n" +
+	"Закрыть ее можно до 12:00 следующего дня."
 
 const GoalsControlText = "🎯 <b>Цели</b>\n" +
 	"Здесь живут долгосрочные цели, которых мы хотим достичь за сезон (например, за лето). Нажми кнопку ниже, чтобы записать свои цели.\n\n" +
@@ -154,6 +155,20 @@ func FormatRoutineReflectionPrompt(checkin postgres.RoutineCheckin, displayName 
 	lines := strings.Split(FormatRoutineCheckinCard(checkin, displayName, username, ""), "\n")
 	lines = append(lines, "", "<b>Итог дня</b>", "Что помогло? Что мешало? Что изменишь завтра?")
 	return strings.Join(lines, "\n")
+}
+
+func RoutineReminderText(checkin postgres.RoutineCheckin) string {
+	return strings.Join([]string{
+		fmt.Sprintf("🔔 <b>Рутина за %s еще не закрыта</b>", checkin.CheckinDate.Format("02.01")),
+		"Закрой ее до 12:00, иначе неотмеченные пункты будут засчитаны как невыполненные.",
+	}, "\n")
+}
+
+func RoutineAutoClosedText(checkin postgres.RoutineCheckin) string {
+	return strings.Join([]string{
+		"⏰ <b>Время вышло</b>",
+		fmt.Sprintf("Рутина за %s закрыта автоматически: неотмеченные пункты засчитаны как невыполненные.", checkin.CheckinDate.Format("02.01")),
+	}, "\n")
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {

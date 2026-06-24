@@ -19,19 +19,11 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
-			cancelled, err := s.cancelSwitchableSetupInput(ctx, q, callback.Message.Chat.ID, pending)
-			if err != nil {
-				return err
-			}
-			if cancelled {
-				answer.Text = "Предыдущий ввод сброшен"
-			} else {
-				answer.Text = pendingBusyText(pending.Kind)
-				return nil
-			}
+			answer.Text = pendingBusyText(pending.Kind)
+			return nil
 		}
 		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
 			return err
@@ -45,7 +37,7 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 		if err != nil {
 			return err
 		}
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingSeasonalGoals, map[string]any{
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingSeasonalGoals, map[string]any{
 			"thread_id":         callback.Message.MessageThreadID,
 			"prompt_message_id": prompt.MessageID,
 		})
@@ -56,11 +48,12 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 
 func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {
 	if strings.TrimSpace(messagePlainText(message)) == "" {
+		_ = s.refreshPendingInputActivity(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pending, message.MessageID)
 		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), "⚠️ <b>Пришли цели текстом</b>\n\n"+ui.SeasonalGoalsPrompt(), nil)
 		return nil
 	}
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingSeasonalGoals); err != nil || !ok {
+		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingSeasonalGoals); err != nil || !ok {
 			return err
 		}
 		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
@@ -96,7 +89,7 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 
 func (s *Service) consumeGoalWeeklyReview(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingGoalWeeklyReview)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingGoalWeeklyReview)
 		if err != nil || !ok {
 			return err
 		}
@@ -134,7 +127,7 @@ func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.C
 			answer.Text = "Итог периода может оставить только автор целей"
 			return nil
 		}
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
+		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
 		} else if found {
 			answer.Text = pendingBusyText(pending.Kind)
@@ -147,7 +140,7 @@ func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.C
 		if err != nil || !saved {
 			return err
 		}
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, domain.PendingGoalFinalReflection, map[string]any{
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingGoalFinalReflection, map[string]any{
 			"goal_set_id":       goalSetID,
 			"prompt_message_id": callback.Message.MessageID,
 			"thread_id":         callback.Message.MessageThreadID,
@@ -171,7 +164,7 @@ func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.C
 
 func (s *Service) consumeGoalFinalReflection(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, domain.PendingGoalFinalReflection)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingGoalFinalReflection)
 		if err != nil || !ok {
 			return err
 		}

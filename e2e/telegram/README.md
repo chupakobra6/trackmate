@@ -57,8 +57,8 @@ make chats CHAT_GROUPS=1 CHAT_FILTER=TrackMate CHAT_TOPICS=1 CHAT_ADMINS=1
 - `topic_id=` для `Цели` -> `GOALS_THREAD_ID`;
 - `topic_id=` для `Прогресс` -> `PROGRESS_THREAD_ID`;
 - `WRONG_THREAD_ID` можно поставить равным `PROGRESS_THREAD_ID` для проверки
-  wrong-topic daily pending input. Черновики настройки `Рутины`/`Цели` при
-  переходе в другой топик теперь сбрасываются и чистят сообщения.
+  wrong-topic pending input. Черновики в разных темах изолированы: сообщение в
+  чужой теме не закрывает и не сбрасывает текущий ввод.
 
 ## Рендер Темплейтов
 

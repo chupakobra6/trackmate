@@ -61,7 +61,7 @@ thread.
 
 Task creation is protected by:
 
-- one pending input per workspace/user;
+- one pending input per workspace/user/thread;
 - one task per participant per local day;
 - a block on creating a new task while the previous task is still open.
 
@@ -88,14 +88,16 @@ Routines thread. The user sends a text list, one item per line. The parser
 accepts plain lines, bullets, and numbered lists, and caps the list at 9 daily
 items.
 
-If the user starts a Routine/Goals setup draft and then switches to another
-setup topic, Trackmate cancels the previous draft, removes the old bot prompt,
-and removes the wrong-topic user message. This keeps unfinished setup input from
-leaking across topics.
+Pending input is isolated by Telegram topic thread. A Routine draft does not
+block Today or Goals, and a message from another thread does not consume or
+cancel the Routine draft. Worker cleanup removes pending inputs older than 24
+hours, deleting the stored bot prompt and known process messages silently.
 
 The worker creates one routine check-in card per participant per local day after
-09:00, starting the morning after the plan was configured. The card is advanced
-in place with `routine:item:<checkin_id>:<index>:<done|partial|failed>`.
+20:00 local time. If a plan is configured before 20:00, the first card can be
+created the same evening; plans configured after that start the next day. The
+card is advanced in place with
+`routine:item:<checkin_id>:<index>:<done|partial|failed>`.
 
 `partial` and `failed` ask for one short reason. After all items are answered,
 the same card asks for one reflection:
@@ -103,6 +105,11 @@ the same card asks for one reflection:
 `Что помогло / что помешало / какую одну правку сделаешь завтра?`
 
 Routine results stay in `Рутины`. They do not create `progress_events`.
+
+If a routine card is still open after the local day ends, Trackmate sends a
+single reminder in `Рутины`. At 12:00 the next day, missing items are marked as
+`failed`, the card is updated, a short auto-close notice is posted in `Рутины`,
+and the routine leaderboard is refreshed.
 
 The Routines topic also keeps a leaderboard message with 7-day completion rate,
 current streak, best streak, and routine item count. Ranking uses completion
@@ -165,6 +172,8 @@ Core tables:
 - `daily_tasks`
 - `daily_task_alerts`
 - `pending_inputs`
+  - one active input per `workspace_group_id`, `user_id`, `message_thread_id`
+  - stale inputs older than 24 hours are removed by the worker
 - `progress_events`
 - `routine_plans`
 - `routine_checkins`

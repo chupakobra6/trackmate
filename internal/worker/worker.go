@@ -6,6 +6,7 @@ import (
 	"time"
 
 	appgoals "github.com/igor/trackmate/internal/app/goals"
+	apppending "github.com/igor/trackmate/internal/app/pending"
 	appprogress "github.com/igor/trackmate/internal/app/progress"
 	approutine "github.com/igor/trackmate/internal/app/routine"
 	apptoday "github.com/igor/trackmate/internal/app/today"
@@ -40,6 +41,12 @@ func (r *Runner) Tick(ctx context.Context, now time.Time) error {
 		return err
 	}
 	if err := approutine.DispatchDueCheckins(ctx, r.Store, r.TG, r.Logger, current); err != nil {
+		return err
+	}
+	if err := approutine.RunCheckinTransitions(ctx, r.Store, r.TG, r.Logger, current); err != nil {
+		return err
+	}
+	if err := apppending.CleanupStaleInputs(ctx, r.Store, r.TG, current); err != nil {
 		return err
 	}
 	if err := appgoals.DispatchWeeklyReviews(ctx, r.Store, r.TG, current); err != nil {

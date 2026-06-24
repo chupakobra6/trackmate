@@ -66,7 +66,14 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 		if !due {
 			continue
 		}
-		if _, found, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID); err != nil {
+		goalsTopic, found, err := store.Queries().GetTopicBinding(ctx, item.Workspace.ID, domain.TopicGoals)
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		if _, found, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID); err != nil {
 			return err
 		} else if found {
 			continue
@@ -76,13 +83,6 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 			return err
 		}
 		if review.ResponseText != nil || review.PromptMessageID != nil {
-			continue
-		}
-		goalsTopic, found, err := store.Queries().GetTopicBinding(ctx, item.Workspace.ID, domain.TopicGoals)
-		if err != nil {
-			return err
-		}
-		if !found {
 			continue
 		}
 		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
@@ -97,7 +97,7 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 		if err := store.Queries().SetGoalWeeklyReviewPrompt(ctx, review.ID, message.MessageID, goalsTopic.ThreadID); err != nil {
 			return err
 		}
-		if _, err := store.Queries().UpsertPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, domain.PendingGoalWeeklyReview, map[string]any{
+		if _, err := store.Queries().UpsertPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID, domain.PendingGoalWeeklyReview, map[string]any{
 			"review_id":         review.ID,
 			"goal_set_id":       item.GoalSet.ID,
 			"prompt_message_id": message.MessageID,
@@ -122,7 +122,14 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 		if !due {
 			continue
 		}
-		if _, found, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID); err != nil {
+		goalsTopic, found, err := store.Queries().GetTopicBinding(ctx, item.Workspace.ID, domain.TopicGoals)
+		if err != nil {
+			return err
+		}
+		if !found {
+			continue
+		}
+		if _, found, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID); err != nil {
 			return err
 		} else if found {
 			continue
@@ -132,13 +139,6 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 			return err
 		}
 		if review.CompletedAt != nil || review.PromptMessageID != nil {
-			continue
-		}
-		goalsTopic, found, err := store.Queries().GetTopicBinding(ctx, item.Workspace.ID, domain.TopicGoals)
-		if err != nil {
-			return err
-		}
-		if !found {
 			continue
 		}
 		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
