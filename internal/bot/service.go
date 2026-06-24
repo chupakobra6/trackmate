@@ -355,6 +355,9 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 		return err
 	}
 	if !pendingInputMatchesThread(pending.Payload, message.MessageThreadID) {
+		if isSwitchableSetupInput(pending.Kind) {
+			return s.cancelWrongTopicSetupInput(ctx, workspace, message, pending.Kind)
+		}
 		return nil
 	}
 	switch pending.Kind {
@@ -377,6 +380,21 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 	default:
 		return nil
 	}
+}
+
+func (s *Service) cancelWrongTopicSetupInput(ctx context.Context, workspace postgres.Workspace, message telegram.Message, kind domain.PendingInputKind) error {
+	var pending postgres.PendingInput
+	var found bool
+	if err := s.Store.InTx(ctx, func(q *postgres.Queries) error {
+		var err error
+		pending, found, err = q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, kind)
+		return err
+	}); err != nil || !found {
+		return err
+	}
+	_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
+	_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
+	return nil
 }
 
 func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
@@ -697,6 +715,21 @@ func isCommand(text string, command string) bool {
 func pendingInputMatchesThread(payload map[string]any, messageThreadID int64) bool {
 	expected := payloadInt64(payload, "thread_id")
 	return expected == 0 || expected == messageThreadID
+}
+
+func isSwitchableSetupInput(kind domain.PendingInputKind) bool {
+	return kind == domain.PendingRoutinePlan || kind == domain.PendingSeasonalGoals
+}
+
+func (s *Service) cancelSwitchableSetupInput(ctx context.Context, q *postgres.Queries, chatID int64, pending postgres.PendingInput) (bool, error) {
+	if !isSwitchableSetupInput(pending.Kind) {
+		return false, nil
+	}
+	if err := q.ClearPendingInput(ctx, pending.WorkspaceGroupID, pending.UserID); err != nil {
+		return false, err
+	}
+	_ = s.Telegram.DeleteMessage(ctx, chatID, payloadInt64(pending.Payload, "prompt_message_id"))
+	return true, nil
 }
 
 func payloadInt64(payload map[string]any, key string) int64 {

@@ -96,6 +96,17 @@ WHERE id = $1
 	return err
 }
 
+func (q *Queries) ClearSeasonalGoalCardMessageID(ctx context.Context, goalSetID int64) error {
+	_, err := q.db.Exec(ctx, `
+UPDATE seasonal_goal_sets
+SET card_message_id = NULL,
+    card_message_thread_id = NULL,
+    updated_at = now()
+WHERE id = $1
+`, goalSetID)
+	return err
+}
+
 func (q *Queries) ListSeasonalGoalSetContexts(ctx context.Context) ([]SeasonalGoalSetContext, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT gs.id, gs.workspace_group_id, gs.participant_id, gs.owner_user_id, gs.period_key, gs.period_title,

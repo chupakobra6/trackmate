@@ -22,8 +22,16 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
 			return err
 		} else if found {
-			answer.Text = pendingBusyText(pending.Kind)
-			return nil
+			cancelled, err := s.cancelSwitchableSetupInput(ctx, q, callback.Message.Chat.ID, pending)
+			if err != nil {
+				return err
+			}
+			if cancelled {
+				answer.Text = "Предыдущий ввод сброшен"
+			} else {
+				answer.Text = pendingBusyText(pending.Kind)
+				return nil
+			}
 		}
 		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
 			return err
@@ -72,24 +80,13 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 		if err != nil {
 			return err
 		}
-		cardText := ui.FormatSeasonalGoalCard(goalSet, telegram.DisplayName(*message.From), message.From.Username, "")
 		if goalSet.CardMessageID != nil {
-			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{ChatID: message.Chat.ID, MessageID: *goalSet.CardMessageID, Text: cardText})
-		} else {
-			card, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
-				ChatID:              message.Chat.ID,
-				MessageThreadID:     message.MessageThreadID,
-				Text:                cardText,
-				DisableNotification: true,
-			})
-			if err != nil {
-				return err
-			}
-			if err := q.SetSeasonalGoalCardMessageID(ctx, goalSet.ID, card.MessageID, message.MessageThreadID); err != nil {
+			_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, *goalSet.CardMessageID)
+			if err := q.ClearSeasonalGoalCardMessageID(ctx, goalSet.ID); err != nil {
 				return err
 			}
 		}
-		text := "✅ <b>Цели сохранены</b>\nРаз в неделю я попрошу короткий обзор в этой теме"
+		text := "✅ <b>Цели записаны</b>\nНедельный обзор придет в воскресенье после 20:00"
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}

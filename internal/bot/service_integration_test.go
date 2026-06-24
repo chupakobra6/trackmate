@@ -384,12 +384,167 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}
 }
 
+func TestWrongTopicSetupInputCancelsDraftAndDeletesMessages(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, domain.PendingRoutinePlan, map[string]any{
+		"thread_id":         13,
+		"prompt_message_id": 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	message := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 14,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "1. Работа\n— Результат: проверить цели",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &message}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42); err != nil || found {
+		t.Fatalf("pending input found=%v err=%v", found, err)
+	}
+	if !fake.wasDeleted(100) || !fake.wasDeleted(301) {
+		t.Fatalf("expected old prompt and wrong-topic user message deletion, got %+v", fake.deleted)
+	}
+}
+
+func TestConfigureGoalsReplacesUnfinishedRoutineDraft(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, domain.PendingRoutinePlan, map[string]any{
+		"thread_id":         13,
+		"prompt_message_id": 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	answer, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "goals-configure",
+		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Data: "goals:configure",
+		Message: &telegram.Message{
+			MessageID:       200,
+			MessageThreadID: 14,
+			Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Text != "Предыдущий ввод сброшен" {
+		t.Fatalf("callback answer = %q", answer.Text)
+	}
+	if !fake.wasDeleted(100) {
+		t.Fatalf("old routine prompt was not deleted: %+v", fake.deleted)
+	}
+	pending, found, err := q.GetPendingInput(ctx, workspace.ID, 42)
+	if err != nil || !found || pending.Kind != domain.PendingSeasonalGoals || pending.Payload["thread_id"] != float64(14) {
+		t.Fatalf("unexpected pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли сезонные цели") {
+		t.Fatalf("expected one goals prompt, got %+v", fake.sent)
+	}
+}
+
+func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "goals-configure",
+		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Data: "goals:configure",
+		Message: &telegram.Message{
+			MessageID:       200,
+			MessageThreadID: 14,
+			Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	input := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 14,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "1. Работа\n— Результат: получить предложение о работе",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 1 {
+		t.Fatalf("goals save should not send a separate full goals card, sent=%+v", fake.sent)
+	}
+	edit, ok := fake.findEdit(1001)
+	if !ok {
+		t.Fatalf("confirmation edit missing: %+v", fake.edits)
+	}
+	if !strings.Contains(edit.Text, "Цели записаны") || strings.Contains(edit.Text, "получить предложение") {
+		t.Fatalf("confirmation should be concise and not echo goals: %s", edit.Text)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42); err != nil || found {
+		t.Fatalf("pending input found=%v err=%v", found, err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var goalCount int
+	if err := store.Pool().QueryRow(ctx, `
+SELECT count(*)
+FROM seasonal_goal_sets
+WHERE workspace_group_id = $1 AND participant_id = $2
+`, workspace.ID, participant.ID).Scan(&goalCount); err != nil {
+		t.Fatal(err)
+	}
+	if goalCount != 1 {
+		t.Fatalf("goal sets = %d, want 1", goalCount)
+	}
+}
+
 type fakeTelegram struct {
 	createdTopics []string
 	nextThreadID  int64
 	nextMessageID int64
 	edits         []telegram.EditMessageTextRequest
 	sent          []telegram.SendMessageRequest
+	deleted       []int64
 }
 
 func newFakeTelegram() *fakeTelegram {
@@ -411,7 +566,8 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditM
 	f.edits = append(f.edits, request)
 	return nil
 }
-func (f *fakeTelegram) DeleteMessage(context.Context, int64, int64) error {
+func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
+	f.deleted = append(f.deleted, messageID)
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {
@@ -442,4 +598,13 @@ func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextReques
 		}
 	}
 	return telegram.EditMessageTextRequest{}, false
+}
+
+func (f *fakeTelegram) wasDeleted(messageID int64) bool {
+	for _, deleted := range f.deleted {
+		if deleted == messageID {
+			return true
+		}
+	}
+	return false
 }

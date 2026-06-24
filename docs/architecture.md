@@ -72,7 +72,7 @@ Task cards stay in Today and include a report button while the task is open.
 `daily_task_report`. The next Today message is claimed through the database,
 updates the task card, and creates a `daily_task.closed` progress event.
 
-Wrong-topic input is ignored without consuming pending state.
+Wrong-topic daily task/report input is ignored without consuming pending state.
 
 When Telegram sends `edited_message` for an already accepted user input,
 Trackmate matches it by the stored source `message_id`/thread/user in
@@ -87,6 +87,11 @@ path is silent: no additional Telegram messages are sent to the group.
 Routines thread. The user sends a text list, one item per line. The parser
 accepts plain lines, bullets, and numbered lists, and caps the list at 9 daily
 items.
+
+If the user starts a Routine/Goals setup draft and then switches to another
+setup topic, Trackmate cancels the previous draft, removes the old bot prompt,
+and removes the wrong-topic user message. This keeps unfinished setup input from
+leaking across topics.
 
 The worker creates one routine check-in card per participant per local day after
 09:00, starting the morning after the plan was configured. The card is advanced
@@ -107,8 +112,9 @@ streak alone.
 ## Goals Flow
 
 `goals:configure` creates one pending `seasonal_goals` input scoped to the Goals
-thread. Goals are stored as raw Telegram HTML for the current season. The
-instruction asks for a measurable format:
+thread. Goals are stored as raw Telegram HTML for the current season. The setup
+confirmation is intentionally short and does not echo the full goals text back
+into the topic. The instruction asks for a measurable format:
 
 - `Результат`
 - `Метрика`

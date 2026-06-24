@@ -1,7 +1,7 @@
 # Чеклист Требований
 
 Проект: trackmate
-Обновлено: 2026-06-23
+Обновлено: 2026-06-24
 
 ## Значения Статусов
 Используй `кандидат`, `принято`, `в работе`, `готово`, `отложено`, `заблокировано` или `отклонено`.
@@ -30,6 +30,9 @@
 | REQ-019 | `готово` | S005 | Привести пользовательские сообщения к лаконичному русскому стилю Trackmate и убрать англицизмы. | В видимых текстах новых сценариев нет `check-in`, `leaderboard`, `review`, `daily`, `weekly`, `outcome`, `стрик`; карточки и подсказки имеют аккуратные отступы и формулировки. | `internal/ui/formatters.go`, `internal/ui/keyboards.go`, `internal/bot/*.go`, `e2e/telegram/scenarios/*.tmpl`; `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`; `make test`; `make lint` |
 | REQ-020 | `готово` | S006 | Учесть внешнее ревью пользовательских текстов. | В видимых текстах: `задача дня` вместо `цель-задача`; карточки `Сегодня`/`Прогресс` компактнее вокруг `<blockquote>`; вставки про цели нейтральнее; `Таблица рутин`; шаблон целей структурирован маркерами; англицизм `оффер Go/backend` не возвращен. | `internal/ui/formatters.go`, `internal/app/goals/goals.go`, `internal/bot/routines.go`, `e2e/telegram/scenarios/*.tmpl`; `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine ./internal/storage/postgres`; `make test`; `make lint` |
 | REQ-021 | `готово` | S007 | Применить финальное ревью стиля топиков и целей. | Закрепы `Сегодня`/`Рутины`/`Прогресс`/`Цели` выдержаны в стиле старых описаний; видимые списки используют длинное тире `—`; `Цели` описаны как долгосрочные цели на сезон; prompt целей объясняет поля формата, а не частный пример; недельный обзор и итог периода задают конкретные вопросы. | `internal/ui/formatters.go`, `internal/domain/rules.go`, `internal/domain/rules_test.go`, `e2e/telegram/scenarios/13-goals-weekly-final.jsonl.tmpl`; `go test ./internal/ui ./internal/domain ./internal/bot ./internal/app/goals ./internal/app/routine`; `make test`; `make lint`; `loopctl.py validate` |
+| REQ-022 | `готово` | S008 | Сбрасывать незаконченный setup-ввод `Рутины`/`Цели` при переходе пользователя в другой setup-топик. | Если у пользователя висит `routine_plan` или `seasonal_goals`, новый старт настройки рутины/целей удаляет старый prompt, очищает pending input и создает новый prompt; wrong-topic сообщение пользователя при таком черновике удаляется вместе со старым prompt. | `internal/bot/service.go`, `internal/bot/routines.go`, `internal/bot/goals.go`, `TestWrongTopicSetupInputCancelsDraftAndDeletesMessages`, `TestConfigureGoalsReplacesUnfinishedRoutineDraft` |
+| REQ-023 | `готово` | S008 | Сделать ответ после ввода целей единым и коротким. | При первом и повторном вводе целей бот не присылает отдельную карточку с полным текстом целей; raw goals сохраняются, confirmation один и тот же; старые goal card messages удаляются при следующем сохранении. | `internal/bot/goals.go`, `internal/storage/postgres/goals.go`, `TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho` |
+| REQ-024 | `готово` | S008 | Уточнить время ежедневной проверки рутины. | В коде и текстах явно: routine check-in приходит после 09:00 по локальному времени workspace, начиная со следующего дня после настройки. | `internal/domain/rules.go`, `internal/ui/formatters.go`, `internal/bot/routines.go`, `docs/architecture.md`; `make test` |
 
 ## Ограничения
 | ID | Статус | Источник | Ограничение | Доказательства |

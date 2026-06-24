@@ -23,8 +23,16 @@ func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID); err != nil {
 			return err
 		} else if found {
-			answer.Text = pendingBusyText(pending.Kind)
-			return nil
+			cancelled, err := s.cancelSwitchableSetupInput(ctx, q, callback.Message.Chat.ID, pending)
+			if err != nil {
+				return err
+			}
+			if cancelled {
+				answer.Text = "Предыдущий ввод сброшен"
+			} else {
+				answer.Text = pendingBusyText(pending.Kind)
+				return nil
+			}
 		}
 		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
 			return err
@@ -69,7 +77,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}
-		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nС завтрашнего утра буду присылать карточку для отметок", len(items))
+		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nС завтрашнего дня после 09:00 буду присылать карточку для отметок", len(items))
 		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
 		}

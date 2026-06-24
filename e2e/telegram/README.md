@@ -57,7 +57,8 @@ make chats CHAT_GROUPS=1 CHAT_FILTER=TrackMate CHAT_TOPICS=1 CHAT_ADMINS=1
 - `topic_id=` для `Цели` -> `GOALS_THREAD_ID`;
 - `topic_id=` для `Прогресс` -> `PROGRESS_THREAD_ID`;
 - `WRONG_THREAD_ID` можно поставить равным `PROGRESS_THREAD_ID` для проверки
-  wrong-topic pending input.
+  wrong-topic daily pending input. Черновики настройки `Рутины`/`Цели` при
+  переходе в другой топик теперь сбрасываются и чистят сообщения.
 
 ## Рендер Темплейтов
 
@@ -122,7 +123,7 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
 - `04-report-done.jsonl.tmpl`: итог `✅ Выполнена`.
 - `05-report-partial.jsonl.tmpl`: итог `🔸 Выполнена частично`.
 - `06-report-failed.jsonl.tmpl`: итог `❌ Не выполнена`.
-- `07-wrong-topic-pending-ignored.jsonl.tmpl`: pending input не закрывается
+- `07-wrong-topic-pending-ignored.jsonl.tmpl`: daily pending input не закрывается
   сообщением из другой темы.
 - `08-duplicate-photo-report-consumes-once.jsonl.tmpl`: фотоальбом Telegram
   из двух фото с общей подписью закрывает итог один раз.

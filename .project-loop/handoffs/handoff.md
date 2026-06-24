@@ -1,13 +1,13 @@
 # Handoff
 
 Проект: trackmate
-Обновлено: 2026-06-23
+Обновлено: 2026-06-24
 
 ## Цель
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-006`
+- active step: `STEP-009`
 - status: `готово`
 
 ## Завершено
@@ -46,6 +46,13 @@
   - `Цели` описаны как долгосрочные цели на сезон, а prompt объясняет поля формата без частного примера;
   - недельный обзор целей и итог периода переписаны на конкретные вопросы;
   - parser рутины принимает `—` в пользовательском списке.
+- Production `v1.1` выкачен на VPS `inferno-nl` в `/opt/trackmate`: commit/tag `c97c222`/`v1.1`, backup `/opt/trackmate/backups/trackmate_20260623T023521Z.dump`, миграции до `202606230003`, `api`/`worker`/`postgres` healthy, анонс `Trackmate 1.1` опубликован в `Прогресс` message `3280`.
+- Закрыт STEP-009 по UX после production:
+  - незаконченные setup-черновики `routine_plan`/`seasonal_goals` теперь сбрасываются при переходе в другой setup-топик;
+  - старый prompt Trackmate и wrong-topic сообщение пользователя удаляются для таких черновиков;
+  - цели сохраняются с единым коротким ответом без отдельной карточки с полным текстом целей;
+  - старые goal card messages удаляются при следующем сохранении целей;
+  - в текстах рутины явно указано, что ежедневная карточка приходит после 09:00.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -74,6 +81,10 @@
 - STEP-006 финальное ревью текстов: `make test`: pass.
 - STEP-006 финальное ревью текстов: `make lint`: pass.
 - STEP-006 финальное ревью текстов: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-009 UX после production: `go test ./internal/bot ./internal/ui ./internal/storage/postgres ./internal/domain ./internal/app/routine ./internal/app/goals`: pass.
+- STEP-009 UX после production: `make test`: pass.
+- STEP-009 UX после production: `make lint`: pass.
+- STEP-009 UX после production: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -85,11 +96,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Production migration/deploy заблокированы до approval после локального ревью.
-- Перед prod нужен production backup и approval на конкретную command sequence; локальный PostgreSQL dry-run уже выполнен.
+- Текущий STEP-009 закоммичен локально, но не выкачен на production.
+- Для production hotfix нужен отдельный approval, затем короткий update без новых миграций.
 
 ## Следующее Действие
-- Показать обновленные тексты Игорю на ревью. После approval миграции: выполнить production backup/counts, применить migrations, перезапустить сервисы и smoke-check topics.
+- Показать STEP-009 Игорю. После approval на hotfix: push, production backup/counts, `git pull --ff-only`, `docker compose up -d --build`, smoke-check pending cleanup и goals confirmation.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
