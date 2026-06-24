@@ -115,7 +115,8 @@ func RoutinePlanPrompt() string {
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🔁 <b>Рутина</b> %s · %s", person, checkin.CheckinDate.Format("02.01")),
+		fmt.Sprintf("🔁 <b>Рутина за %s</b> %s", checkin.CheckinDate.Format("02.01"), person),
+		"Отметь, как прошел этот день",
 		"",
 	}
 	for _, item := range checkin.Items {
@@ -139,7 +140,8 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 
 func FormatRoutineReasonPrompt(checkin postgres.RoutineCheckin, itemIndex int) string {
 	lines := []string{
-		fmt.Sprintf("🔁 <b>Рутина</b> · %s", checkin.CheckinDate.Format("02.01")),
+		fmt.Sprintf("🔁 <b>Рутина за %s</b>", checkin.CheckinDate.Format("02.01")),
+		"Отметь, как прошел этот день",
 		"",
 	}
 	for _, item := range checkin.Items {

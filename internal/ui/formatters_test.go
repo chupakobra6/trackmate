@@ -3,6 +3,7 @@ package ui
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/storage/postgres"
@@ -82,6 +83,28 @@ func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 	for _, part := range []string{"Таблица рутин", "92% за 7 дней", "серия 5 дней", "4 пункта", "Лучшая серия сезона"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("routine table missing %q: %s", part, got)
+		}
+	}
+}
+
+func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
+	checkin := postgres.RoutineCheckin{
+		CheckinDate: time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC),
+		Items: []postgres.RoutineCheckinItem{
+			{Text: "зарядка"},
+			{Text: "английский"},
+		},
+	}
+	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
+	for _, part := range []string{"Рутина за 24.06", "Отметь, как прошел этот день", "<b>1/2:</b> зарядка?"} {
+		if !strings.Contains(card, part) {
+			t.Fatalf("routine card missing %q: %s", part, card)
+		}
+	}
+	reason := FormatRoutineReasonPrompt(checkin, 0)
+	for _, part := range []string{"Рутина за 24.06", "Отметь, как прошел этот день", "Что помешало?"} {
+		if !strings.Contains(reason, part) {
+			t.Fatalf("routine reason prompt missing %q: %s", part, reason)
 		}
 	}
 }

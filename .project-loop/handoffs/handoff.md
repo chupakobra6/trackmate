@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-010`
+- active step: `STEP-011`
 - status: `готово`
 
 ## Завершено
@@ -60,6 +60,11 @@
   - рутина приходит после 20:00 локального времени; если список сохранен до 20:00, первая карточка может прийти в тот же день;
   - для незакрытой рутины worker отправляет напоминание после конца дня и в 12:00 следующего дня закрывает неотмеченные пункты как `failed`;
   - автозакрытие рутины остается в `Рутины`, не создает `progress_events`, обновляет карточку и таблицу рутин.
+- Закрыт STEP-011 по S010:
+  - объяснение production-семантики: текущая дата в карточке рутины означает дату проверки рутины, поэтому `24.06` — это рутина за 24 июня, не за 23 июня;
+  - карточка рутины теперь пишет `Рутина за DD.MM` и сразу под заголовком `Отметь, как прошел этот день`;
+  - prompt причины получил такой же заголовок и пояснение, чтобы дата не терялась при ответах `Нет`/`Частично`;
+  - production не трогался в этом шаге.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -97,6 +102,10 @@
 - STEP-010: `make test`: pass.
 - STEP-010: `make lint`: pass.
 - STEP-010 DB-backed integration tests and migration dry-run: blocked locally because PostgreSQL was not listening on `localhost:5432` and `make docker-up` could not connect to Docker daemon.
+- STEP-011 routine date copy: `go test ./internal/ui ./internal/bot ./internal/app/routine`: pass.
+- STEP-011: `make lint`: pass.
+- STEP-011: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-011: `git diff --check`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -112,7 +121,7 @@
 - Production сейчас отстает от локального `main`; для выката нужен отдельный approval, backup, миграция и smoke-check.
 
 ## Следующее Действие
-- Показать STEP-010 Игорю. После approval на выкатку: push, production backup/counts, `git pull --ff-only`, применить миграцию, `docker compose up -d --build`, smoke-check topic-scoped pending, routine evening card/reminder/auto-close и goals confirmation.
+- Показать STEP-011 Игорю. После approval на выкатку: push, production backup/counts, `git pull --ff-only`, применить миграцию, `docker compose up -d --build`, smoke-check topic-scoped pending, routine evening card/reminder/auto-close, goals confirmation и новый текст карточки рутины.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
