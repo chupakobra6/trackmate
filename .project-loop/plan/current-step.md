@@ -4,19 +4,21 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-013`
+- id: `STEP-014`
 - status: `готово`
-- objective: Переделать routine reason flow на отдельное временное сообщение и убрать финальный итог дня из рутин.
-- requirement IDs: `REQ-030`
-- owned paths: `.project-loop/`, `internal/domain/types.go`, `internal/bot/routines.go`, `internal/bot/service.go`, `internal/bot/service_integration_test.go`, `internal/storage/postgres/routines.go`, `internal/storage/postgres/storage_integration_test.go`, `internal/ui/formatters.go`, `internal/ui/formatters_test.go`, `internal/ui/keyboards.go`, `internal/app/routine/routine_integration_test.go`, `docs/`, `e2e/telegram/scenarios/12-routine-checkin.jsonl.tmpl`
-- validation: `go test ./internal/ui ./internal/bot ./internal/app/routine ./internal/storage/postgres`: pass; `go test ./... -count=1`: pass; `make lint`: pass; `loopctl.py validate`: pass
-- done criteria: production факт проверен read-only; `Нет`/`Частично` отправляют отдельный reason prompt reply к основной карточке; после ответа prompt и user reply удаляются; основная карточка не превращается в prompt причины; после всех пунктов check-in закрывается без routine final reflection; prod deploy не выполнялся.
+- objective: Исправить production case Егора и закрепить schema-fix для topic-scoped pending.
+- requirement IDs: `REQ-031`
+- owned paths: `.project-loop/`, `migrations/202606290001_drop_legacy_pending_input_unique.sql`
+- validation: production SQL/log verification: pass; `TRACKMATE_TEST_DATABASE_URL=... go test ./internal/storage/postgres ./internal/bot ./internal/app/pending`: pass; `git diff --check`: pass; `make test`: pass; `make lint`: pass; `TRACKMATE__DATABASE_URL=... make migrate`: pass; `loopctl.py validate`: pass
+- done criteria: task `160` on production stores report message `3386` and status `done`; wrong auto-fail progress event removed without new chat publication; legacy pending constraint removed on production; local migration exists and validation passes.
 
 ## Фокус Ревью
-- Менять только routine flow из текущего скриншота; цели не трогать без отдельного конкретного сценария.
-- Не чистить production данные и не выкатывать фикс до отдельной пачки.
-- Сохранить хранение причин и таблицу рутин, не публиковать routine events в `Прогресс`.
+- Не деплоить локальные routine fixes из STEP-012/STEP-013 в рамках этой ручной прод-правки.
+- Не создавать новую публикацию в `Прогресс` при восстановлении старого отчета.
+- Схема должна разрешать несколько pending inputs для одного пользователя в разных `message_thread_id`.
 
 ## Примечания
-- Production logs 2026-06-24 17:00 UTC показали: worker отправил routine cards `3373`/`3374`; callback `routine:item:287:0:failed` пришел по message `3373`, затем user message `3375`; текущий production flow редактирует основную карточку для причины.
-- S012 заменяет часть раннего MVP: routine final reflection больше не нужна, потому что итог дня живет в `Сегодня`.
+- Production logs 2026-06-24 19:33 UTC показали: `task:status:160:done` упал с `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"`, поэтому message `3386` не мог быть привязан к pending report.
+- На production удален legacy constraint `uq_pending_inputs_workspace_group_id`; остался `ux_pending_inputs_workspace_user_thread`.
+- Production task `160` исправлен на `done`, `report_message_id=3386`, `report_text=Голосовое сообщение`; неверный `progress_events.id=183` удален без новой публикации.
+- Telegram не дал удалить старые сообщения `3385` и `3404`: `Bad Request: message can't be deleted`.

@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-013`
+- active step: `STEP-014`
 - status: `готово`
 
 ## Завершено
@@ -79,6 +79,15 @@
   - после последнего пункта routine check-in закрывается сразу, обновляет карточку и таблицу рутин, без routine final reflection;
   - active `routine_reflection` path удален из bot/domain/storage API; историческое поле `reflection_text` в схеме не трогалось;
   - цели не менялись, production deploy не выполнялся.
+- Закрыт STEP-014 по S013:
+  - production incident по Егору восстановлен без новых сообщений в чат: `daily_tasks.id=160` теперь `done`, `report_status=done`, `report_text=Голосовое сообщение`, `report_message_id=3386`, `failed_at=NULL`;
+  - неверный auto-fail `progress_events.id=183` удален из БД, новую публикацию в `Прогресс` не создавали;
+  - карточка задачи `3361` в `Сегодня` отредактирована в фактическое состояние `выполнена`;
+  - production backup перед правкой: `/opt/trackmate/backups/trackmate_manual_fix_20260629T093903Z.dump`;
+  - root cause подтвержден логами: `task:status:160:done` 2026-06-24 19:33 UTC упал на `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"`;
+  - production schema исправлена вручную: старый constraint `uq_pending_inputs_workspace_group_id` удален, остался `ux_pending_inputs_workspace_user_thread`;
+  - старые Telegram messages `3385` и `3404` удалить не удалось: Bot API вернул `Bad Request: message can't be deleted`;
+  - локально добавлена миграция `202606290001_drop_legacy_pending_input_unique.sql`, production deploy кода не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -130,6 +139,13 @@
 - STEP-013: `go test ./... -count=1`: pass.
 - STEP-013: `make lint`: pass.
 - STEP-013: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-014 production verification: task `160` fixed; legacy pending constraint removed; `api`/`worker`/`postgres` healthy.
+- STEP-014: `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./internal/storage/postgres ./internal/bot ./internal/app/pending`: pass.
+- STEP-014: `git diff --check`: pass.
+- STEP-014: `make test`: pass.
+- STEP-014: `make lint`: pass.
+- STEP-014: `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
+- STEP-014: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -142,10 +158,10 @@
 
 ## Риски И Блокеры
 - STEP-012 и STEP-013 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
-- В STEP-012/STEP-013 production данные не чистились и не менялись.
+- STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту. Текущие локальные fixes можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту. Текущие локальные fixes STEP-012/STEP-013 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
