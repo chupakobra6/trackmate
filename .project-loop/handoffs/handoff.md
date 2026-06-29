@@ -106,6 +106,13 @@
   - после полного ответа на daily routine карточка удаляется, таблица рутин обновляется;
   - auto-close рутины удаляет карточку, напоминание и pending reason prompt/user messages без отдельного `Время вышло` notice;
   - production deploy не выполнялся.
+- Закрыт STEP-017 по S016:
+  - routine reminder переписан в короткий стиль: `Рутина за DD.MM`, `Закрой до 12:00`, `Неотмеченные пункты станут невыполненными`;
+  - reminder использует кнопку `👀 Понял`, удаляется при ручном закрытии рутины и чистится worker cleanup после TTL около суток;
+  - auto-close notice возвращен как временный alert: `Рутина за DD.MM закрыта`, `Неотмеченные пункты стали невыполненными`;
+  - добавлена additive migration `202606290002_routine_notice_ttl.sql` с nullable-полями `auto_close_notice_message_id` и `auto_close_notice_sent_at`;
+  - worker теперь чистит expired routine reminder и auto-close notice messages после `RunCheckinTransitions`;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -174,6 +181,12 @@
 - STEP-016: `make lint`: pass.
 - STEP-016: `git diff --check`: pass.
 - STEP-016: `loopctl.py validate .`: pass.
+- STEP-017 routine alerts TTL/copy: `go test ./internal/storage/postgres ./internal/app/routine ./internal/ui ./internal/domain`: pass.
+- STEP-017: `go test ./internal/bot ./internal/worker ./internal/messages`: pass.
+- STEP-017: `make test`: pass.
+- STEP-017: `make lint`: pass.
+- STEP-017: `git diff --check`: pass.
+- STEP-017: `loopctl.py validate .`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -185,11 +198,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- STEP-012, STEP-013, STEP-015 и STEP-016 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
+- STEP-012, STEP-013, STEP-015, STEP-016 и STEP-017 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
 - STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

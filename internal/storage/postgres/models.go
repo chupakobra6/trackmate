@@ -111,21 +111,23 @@ type RoutinePlan struct {
 }
 
 type RoutineCheckin struct {
-	ID                  int64
-	WorkspaceGroupID    int64
-	ParticipantID       int64
-	OwnerUserID         int64
-	CheckinDate         time.Time
-	CardMessageID       *int64
-	CardMessageThreadID *int64
-	ReminderMessageID   *int64
-	ReflectionText      *string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
-	ReminderSentAt      *time.Time
-	CompletedAt         *time.Time
-	AutoFailedAt        *time.Time
-	Items               []RoutineCheckinItem
+	ID                       int64
+	WorkspaceGroupID         int64
+	ParticipantID            int64
+	OwnerUserID              int64
+	CheckinDate              time.Time
+	CardMessageID            *int64
+	CardMessageThreadID      *int64
+	ReminderMessageID        *int64
+	AutoCloseNoticeMessageID *int64
+	ReflectionText           *string
+	CreatedAt                time.Time
+	UpdatedAt                time.Time
+	ReminderSentAt           *time.Time
+	AutoCloseNoticeSentAt    *time.Time
+	CompletedAt              *time.Time
+	AutoFailedAt             *time.Time
+	Items                    []RoutineCheckinItem
 }
 
 type RoutineCheckinItem struct {
@@ -149,6 +151,11 @@ type RoutineCheckinContext struct {
 	Checkin     RoutineCheckin
 	Workspace   Workspace
 	Participant Participant
+}
+
+type RoutineNoticeContext struct {
+	Checkin   RoutineCheckin
+	Workspace Workspace
 }
 
 type RoutineLeaderboardEntry struct {

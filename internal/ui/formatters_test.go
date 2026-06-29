@@ -185,3 +185,24 @@ func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
+	checkin := postgres.RoutineCheckin{CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC)}
+
+	reminder := RoutineReminderText(checkin)
+	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", "Закрой до 12:00", "Неотмеченные пункты станут невыполненными"} {
+		if !strings.Contains(reminder, part) {
+			t.Fatalf("routine reminder missing %q: %s", part, reminder)
+		}
+	}
+	if strings.Contains(reminder, "будут засчитаны") || strings.Contains(reminder, "еще не закрыта") {
+		t.Fatalf("routine reminder kept old wording: %s", reminder)
+	}
+
+	autoClosed := RoutineAutoClosedText(checkin)
+	for _, part := range []string{"⚠️ <b>Рутина за 28.06 закрыта</b>", "Неотмеченные пункты стали невыполненными"} {
+		if !strings.Contains(autoClosed, part) {
+			t.Fatalf("routine auto-close notice missing %q: %s", part, autoClosed)
+		}
+	}
+}

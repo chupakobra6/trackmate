@@ -193,6 +193,9 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 	}
 	if completed.ReminderMessageID != nil {
 		_ = s.Telegram.DeleteMessage(ctx, chatID, *completed.ReminderMessageID)
+		if err := q.ClearRoutineCheckinReminderMessageID(ctx, completed.ID); err != nil {
+			return err
+		}
 	}
 	_ = s.Telegram.DeleteMessage(ctx, chatID, messageID)
 	now, err := q.CurrentNow(ctx, time.Now().UTC())

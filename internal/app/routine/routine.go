@@ -88,7 +88,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
 				return err
 			}
-			_, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
+			closed, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
 			if err != nil {
 				return err
 			}
@@ -97,8 +97,27 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			}
 			if item.Checkin.ReminderMessageID != nil {
 				_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.ReminderMessageID)
+				if err := store.Queries().ClearRoutineCheckinReminderMessageID(ctx, item.Checkin.ID); err != nil {
+					return err
+				}
 			}
 			_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.CardMessageID)
+			notice, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
+				ChatID:              item.Workspace.ChatID,
+				MessageThreadID:     *item.Checkin.CardMessageThreadID,
+				Text:                ui.RoutineAutoClosedText(closed),
+				ReplyMarkup:         ui.DismissKeyboard(),
+				DisableNotification: true,
+			})
+			if err != nil {
+				if logger != nil {
+					logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", item.Checkin.ID, "error", err)
+				}
+				return err
+			}
+			if err := store.Queries().SetRoutineCheckinAutoCloseNoticeMessageID(ctx, item.Checkin.ID, notice.MessageID, nowUTC); err != nil {
+				return err
+			}
 			refreshed[item.Workspace.ID] = item.Workspace
 			continue
 		}
@@ -130,6 +149,29 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 	for _, workspace := range refreshed {
 		if err := RefreshLeaderboard(ctx, store.Queries(), tg, workspace, workspace.ChatID, nowUTC); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func CleanupExpiredNotices(ctx context.Context, store *postgres.Store, tg telegram.API, nowUTC time.Time) error {
+	cutoff := nowUTC.UTC().Add(-domain.RoutineNoticeMaxAge)
+	notices, err := store.Queries().ListExpiredRoutineNoticeContexts(ctx, cutoff)
+	if err != nil {
+		return err
+	}
+	for _, notice := range notices {
+		if notice.Checkin.ReminderMessageID != nil && notice.Checkin.ReminderSentAt != nil && !notice.Checkin.ReminderSentAt.After(cutoff) {
+			_ = tg.DeleteMessage(ctx, notice.Workspace.ChatID, *notice.Checkin.ReminderMessageID)
+			if err := store.Queries().ClearRoutineCheckinReminderMessageID(ctx, notice.Checkin.ID); err != nil {
+				return err
+			}
+		}
+		if notice.Checkin.AutoCloseNoticeMessageID != nil && notice.Checkin.AutoCloseNoticeSentAt != nil && !notice.Checkin.AutoCloseNoticeSentAt.After(cutoff) {
+			_ = tg.DeleteMessage(ctx, notice.Workspace.ChatID, *notice.Checkin.AutoCloseNoticeMessageID)
+			if err := store.Queries().ClearRoutineCheckinAutoCloseNoticeMessageID(ctx, notice.Checkin.ID); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

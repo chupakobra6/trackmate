@@ -13,6 +13,7 @@ const (
 	MaxRoutineItems         = 9
 	RoutineCheckinHour      = 20
 	RoutineAutoFailHour     = 12
+	RoutineNoticeMaxAge     = 24 * time.Hour
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
 	GoalNudgePercent        = 10

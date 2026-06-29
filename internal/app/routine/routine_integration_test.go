@@ -108,7 +108,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "еще не закрыта") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Закрой до 12:00") || strings.Contains(fake.sent[0].Text, "засчитаны") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil {
 		t.Fatalf("unexpected reminder send: %+v", fake.sent)
 	}
 	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
@@ -145,11 +145,70 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if fake.findEditCount(2100) != 0 {
 		t.Fatalf("routine card should not be edited on auto-close, edits=%+v", fake.edits)
 	}
-	if len(fake.sent) != 1 {
-		t.Fatalf("auto-close should not send extra routine notices: %+v", fake.sent)
+	if len(fake.sent) != 2 || !strings.Contains(fake.sent[1].Text, "Рутина за 28.06 закрыта") || fake.sent[1].ReplyMarkup == nil {
+		t.Fatalf("auto-close notice missing: %+v", fake.sent)
+	}
+	closedWithNotice, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || closedWithNotice.AutoCloseNoticeMessageID == nil || *closedWithNotice.AutoCloseNoticeMessageID != 3002 || closedWithNotice.AutoCloseNoticeSentAt == nil {
+		t.Fatalf("auto-close notice was not stored found=%v checkin=%+v err=%v", found, closedWithNotice, err)
 	}
 	if tableEdit, ok := fake.findEdit(introID); !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
 		t.Fatalf("routine table refresh missing: found=%v edit=%+v", ok, tableEdit)
+	}
+
+	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 6, 30, 12, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.wasDeleted(3002) {
+		t.Fatalf("expired auto-close notice should be deleted, deleted=%+v", fake.deleted)
+	}
+	cleaned, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || cleaned.AutoCloseNoticeMessageID != nil {
+		t.Fatalf("auto-close notice id should be cleared found=%v checkin=%+v err=%v", found, cleaned, err)
+	}
+}
+
+func TestCleanupExpiredNoticesDeletesOldRoutineReminder(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000446, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetRoutineCheckinReminderMessageID(ctx, checkin.ID, 4100, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &fakeTelegram{}
+	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 6, 29, 23, 59, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if fake.wasDeleted(4100) {
+		t.Fatalf("routine reminder should stay until it is older than 24h, deleted=%+v", fake.deleted)
+	}
+	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 6, 30, 0, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.wasDeleted(4100) {
+		t.Fatalf("expired routine reminder should be deleted, deleted=%+v", fake.deleted)
+	}
+	cleaned, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || cleaned.ReminderMessageID != nil {
+		t.Fatalf("routine reminder id should be cleared found=%v checkin=%+v err=%v", found, cleaned, err)
 	}
 }
 

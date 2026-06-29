@@ -114,6 +114,10 @@ func RoutineReminderText(checkin postgres.RoutineCheckin) string {
 	return messages.Format("routine.reminder", "date", checkin.CheckinDate.Format("02.01"))
 }
 
+func RoutineAutoClosedText(checkin postgres.RoutineCheckin) string {
+	return messages.Format("routine.auto_closed", "date", checkin.CheckinDate.Format("02.01"))
+}
+
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {
 	lines := []string{messages.Text("routine.leaderboard.title")}
 	if len(entries) == 0 {

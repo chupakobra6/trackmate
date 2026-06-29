@@ -46,6 +46,9 @@ func (r *Runner) Tick(ctx context.Context, now time.Time) error {
 	if err := approutine.RunCheckinTransitions(ctx, r.Store, r.TG, r.Logger, current); err != nil {
 		return err
 	}
+	if err := approutine.CleanupExpiredNotices(ctx, r.Store, r.TG, current); err != nil {
+		return err
+	}
 	if err := apppending.CleanupStaleInputs(ctx, r.Store, r.TG, current); err != nil {
 		return err
 	}
