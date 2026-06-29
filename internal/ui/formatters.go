@@ -9,6 +9,8 @@ import (
 	"github.com/igor/trackmate/internal/storage/postgres"
 )
 
+const routineHeaderEmoji = "🌿"
+
 const TodayControlText = "🎯 <b>Сегодня</b>\n" +
 	"Здесь у каждого одна главная задача дня. Нажми кнопку ниже, чтобы зафиксировать свой главный фокус.\n\n" +
 	"Как это работает:\n" +
@@ -23,7 +25,7 @@ const ProgressIntroText = "✨ <b>Прогресс</b>\n" +
 	"— Автоматические итоги просроченных задач\n\n" +
 	"Так всегда видно, кто что сделал и довел до результата."
 
-const RoutineControlText = "🔁 <b>Рутины</b>\n" +
+const RoutineControlText = routineHeaderEmoji + " <b>Рутины</b>\n" +
 	"Здесь живут повторяющиеся действия: зарядка, английский, йога, режим и другие ежедневные опоры.\n\n" +
 	"Нажми кнопку ниже и пришли список. Я буду присылать одну карточку для отметки каждый день после 20:00.\n\n" +
 	"Закрыть ее можно до 12:00 следующего дня."
@@ -115,7 +117,7 @@ func RoutinePlanPrompt() string {
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🔁 <b>Рутина за %s</b> %s", checkin.CheckinDate.Format("02.01"), person),
+		fmt.Sprintf("%s <b>Рутина за %s</b> %s", routineHeaderEmoji, checkin.CheckinDate.Format("02.01"), person),
 		"Отметь, как прошел этот день",
 		"",
 	}
@@ -138,17 +140,10 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 	return appendNotice(lines, notice)
 }
 
-func FormatRoutineReasonPrompt(checkin postgres.RoutineCheckin, itemIndex int) string {
-	lines := []string{
-		fmt.Sprintf("🔁 <b>Рутина за %s</b>", checkin.CheckinDate.Format("02.01")),
-		"Отметь, как прошел этот день",
-		"",
-	}
-	for _, item := range checkin.Items {
-		lines = append(lines, routineItemLine(item))
-	}
+func FormatRoutineReasonPrompt(checkin postgres.RoutineCheckin, displayName string, username string, itemIndex int) string {
+	lines := strings.Split(FormatRoutineCheckinCard(checkin, displayName, username, ""), "\n")
 	if itemIndex >= 0 && itemIndex < len(checkin.Items) {
-		lines = append(lines, "", fmt.Sprintf("<b>%s?</b>", html.EscapeString(checkin.Items[itemIndex].Text)), "Что помешало?")
+		lines = append(lines, "Что помешало?")
 	}
 	return strings.Join(lines, "\n")
 }

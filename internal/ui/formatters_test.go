@@ -96,16 +96,19 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 		},
 	}
 	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	for _, part := range []string{"Рутина за 24.06", "Отметь, как прошел этот день", "<b>1/2:</b> зарядка?"} {
+	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "Отметь, как прошел этот день", "<b>1/2:</b> зарядка?"} {
 		if !strings.Contains(card, part) {
 			t.Fatalf("routine card missing %q: %s", part, card)
 		}
 	}
-	reason := FormatRoutineReasonPrompt(checkin, 0)
-	for _, part := range []string{"Рутина за 24.06", "Отметь, как прошел этот день", "Что помешало?"} {
+	reason := FormatRoutineReasonPrompt(checkin, "Игорь", "igor", 0)
+	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "Отметь, как прошел этот день", "<b>1/2:</b> зарядка?", "Что помешало?"} {
 		if !strings.Contains(reason, part) {
 			t.Fatalf("routine reason prompt missing %q: %s", part, reason)
 		}
+	}
+	if strings.Contains(reason, "<b>зарядка?</b>") {
+		t.Fatalf("routine reason prompt should keep the regular card question format: %s", reason)
 	}
 }
 

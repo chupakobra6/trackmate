@@ -335,6 +335,15 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
+	reasonEdit, ok := fake.findEdit(100)
+	if !ok {
+		t.Fatalf("expected routine reason prompt edit")
+	}
+	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "<b>2/2:</b> йога?", "Что помешало?"} {
+		if !strings.Contains(reasonEdit.Text, part) {
+			t.Fatalf("routine reason prompt missing %q: %s", part, reasonEdit.Text)
+		}
+	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
 		t.Fatalf("routine reason pending found=%v pending=%+v err=%v", found, pending, err)
 	}

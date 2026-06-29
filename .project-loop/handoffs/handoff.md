@@ -1,13 +1,13 @@
 # Handoff
 
 Проект: trackmate
-Обновлено: 2026-06-24
+Обновлено: 2026-06-29
 
 ## Цель
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-011`
+- active step: `STEP-012`
 - status: `готово`
 
 ## Завершено
@@ -65,6 +65,13 @@
   - карточка рутины теперь пишет `Рутина за DD.MM` и сразу под заголовком `Отметь, как прошел этот день`;
   - prompt причины получил такой же заголовок и пояснение, чтобы дата не терялась при ответах `Нет`/`Частично`;
   - production не трогался в этом шаге.
+- После approval STEP-009..STEP-011 выкачены на production: VPS `/opt/trackmate` сейчас на `9a58215`, миграция `202606240001` применена, `api`/`worker`/`postgres` healthy.
+- Закрыт STEP-012 по S011:
+  - production проверен read-only: logs 2026-06-24 17:00 UTC показали routine cards `3373`/`3374`, затем callbacks по `3373` и edit в reason prompt;
+  - причина разного вида со скриншота: `FormatRoutineReasonPrompt` строил текст отдельно, без автора и без обычного формата `N/M: пункт?`;
+  - reason prompt теперь переиспользует обычную карточку рутины, сохраняет автора и формат вопроса, добавляя только `Что помешало?`;
+  - первый emoji routine header/control заменен с `🔁` на `🌿`;
+  - production deploy не выполнялся в STEP-012.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -106,6 +113,11 @@
 - STEP-011: `make lint`: pass.
 - STEP-011: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - STEP-011: `git diff --check`: pass.
+- STEP-012 production read-only check: VPS `/opt/trackmate` at `9a58215`, docker compose healthy; DB/logs around 2026-06-24 20:00 MSK inspected.
+- STEP-012: `go test ./internal/ui ./internal/bot`: pass.
+- STEP-012: `go test ./... -count=1`: pass.
+- STEP-012: `make lint`: pass.
+- STEP-012: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -117,11 +129,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Текущий STEP-010 требует новой миграции `202606240001_topic_scoped_pending_and_routine_deadlines.sql`; DB integration и SQL dry-run на локальной PostgreSQL не выполнены из-за недоступного Docker daemon.
-- Production сейчас отстает от локального `main`; для выката нужен отдельный approval, backup, миграция и smoke-check.
+- STEP-012 локально готов, но не выкачен на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
+- В STEP-012 production данные не чистились и не менялись.
 
 ## Следующее Действие
-- Показать STEP-011 Игорю. После approval на выкатку: push, production backup/counts, `git pull --ff-only`, применить миграцию, `docker compose up -d --build`, smoke-check topic-scoped pending, routine evening card/reminder/auto-close, goals confirmation и новый текст карточки рутины.
+- Ждать следующий скриншот/дельту. Текущий локальный fix можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

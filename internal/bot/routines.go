@@ -126,7 +126,7 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 				ChatID:    callback.Message.Chat.ID,
 				MessageID: callback.Message.MessageID,
-				Text:      ui.FormatRoutineReasonPrompt(checkin, itemIndex),
+				Text:      ui.FormatRoutineReasonPrompt(checkin, telegram.DisplayName(callback.From), callback.From.Username, itemIndex),
 			})
 			return nil
 		}

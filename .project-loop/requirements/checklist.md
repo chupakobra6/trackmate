@@ -1,7 +1,7 @@
 # Чеклист Требований
 
 Проект: trackmate
-Обновлено: 2026-06-24
+Обновлено: 2026-06-29
 
 ## Значения Статусов
 Используй `кандидат`, `принято`, `в работе`, `готово`, `отложено`, `заблокировано` или `отклонено`.
@@ -37,6 +37,7 @@
 | REQ-026 | `готово` | S009 | Добавить тихую очистку незавершенного ввода старше 24 часов. | Worker удаляет stale pending, prompt Trackmate и известные user messages из payload без сообщений в чат и без callback answer. | `internal/app/pending/pending.go`, `internal/worker/worker.go`, `TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic` |
 | REQ-027 | `готово` | S009 | Перевести routine check-in на вечерний flow с автозакрытием. | Карточка рутины приходит вечером в тот же день, если план настроен до вечернего времени; после конца дня бот напоминает о незакрытой рутине; в 12:00 следующего дня неотмеченные пункты закрываются как `failed`, карточка обновляется, таблица рутин пересчитывается. | `internal/domain/rules.go`, `internal/app/routine/routine.go`, `internal/ui/formatters.go`, `TestRoutineCheckinDueStartsSameEveningWhenCreatedBeforeDispatch`, `TestRunCheckinTransitionsRemindsAndAutoCloses` |
 | REQ-028 | `готово` | S010 | Сделать дату в карточке рутины однозначной. | Карточка рутины говорит `Рутина за DD.MM` и содержит короткое пояснение, что отмечаются пункты за этот день; reason/reflection карточки сохраняют тот же смысл. | `internal/ui/formatters.go`, `TestFormatRoutineCheckinCardClarifiesDateScope` |
+| REQ-029 | `готово` | S011 | Унифицировать вид prompt причины рутины с обычной карточкой и заменить первый emoji рутины. | После `Нет`/`Частично` та же карточка сохраняет автора (`@username`/display name), формат вопроса `N/M: пункт?` и короткое `Что помешало?`; первый emoji в routine header/control text больше не `🔁`. | `internal/ui/formatters.go`, `internal/bot/routines.go`, `TestFormatRoutineCheckinCardClarifiesDateScope`, `TestRoutineCheckinFlowStaysInRoutineTopic` |
 
 ## Ограничения
 | ID | Статус | Источник | Ограничение | Доказательства |

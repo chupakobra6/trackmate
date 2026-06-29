@@ -1,7 +1,7 @@
 # План Поставки
 
 Проект: trackmate
-Обновлено: 2026-06-24
+Обновлено: 2026-06-29
 
 ## Этапы
 | Шаг | Статус | ID требований | Цель | Ревью | Проверка |
@@ -17,6 +17,7 @@
 | STEP-009 | `готово` | REQ-022..REQ-024 | Починить UX настройки рутин/целей: сброс черновиков между топиками, короткое сохранение целей, явное время рутины. | Pending cleanup, отсутствие goal echo, сохранение raw goals и расписание после 09:00 проверены тестами. | `go test ./internal/bot ./internal/ui ./internal/storage/postgres ./internal/domain ./internal/app/routine ./internal/app/goals`: pass; `make test`: pass; `make lint`: pass; `loopctl.py validate`: pass |
 | STEP-010 | `готово` | REQ-025..REQ-027,VAL-006 | Переделать pending inputs на изоляцию по топикам, добавить тихий stale cleanup и вечерний routine flow с напоминанием/автозакрытием. | Проверено на уровне компиляции и unit paths: разные топики не блокируют друг друга, wrong-topic input игнорируется, stale cleanup молчит, routine transitions не публикуются в `Прогресс`. | focused Go tests: pass; `go test ./... -count=1`: pass; `make test`: pass; `make lint`: pass; DB integration/migration dry-run blocked by unavailable Docker daemon |
 | STEP-011 | `готово` | REQ-028 | Уточнить текст карточки рутины, чтобы дата читалась как период отметки, а не как случайная дата создания. | Формат карточки и prompt причины проверены; текст короткий и не ломает layout. | `go test ./internal/ui ./internal/bot ./internal/app/routine`: pass; `make lint`: pass; `loopctl.py validate`: pass |
+| STEP-012 | `готово` | REQ-029 | По продовому скриншоту унифицировать вид reason-prompt рутины с обычной карточкой и заменить первый emoji рутины. | Production логи/БД проверены read-only; локальная правка не деплоится до пачки; formatter/caller/test покрывают автора, формат вопроса и emoji. | `go test ./internal/ui ./internal/bot`: pass; `go test ./... -count=1`: pass; `make lint`: pass; `loopctl.py validate`: pass |
 
 ## Примечания По Порядку
 - Шаги достаточно маленькие для цикла: реализация, ревью, исправление, проверка, коммит, handoff.

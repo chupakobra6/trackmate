@@ -1,21 +1,22 @@
 # Текущий Шаг
 
 Проект: trackmate
-Обновлено: 2026-06-24
+Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-011`
+- id: `STEP-012`
 - status: `готово`
-- objective: Уточнить текст карточки рутины, чтобы дата читалась как день, за который нужно отметить пункты.
-- requirement IDs: `REQ-028`
-- owned paths: `.project-loop/`, `internal/ui/formatters.go`, `internal/ui/formatters_test.go`
-- validation: `go test ./internal/ui ./internal/bot ./internal/app/routine`: pass; `make lint`: pass; `loopctl.py validate`: pass
-- done criteria: карточка рутины содержит `Рутина за DD.MM`; внутри есть короткая строка о том, что отмечаются пункты за этот день; prompt причины сохраняет тот же смысл; тесты проходят.
+- objective: Унифицировать prompt причины рутины с обычной карточкой и заменить первый emoji routine header.
+- requirement IDs: `REQ-029`
+- owned paths: `.project-loop/`, `internal/ui/formatters.go`, `internal/ui/formatters_test.go`, `internal/bot/routines.go`, `internal/bot/service_integration_test.go`
+- validation: `go test ./internal/ui ./internal/bot`: pass; `go test ./... -count=1`: pass; `make lint`: pass; `loopctl.py validate`: pass
+- done criteria: production факт проверен read-only; reason prompt использует тот же заголовок с автором, что и карточка; вопрос остается в формате `N/M: пункт?`; строка `Что помешало?` добавлена без отдельного визуального шаблона; первый routine emoji заменен; prod deploy не выполнялся.
 
 ## Фокус Ревью
-- Карточка должна быть понятна утром/вечером и при просмотре на следующий день.
-- Текст остается коротким и без лишнего объяснительного полотна.
+- Не менять routine logic, storage, расписание и auto-close.
+- Не чистить production данные и не выкатывать фикс до отдельной пачки.
+- Исправлять только проблему со скриншота.
 
 ## Примечания
-- На текущем production `24.06` означает routine check-in за `24.06`, а не за `23.06`.
-- В локальной ветке STEP-010 уже перевел routine check-in на вечерний сценарий; STEP-011 только уточняет copy карточки.
+- Production logs 2026-06-24 17:00 UTC показали: обычные карточки `3373`/`3374`, затем callback по `3373` и edit в reason prompt.
+- Причина разного вида: `FormatRoutineReasonPrompt` строил текст отдельно от `FormatRoutineCheckinCard` и не получал `displayName/username`.
