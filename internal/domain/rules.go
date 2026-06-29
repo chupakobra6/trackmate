@@ -42,13 +42,9 @@ func ParseRoutineItems(raw string) ([]string, error) {
 			continue
 		}
 		var item string
-		switch {
-		case strings.HasPrefix(trimmed, "-"):
-			item = strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
-		case strings.HasPrefix(trimmed, "—"):
-			item = strings.TrimSpace(strings.TrimPrefix(trimmed, "—"))
-		default:
-			return nil, fmt.Errorf("routine list must use dash items")
+		item, ok := parseRoutineItemLine(trimmed)
+		if !ok {
+			return nil, fmt.Errorf("routine list must use list prefixes")
 		}
 		if item == "" {
 			return nil, fmt.Errorf("routine item is empty")
@@ -62,6 +58,25 @@ func ParseRoutineItems(raw string) ([]string, error) {
 		return nil, fmt.Errorf("routine list has %d items, max %d", len(items), MaxRoutineItems)
 	}
 	return items, nil
+}
+
+func parseRoutineItemLine(trimmed string) (string, bool) {
+	switch {
+	case strings.HasPrefix(trimmed, "-"):
+		return strings.TrimSpace(strings.TrimPrefix(trimmed, "-")), true
+	case strings.HasPrefix(trimmed, "—"):
+		return strings.TrimSpace(strings.TrimPrefix(trimmed, "—")), true
+	}
+	for i, r := range trimmed {
+		if r >= '0' && r <= '9' {
+			continue
+		}
+		if i > 0 && (r == '.' || r == ')') {
+			return strings.TrimSpace(trimmed[i+1:]), true
+		}
+		break
+	}
+	return "", false
 }
 
 func RoutineScore(status RoutineItemStatus) float64 {

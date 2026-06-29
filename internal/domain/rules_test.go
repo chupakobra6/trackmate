@@ -50,10 +50,25 @@ func TestParseRoutineItemsAcceptsDashLines(t *testing.T) {
 	}
 }
 
-func TestParseRoutineItemsRejectsPlainLinesAndNumbers(t *testing.T) {
+func TestParseRoutineItemsAcceptsNumberedLines(t *testing.T) {
+	got, err := ParseRoutineItems("1. зарядка\n12. работа\n3) английский перед сном")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"зарядка", "работа", "английский перед сном"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v want %v", got, want)
+		}
+	}
+}
+
+func TestParseRoutineItemsRejectsPlainLinesAndUnsupportedBullets(t *testing.T) {
 	for _, input := range []string{
 		"зарядка\n- работа",
-		"1. зарядка\n- работа",
 		"• зарядка\n- работа",
 	} {
 		if _, err := ParseRoutineItems(input); err == nil {

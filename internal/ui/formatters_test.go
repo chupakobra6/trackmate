@@ -176,7 +176,10 @@ func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
 			t.Fatalf("routine prompt missing dash example %q: %s", part, prompt)
 		}
 	}
-	for _, forbidden := range []string{"Можно использовать маркеры", "номера", "Максимум 9"} {
+	if !strings.Contains(prompt, "Нумерацию тоже пойму") {
+		t.Fatalf("routine prompt should mention numbered input support: %s", prompt)
+	}
+	for _, forbidden := range []string{"Можно использовать маркеры", "Максимум 9"} {
 		if strings.Contains(prompt, forbidden) {
 			t.Fatalf("routine prompt should not mention %q: %s", forbidden, prompt)
 		}

@@ -73,10 +73,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		}
 		s.deletePendingUserMessages(ctx, message.Chat.ID, claimed.Payload)
 		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
-		text := messages.Text("routine.plan.saved")
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(claimed.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
-		}
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(claimed.Payload, "prompt_message_id"))
 		return nil
 	})
 }
@@ -197,11 +194,7 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 	if completed.ReminderMessageID != nil {
 		_ = s.Telegram.DeleteMessage(ctx, chatID, *completed.ReminderMessageID)
 	}
-	_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
-		ChatID:    chatID,
-		MessageID: messageID,
-		Text:      ui.FormatRoutineCheckinCard(completed, telegram.DisplayName(user), user.Username, ""),
-	})
+	_ = s.Telegram.DeleteMessage(ctx, chatID, messageID)
 	now, err := q.CurrentNow(ctx, time.Now().UTC())
 	if err != nil {
 		return err

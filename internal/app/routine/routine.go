@@ -2,11 +2,11 @@ package routine
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"time"
 
 	"github.com/igor/trackmate/internal/domain"
-	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -78,10 +78,17 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			return err
 		}
 		if autoFailDue {
+			pending, pendingFound, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID)
+			if err != nil {
+				return err
+			}
+			if pendingFound && pending.Kind == domain.PendingRoutineReason && payloadInt64(pending.Payload, "checkin_id") == item.Checkin.ID {
+				deletePendingMessages(ctx, tg, item.Workspace.ChatID, pending.Payload)
+			}
 			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
 				return err
 			}
-			updated, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
+			_, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
 			if err != nil {
 				return err
 			}
@@ -91,29 +98,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			if item.Checkin.ReminderMessageID != nil {
 				_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.ReminderMessageID)
 			}
-			_ = tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
-				ChatID:    item.Workspace.ChatID,
-				MessageID: *item.Checkin.CardMessageID,
-				Text: ui.FormatRoutineCheckinCard(
-					updated,
-					item.Participant.DisplayName,
-					participantUsername(item.Participant),
-					messages.Text("routine.auto_closed.notice"),
-				),
-			})
-			if _, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
-				ChatID:              item.Workspace.ChatID,
-				MessageThreadID:     *item.Checkin.CardMessageThreadID,
-				Text:                ui.RoutineAutoClosedText(updated),
-				ReplyMarkup:         ui.DismissKeyboard(),
-				ReplyToMessageID:    *item.Checkin.CardMessageID,
-				DisableNotification: true,
-			}); err != nil {
-				if logger != nil {
-					logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", item.Checkin.ID, "error", err)
-				}
-				return err
-			}
+			_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.CardMessageID)
 			refreshed[item.Workspace.ID] = item.Workspace
 			continue
 		}
@@ -182,4 +167,56 @@ func participantUsername(participant postgres.Participant) string {
 		return ""
 	}
 	return *participant.Username
+}
+
+func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any) {
+	seen := map[int64]bool{}
+	for _, messageID := range append([]int64{payloadInt64(payload, "prompt_message_id")}, payloadInt64Slice(payload, "user_message_ids")...) {
+		if messageID == 0 || seen[messageID] {
+			continue
+		}
+		seen[messageID] = true
+		_ = tg.DeleteMessage(ctx, chatID, messageID)
+	}
+}
+
+func payloadInt64(payload map[string]any, key string) int64 {
+	switch value := payload[key].(type) {
+	case float64:
+		return int64(value)
+	case int64:
+		return value
+	case int:
+		return int64(value)
+	case json.Number:
+		result, _ := value.Int64()
+		return result
+	default:
+		return 0
+	}
+}
+
+func payloadInt64Slice(payload map[string]any, key string) []int64 {
+	switch values := payload[key].(type) {
+	case []int64:
+		return values
+	case []any:
+		result := make([]int64, 0, len(values))
+		for _, value := range values {
+			switch typed := value.(type) {
+			case float64:
+				result = append(result, int64(typed))
+			case int64:
+				result = append(result, typed)
+			case int:
+				result = append(result, int64(typed))
+			case json.Number:
+				parsed, _ := typed.Int64()
+				result = append(result, parsed)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
 }

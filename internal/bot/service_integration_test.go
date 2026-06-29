@@ -275,6 +275,75 @@ WHERE id = $1
 	}
 }
 
+func TestRoutinePlanSaveDeletesSetupMessagesWithoutConfirmation(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 13, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "routine-configure",
+		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Data: "routine:configure",
+		Message: &telegram.Message{
+			MessageID:       200,
+			MessageThreadID: 13,
+			Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли рутину") {
+		t.Fatalf("expected routine setup prompt, got %+v", fake.sent)
+	}
+
+	input := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 13,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "1. Зарядка\n5. Работа\n2) Сон до 12",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) {
+		t.Fatalf("routine setup prompt and input should be deleted, deleted=%+v", fake.deleted)
+	}
+	if len(fake.edits) != 0 {
+		t.Fatalf("routine save should not leave confirmation edits: %+v", fake.edits)
+	}
+	if len(fake.sent) != 1 {
+		t.Fatalf("routine save should not send confirmation messages, sent=%+v", fake.sent)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, found, err := q.GetRoutinePlan(ctx, workspace.ID, participant.ID)
+	if err != nil || !found {
+		t.Fatalf("routine plan found=%v err=%v", found, err)
+	}
+	want := []string{"Зарядка", "Работа", "Сон до 12"}
+	if len(plan.Items) != len(want) {
+		t.Fatalf("routine items = %v want %v", plan.Items, want)
+	}
+	for i := range want {
+		if plan.Items[i] != want[i] {
+			t.Fatalf("routine items = %v want %v", plan.Items, want)
+		}
+	}
+}
+
 func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	fake := newFakeTelegram()
@@ -375,12 +444,8 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if updated.CompletedAt == nil || updated.ReflectionText != nil {
 		t.Fatalf("routine not completed: %+v", updated)
 	}
-	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) {
+	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) || !fake.wasDeleted(100) {
 		t.Fatalf("routine reason prompt and answer should be deleted, deleted=%+v", fake.deleted)
-	}
-	finalEdit, ok := fake.findEdit(100)
-	if !ok || strings.Contains(finalEdit.Text, "Итог дня") || strings.Contains(finalEdit.Text, "Что изменишь завтра") {
-		t.Fatalf("routine should close without final reflection prompt, found=%v edit=%+v", ok, finalEdit)
 	}
 	tableEdit, ok := fake.findEdit(900)
 	if !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {

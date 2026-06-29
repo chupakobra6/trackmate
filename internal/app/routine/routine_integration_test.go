@@ -98,7 +98,8 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	}
 	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 30, domain.PendingRoutineReason, map[string]any{
 		"checkin_id":        checkin.ID,
-		"prompt_message_id": 2100,
+		"prompt_message_id": 2200,
+		"user_message_ids":  []int64{2201},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -136,11 +137,16 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if reminded.ReminderMessageID == nil || !fake.wasDeleted(*reminded.ReminderMessageID) {
 		t.Fatalf("routine reminder should be deleted on auto-close, deleted=%+v reminder=%+v", fake.deleted, reminded.ReminderMessageID)
 	}
-	if edit, ok := fake.findEdit(2100); !ok || !strings.Contains(edit.Text, "невыполненные") {
-		t.Fatalf("routine card auto-close edit missing: found=%v edit=%+v", ok, edit)
+	for _, messageID := range []int64{2100, 2200, 2201} {
+		if !fake.wasDeleted(messageID) {
+			t.Fatalf("routine auto-close should delete message %d, deleted=%+v", messageID, fake.deleted)
+		}
 	}
-	if !fake.hasSentToThread(30, "Время вышло") {
-		t.Fatalf("auto-close notice missing: %+v", fake.sent)
+	if fake.findEditCount(2100) != 0 {
+		t.Fatalf("routine card should not be edited on auto-close, edits=%+v", fake.edits)
+	}
+	if len(fake.sent) != 1 {
+		t.Fatalf("auto-close should not send extra routine notices: %+v", fake.sent)
 	}
 	if tableEdit, ok := fake.findEdit(introID); !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
 		t.Fatalf("routine table refresh missing: found=%v edit=%+v", ok, tableEdit)
@@ -199,6 +205,16 @@ func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextReques
 		}
 	}
 	return telegram.EditMessageTextRequest{}, false
+}
+
+func (f *fakeTelegram) findEditCount(messageID int64) int {
+	var count int
+	for _, edit := range f.edits {
+		if edit.MessageID == messageID {
+			count++
+		}
+	}
+	return count
 }
 
 func (f *fakeTelegram) wasDeleted(messageID int64) bool {
