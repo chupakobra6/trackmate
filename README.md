@@ -69,9 +69,13 @@ make api                 # run Telegram poller
 make worker              # run background worker
 make docker-up           # build and start Docker services
 make docker-reset        # remove Docker volume and restart stack
-make docker-db-backup
-make docker-db-backup-stop
+make docker-db-backup    # create logical PostgreSQL dump
+make docker-db-backup-stop  # backup after stopping api and worker
 make docker-db-restore FILE=backups/trackmate.dump
+make down                # stop Docker services
+make logs                # follow api, worker, and migrate logs
+make logs-all            # follow all Docker Compose logs
+make logs-db             # follow PostgreSQL logs
 make clean               # remove generated local artifacts
 ```
 

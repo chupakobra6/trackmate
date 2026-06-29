@@ -115,6 +115,10 @@ SELECT count(*) FROM participants;
 SELECT count(*) FROM daily_tasks;
 SELECT count(*) FROM daily_task_alerts;
 SELECT count(*) FROM progress_events;
+SELECT count(*) FROM routine_plans;
+SELECT count(*) FROM routine_checkins;
+SELECT count(*) FROM seasonal_goal_sets;
+SELECT count(*) FROM pending_inputs;
 ```
 
 Materials must not exist in the active schema:
@@ -136,9 +140,35 @@ WHERE t.typname = 'progresseventtype';
 Expected:
 
 - material tables return `NULL`;
-- `topickey` contains only `today`, `progress`;
+- `topickey` contains `today`, `progress`, `routine`, `goals`;
 - `progresseventtype` contains `daily_task.closed`, `daily_task.auto_failed`,
   `system_alert`, `custom_update`.
+
+## Manual Production Data Fixes
+
+Manual data fixes are production operations, not local development. Keep them
+targeted and auditable:
+
+1. Identify the workspace, topic, row IDs, and Telegram message IDs from the
+   production database or logs.
+2. Stop `api` and `worker` when the operation changes live state or deletes
+   rows that workers could touch.
+3. Create a logical backup before any write:
+
+```bash
+make docker-db-backup-stop
+```
+
+4. Change only the scoped rows needed for the incident. Do not reset unrelated
+   Today, Goals, Progress, or participant history while fixing routine data.
+5. Delete Telegram messages only by known IDs from storage/logs. If Bot API says
+   a message is already missing, record that and continue; do not bulk-delete a
+   topic to compensate for missing IDs.
+6. Verify with read-only SQL counters, restart `api` and `worker`, then check
+   `docker compose ps` and recent logs.
+
+Record the backup path, before/after counts, Telegram delete/edit results, and
+service health in the project handoff or incident notes.
 
 ## Telegram E2E
 

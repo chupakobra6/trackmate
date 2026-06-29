@@ -78,25 +78,27 @@ When Telegram sends `edited_message` for an already accepted user input,
 Trackmate matches it by the stored source `message_id`/thread/user in
 `daily_tasks`. Task text edits update the stored task, the Today card, and any
 existing task progress payload. Report edits update the stored report, the Today
-card, pending progress payloads, and already published Progress messages. This
-path is silent: no additional Telegram messages are sent to the group.
+card, pending progress payloads, and already published Progress messages. On the
+normal path this stays silent. If Telegram refuses to edit an old bot message,
+Trackmate preserves the database update and queues a `system_alert` in
+`Прогресс` with a link to the message and the Telegram error.
 
 ## Routine Flow
 
 `routine:configure` creates one pending `routine_plan` input scoped to the
 Routines thread. The user sends a text list, one item per line. The parser
-accepts plain lines, bullets, and numbered lists, and caps the list at 9 daily
-items.
+accepts lines that start with `-`, `—`, `1.`, or `1)`, and caps the list at 9
+daily items. Plain lines and unsupported bullet symbols are rejected so the setup
+format stays unambiguous.
 
 Pending input is isolated by Telegram topic thread. A Routine draft does not
 block Today or Goals, and a message from another thread does not consume or
 cancel the Routine draft. Worker cleanup removes pending inputs older than 24
 hours, deleting the stored bot prompt and known process messages silently.
 
-The worker creates one routine check-in card per participant per local day after
-20:00 local time. If a plan is configured before 20:00, the first card can be
-created the same evening; plans configured after that start the next day. The
-card is advanced in place with
+The worker creates one routine check-in card per participant after 08:00 local
+time for the previous local day. A plan created today can first produce a card
+tomorrow morning for today's routine. The card is advanced in place with
 `routine:item:<checkin_id>:<index>:<done|partial|failed>`.
 
 `partial` and `failed` mark the item in the main card and send a separate short
@@ -107,10 +109,12 @@ reflection.
 
 Routine results stay in `Рутины`. They do not create `progress_events`.
 
-If a routine card is still open after the local day ends, Trackmate sends a
-single reminder in `Рутины`. At 12:00 the next day, missing items are marked as
-`failed`, the card is updated, a short auto-close notice is posted in `Рутины`,
-and the routine leaderboard is refreshed.
+If a routine card is still open at 20:00 local time on the check-in day,
+Trackmate sends a single reminder in `Рутины`. At 00:00 the next local day,
+missing items are marked as `failed`, the check-in card is deleted, a short
+auto-close notice is posted in `Рутины`, and the routine leaderboard is
+refreshed. Reminder and auto-close notices are temporary and are cleaned up after
+about 24 hours if the user does not dismiss them first.
 
 The Routines topic also keeps a leaderboard message with 7-day completion rate,
 current streak, best streak, and routine item count. Ranking uses completion

@@ -11,6 +11,14 @@ help:
 	@printf "  make api                # run Go Telegram poller locally\n"
 	@printf "  make worker             # run Go worker locally\n"
 	@printf "  make docker-up          # build and start local Docker stack\n"
+	@printf "  make docker-reset       # remove local Docker DB volume and restart stack\n"
+	@printf "  make docker-db-backup   # create logical PostgreSQL dump\n"
+	@printf "  make docker-db-backup-stop  # backup after stopping api and worker\n"
+	@printf "  make docker-db-restore FILE=backups/trackmate.dump\n"
+	@printf "  make down               # stop local Docker stack\n"
+	@printf "  make logs               # follow api, worker, and migrate logs\n"
+	@printf "  make logs-all           # follow all Docker Compose logs\n"
+	@printf "  make logs-db            # follow PostgreSQL logs\n"
 	@printf "  make clean              # remove generated local artifacts\n"
 
 setup: tidy

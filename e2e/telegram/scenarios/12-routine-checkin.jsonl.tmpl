@@ -1,6 +1,6 @@
 # Проверяет настройку рутины и одну ежедневную проверку в теме «Рутины».
 # Перед шагом wait_routine_card подготовь карточку через локальный control API:
-# часы на 20:00 локального времени после настройки + POST /control/tick.
+# часы на 08:00 следующего локального дня после настройки + POST /control/tick.
 {"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}
 {"id":"open_routine_setup","action":"click_button","button_text":"✏️ Настроить рутину","timeout_ms":60000}
 {"id":"wait_routine_prompt","action":"wait","timeout_ms":60000}
