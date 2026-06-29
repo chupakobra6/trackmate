@@ -7,6 +7,41 @@
 
 ## Записи
 
+### Production Verification: Chat Complaints About Today Tasks
+
+ID источника: `S021`
+
+Приложение: `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-fbaf6bf2-6039-4763-a2a8-b9f28bdc5526.png`.
+
+Исходный ввод:
+
+```text
+вот этот момент тоже чекни там ярик и егор жалуются что задачи не принимает дня крч и тп
+```
+
+Нормализация:
+- [x] требование: проверить production logs/DB/Telegram history по жалобам Ярика и Егора.
+- [x] требование: понять, были ли задачи дня реально не приняты.
+- [x] ограничение: не делать массовую чистку и не удалять обычные сообщения общего чата без отдельной причины.
+
+Маршрутизация:
+- [x] карта источников обновляется в `S021`
+- [x] чеклист обновляется в `REQ-041`
+- [x] план и текущий шаг переводятся в `STEP-022`
+- [x] production logs/db/dumps проверены
+- [x] handoff обновлен
+
+Продовые факты:
+- Скрин соответствует общему topic `Чат` 2026-06-26.
+- Ярик 2026-06-26 был принят в `Сегодня`: prompt `3455`, source message `3456`, Trackmate card `3457`; итог опубликован в `Прогресс` как message `3487`.
+- Егор 2026-06-26 действительно упирался в старый `uq_pending_inputs_workspace_group_id`; задача уже восстановлена как `daily_tasks.id=172`, progress message `3653`, а complaint messages `3464`/`3465` удалены в STEP-019.
+- Реплика Ярика `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` была про Игоря: через минуту после нее Игорь добавил задачу, source message `3476`, card `3477`; итог опубликован в `Прогресс` как message `3493`.
+- Current production health: `api`, `worker`, `postgres` healthy; progress outbox pending/publishing/failed = 0; Today pending input count = 0.
+
+Итог:
+- Новых DB/Telegram правок не требовалось.
+- Пользовательские реплики Ярика в общем чате не удалялись: это не bot noise и не сломанный pending prompt.
+
 ### Production Verification: Today Screenshot And Current Health
 
 ID источника: `S020`

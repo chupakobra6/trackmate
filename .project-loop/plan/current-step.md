@@ -4,22 +4,22 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-021`
+- id: `STEP-022`
 - status: `готово`
-- objective: Проверить, работает ли production `Сегодня` после скрина 28.06 и почему у Игоря нет задачи 29.06.
-- requirement IDs: `REQ-040`
+- objective: Проверить жалобы Ярика и Егора из общего чата, что задачи дня не принимает.
+- requirement IDs: `REQ-041`
 - owned paths: `.project-loop/`
-- validation: prod services/logs/db: pass; Harvest Today/Chat/all dumps: pass; no data edit needed
-- done criteria: current production health is known; screenshot messages are matched to exact production logs; current Today topic is clean; Igor's 29.06 morning messages are classified correctly; no unrelated data is changed.
+- validation: prod logs/db: pass; Harvest Chat/Today dumps: pass; service health: pass; no data edit needed
+- done criteria: chat complaints are matched to exact Today messages, production logs, DB task rows and progress messages; current production health is known; no unrelated Telegram/DB cleanup is done.
 
 ## Фокус Ревью
-- Это production data-fix, не кодовый deploy.
+- Это production verification, не кодовый deploy.
 - Не трогать routine local fixes и не выкатывать локальную пачку.
-- Если текущая проверка показывает, что сообщения уже удалены/засчитаны, не делать лишних Telegram/DB правок.
+- Если текущая проверка показывает, что сообщения уже засчитаны или это обычный общий чат, не делать лишних Telegram/DB правок.
 
 ## Примечания
-- Скрин соответствует 2026-06-28 22:25 MSK: `today:add` Егора падал на старый `uq_pending_inputs_workspace_group_id`, отправлял prompts `3556`/`3558`, затем шли messages `3557`/`3559`/`3560`.
-- В актуальном Harvest dump prompts `3556`/`3558` и messages `3557`/`3559`/`3560` уже отсутствуют.
-- Отчет Игоря `3542` за 2026-06-27 уже засчитан: task `169`, progress message `3543`.
-- На 2026-06-29 в `Сегодня` нет задачи Игоря; его сообщения `3642`/`3643`/`3647`/`3648` были в общем `Чате`, а не в топике `Сегодня`, и не являются текстом задачи дня.
-- Production сейчас работает: task `171` Ярика создан 2026-06-29, card `3652`; `api`, `worker`, `postgres` healthy; progress outbox чистый.
+- Скрин соответствует общему topic `Чат` 2026-06-26: Ярик пишет Игорю в 06:17 MSK, Егор жалуется в 08:54 MSK, Ярик пишет `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` в 14:18 MSK.
+- Задача Ярика за 2026-06-26 была принята: source message `3456`, Trackmate card `3457`, progress message `3487`.
+- Жалоба Егора была реальной: `today:add` падал на старый `uq_pending_inputs_workspace_group_id`; это уже восстановлено как task `172` и progress message `3653`, а complaint messages `3464`/`3465` удалены ранее.
+- Реплика Ярика `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` относилась к отсутствующей на тот момент задаче Игоря; Игорь добавил ее через минуту, source message `3476`, card `3477`, progress message `3493`.
+- Production сейчас работает: `api`, `worker`, `postgres` healthy; progress outbox clean; Today pending input count = 0.

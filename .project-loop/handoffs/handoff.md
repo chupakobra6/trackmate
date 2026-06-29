@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-021`
+- active step: `STEP-022`
 - status: `готово`
 
 ## Завершено
@@ -146,6 +146,13 @@
   - 2026-06-29 утром сообщения Игоря `3642`/`3643`/`3647`/`3648` были в topic `Чат`, не в `Сегодня`, и не являются задачей дня;
   - production сейчас работает: свежий `today:add` Ярика создал task `171` и card `3652`; `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0;
   - новых DB/Telegram правок и deploy не выполнялось.
+- Закрыт STEP-022 по S021:
+  - скрин из общего topic `Чат` соответствует 2026-06-26: Ярик писал Игорю в 06:17 MSK, Егор жаловался в 08:54 MSK, Ярик писал `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` в 14:18 MSK;
+  - задача Ярика за 2026-06-26 была принята: source message `3456`, Trackmate card `3457`, progress message `3487`;
+  - жалоба Егора была реальным старым failure на `uq_pending_inputs_workspace_group_id`; она уже закрыта в предыдущих шагах: task `172`, progress message `3653`, complaint messages `3464`/`3465` удалены;
+  - реплика Ярика про `второй день` относилась к Игорю: Игорь добавил задачу через минуту, source message `3476`, card `3477`, progress message `3493`;
+  - пользовательские реплики Ярика в общем чате не удалялись, потому что это не bot noise и не сломанный pending prompt;
+  - current production healthy: `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0; новых DB/Telegram правок и deploy не выполнялось.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -234,6 +241,9 @@
 - STEP-021 production logs: 2026-06-28 19:25 UTC shows old constraint failure for messages `3556`/`3558`; 2026-06-29 logs show no current Today failure.
 - STEP-021 Harvest dumps: current `Сегодня` has no screenshot prompts; `Чат` contains Igor's morning discussion messages, not Today task input.
 - STEP-021 SQL verification: task `169`/progress `3543` exists for Igor's report; no Igor task exists for 2026-06-29; task `171`/card `3652` proves current Today flow works.
+- STEP-022 Harvest dumps: current `Чат` has Yaroslav messages `3454`, `3471`, `3472`; Egor complaint messages `3464`/`3465` are already deleted.
+- STEP-022 Today/log verification: Yaroslav task `3456`/`3457` succeeded, Egor old failure restored as task `172`, Igor task `3476`/`3477` succeeded after Yaroslav's complaint.
+- STEP-022 SQL/service verification: progress messages `3487`, `3493`, `3653` exist; `api`, `worker`, `postgres` healthy; progress outbox clean; Today pending inputs = 0.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -251,6 +261,7 @@
 - STEP-019 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 - STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 - STEP-021 был проверкой без data/code changes.
+- STEP-022 был проверкой без data/code changes.
 
 ## Следующее Действие
 - Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
