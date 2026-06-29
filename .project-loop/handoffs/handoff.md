@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-019`
+- active step: `STEP-020`
 - status: `готово`
 
 ## Завершено
@@ -130,6 +130,14 @@
   - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_voice_transcript_20260629T121722Z.dump`;
   - `daily_tasks.id=160`, `progress_events.id=192`, visible Today message `3361` и Progress message `3649` обновлены без новых Telegram posts;
   - локальный код и production deploy не трогались.
+- Закрыт STEP-020 по S019:
+  - production Today topic проверен Harvest dump-ом: duplicate prompts из скрина уже отсутствовали, но оставались service confirmations `✅ Итог сохранен`;
+  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`;
+  - `progress_events.id=193` и `194` были `published` без `published_message_id`, из-за чего восстановленные итоги не были видны в `Прогресс`;
+  - events `193`/`194` возвращены в `pending`, worker штатно отправил messages `3653` и `3654` в topic `Прогресс`;
+  - через Telegram Harvest удалены service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`;
+  - финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`; в `Сегодня` нет pending inputs;
+  - progress outbox clean: pending/publishing/failed = 0; локальный код и production deploy не трогались.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -211,6 +219,10 @@
 - STEP-019 production schema verification: rollback probe accepts same user pending inputs in two different topics.
 - STEP-019 Harvest cleanup verification: messages `3464`/`3465` deleted and absent from follow-up dump.
 - STEP-019 DB/message verification: task `160`, task `172`, progress `192`, messages `3361`/`3649` checked after edits.
+- STEP-020 production backup: `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`.
+- STEP-020 worker/db verification: events `193`/`194` published as messages `3653`/`3654`.
+- STEP-020 Harvest verification: Today final dump has no `Напиши главную задачу` or `Итог сохранен`; Progress final dump includes `3653` and `3654`.
+- STEP-020 service health: `api`, `worker`, `postgres` healthy; progress outbox pending/publishing/failed = 0; Today pending input count = 0.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -226,6 +238,7 @@
 - STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
 - STEP-018 production data исправлен вручную; кодовый deploy не выполнялся.
 - STEP-019 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
+- STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 
 ## Следующее Действие
 - Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.

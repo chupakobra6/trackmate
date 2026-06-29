@@ -4,22 +4,22 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-019`
+- id: `STEP-020`
 - status: `готово`
-- objective: Проверить production bug со сбитым pending input 26.06, удалить показанные chat messages и уточнить voice report text.
-- requirement IDs: `REQ-038`
+- objective: Дочистить production topic `Сегодня` после broken flow и опубликовать пропущенные progress итоги.
+- requirement IDs: `REQ-039`
 - owned paths: `.project-loop/`
-- validation: prod logs/schema probe: pass; Harvest delete/dump verification: pass; DB verification task `160`/`172`/progress `192`: pass; Telegram messages `3361`/`3649` edited: pass
-- done criteria: root cause for message `3467` not saving is identified; production schema no longer has the legacy pending constraint and accepts topic-scoped pending inputs; chat messages `3464`/`3465` are deleted; task `172` is restored; voice report `3386` is transcribed enough to store a readable summary in task `160` and progress `192`.
+- validation: prod backup: pass; worker publish log/db: pass; Harvest Today/Progress dumps: pass; service health: pass
+- done criteria: Today topic has no duplicate prompt/service-noise messages in the checked range; missed manual-restored progress events are visible in `Прогресс`; no Today pending inputs remain; progress outbox has no pending/publishing/failed events.
 
 ## Фокус Ревью
 - Это production data-fix, не кодовый deploy.
 - Не трогать routine local fixes и не выкатывать локальную пачку.
-- Не создавать новых Telegram posts, только удалить/отредактировать существующие сообщения по показанному кейсу.
+- Новые Telegram posts допустимы только через штатный progress worker для уже существующих missed outbox events.
 
 ## Примечания
-- Логи production 2026-06-26 показывают падение `today:add` на `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"` перед сообщением Егора `3467`.
-- На production старый constraint уже отсутствует; rollback probe с двумя pending inputs одного пользователя в разных thread проходит.
-- Удалены chat messages `3464` и `3465` через Telegram Harvest main profile.
-- Backup перед voice-текстом: `/opt/trackmate/backups/trackmate_manual_voice_transcript_20260629T121722Z.dump`.
-- ASR для voice `3386` шумный, поэтому в БД и видимых сообщениях сохранена вычитанная смысловая сводка, а не сырой transcript.
+- Backup перед cleanup: `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`.
+- `progress_events.id=193` и `194` были `published` без `published_message_id`; их вернули в `pending`, worker опубликовал messages `3653` и `3654`.
+- Через Harvest удалены old service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`.
+- Финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`.
+- Ретроактивно вставить bot-card на старое место вместо raw message `3467` невозможно; raw source message оставлен как source link для восстановленной задачи.

@@ -7,6 +7,45 @@
 
 ## Записи
 
+### Production Cleanup: Today Topic Noise And Missed Progress
+
+ID источника: `S019`
+
+Приложение: `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-f38928f4-d47d-4ede-83b3-922ce6f3a1dd.png`.
+
+Исходный ввод:
+
+```text
+вот этот момент проверь тут прям куча мусора и ниче не засчитано у пацанов надо прям привести топик в нормальный вид все починить все вычесать
+```
+
+Нормализация:
+- [x] требование: проверить production Today topic по скрину и логам.
+- [x] требование: убрать видимый служебный мусор из `Сегодня`.
+- [x] требование: восстановить засчитывание missed daily results в БД и `Прогресс`.
+- [x] ограничение: не трогать unrelated product code и не деплоить локальную пачку.
+
+Маршрутизация:
+- [x] карта источников обновляется в `S019`
+- [x] чеклист обновляется в `REQ-039`
+- [x] план и текущий шаг переводятся в `STEP-020`
+- [x] production backup снят
+- [x] DB/progress outbox исправлены
+- [x] Telegram topic cleanup выполнен через Harvest
+- [x] handoff обновлен
+
+Продовые факты:
+- В `Сегодня` duplicate prompts `3460/3462/3466/3468` к моменту проверки уже отсутствовали.
+- В `Прогресс` отсутствовали manual-restored events `193` и `194`: оба стояли `published`, но `published_message_id` был пустым.
+- В `Сегодня` оставались service confirmations `✅ Итог сохранен`, которые не несут данных.
+
+Итог:
+- Перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`.
+- Events `193` и `194` возвращены в `pending`; worker штатно опубликовал их как messages `3653` и `3654` в `Прогресс`.
+- Через Telegram Harvest удалены service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`.
+- Финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`; `Сегодня` pending input count = 0.
+- Progress outbox clean: pending/publishing/failed = 0.
+
 ### Production Follow-up: Egor Task Save Bug And Voice Text
 
 ID источника: `S018`
