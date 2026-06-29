@@ -233,27 +233,24 @@ func GoalFinalReviewDue(period GoalPeriod, workspaceTimezone string, nowUTC time
 }
 
 func ShouldShowGoalNudge(seed string) bool {
+	return shouldShowPercent(seed, GoalNudgePercent)
+}
+
+func shouldShowPercent(seed string, percent int) bool {
 	hash := fnv.New32a()
 	_, _ = hash.Write([]byte(seed))
-	return hash.Sum32()%100 < GoalNudgePercent
+	return hash.Sum32()%100 < uint32(percent)
 }
 
-func ShouldShowPersonalAlert(username string, displayName string, seed string) bool {
-	if !isPersonalAlertTarget(username, displayName) {
+func ShouldShowPersonalAlert(username string, seed string) bool {
+	if !isPersonalAlertTarget(username) {
 		return false
 	}
-	hash := fnv.New32a()
-	_, _ = hash.Write([]byte(normalizeUsername(username) + ":" + seed))
-	return hash.Sum32()%100 < PersonalAlertPercent
+	return shouldShowPercent(normalizeUsername(username)+":"+seed, PersonalAlertPercent)
 }
 
-func isPersonalAlertTarget(username string, displayName string) bool {
-	normalizedUsername := normalizeUsername(username)
-	if !strings.HasPrefix(normalizedUsername, "w") {
-		return false
-	}
-	normalizedName := strings.ToLower(strings.TrimSpace(displayName))
-	return strings.Contains(normalizedName, "егор") || strings.Contains(normalizedName, "egor")
+func isPersonalAlertTarget(username string) bool {
+	return normalizeUsername(username) == "whysoxxx"
 }
 
 func normalizeUsername(username string) string {
