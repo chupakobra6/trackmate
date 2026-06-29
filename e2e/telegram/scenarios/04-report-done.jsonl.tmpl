@@ -1,12 +1,12 @@
-# Проверяет итог со состоянием «выполнена».
+# Проверяет результат со статусом «выполнена».
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_task","action":"send_text","text":"Подготовить короткий итог по задаче"}
+{"id":"send_task","action":"send_text","text":"Подготовить короткий результат по задаче"}
 {"id":"wait_task_card","action":"wait","timeout_ms":90000}
-{"id":"open_report_flow","action":"click_button","button_text":"🏁 Подвести итог","message_text":"Подготовить короткий итог по задаче","timeout_ms":60000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Записать результат","message_text":"Подготовить короткий результат по задаче","timeout_ms":60000}
 {"id":"wait_status_picker","action":"wait","timeout_ms":60000}
-{"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","message_text":"Выбери итог дня","timeout_ms":60000}
+{"id":"choose_done","action":"click_button","button_text":"✅ Выполнена","message_text":"Выбери результат дня","timeout_ms":60000}
 {"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_done_report","action":"send_text","text":"Задача закрыта, результат проверен."}
 {"id":"wait_done_report_saved","action":"wait","timeout_ms":90000}

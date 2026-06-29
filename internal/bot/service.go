@@ -471,10 +471,7 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 				Text:      ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
 			})
 		}
-		text := messages.Text("task.report.saved")
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
-		}
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
 		return nil
 	})
 }

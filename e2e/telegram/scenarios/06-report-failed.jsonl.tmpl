@@ -1,12 +1,12 @@
-# Проверяет итог со состоянием «не выполнена».
+# Проверяет результат со статусом «не выполнена».
 {"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
 {"id":"open_add_task","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
 {"id":"wait_task_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_task","action":"send_text","text":"Разобрать задачу, которую намеренно не успеваю"}
 {"id":"wait_task_card","action":"wait","timeout_ms":90000}
-{"id":"open_report_flow","action":"click_button","button_text":"🏁 Подвести итог","message_text":"Разобрать задачу, которую намеренно не успеваю","timeout_ms":60000}
+{"id":"open_report_flow","action":"click_button","button_text":"🏁 Записать результат","message_text":"Разобрать задачу, которую намеренно не успеваю","timeout_ms":60000}
 {"id":"wait_status_picker","action":"wait","timeout_ms":60000}
-{"id":"choose_failed","action":"click_button","button_text":"❌ Не выполнена","message_text":"Выбери итог дня","timeout_ms":60000}
+{"id":"choose_failed","action":"click_button","button_text":"❌ Не выполнена","message_text":"Выбери результат дня","timeout_ms":60000}
 {"id":"wait_report_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_failed_report","action":"send_text","text":"Задачу не удалось завершить, фиксирую результат как есть."}
 {"id":"wait_failed_report_saved","action":"wait","timeout_ms":90000}

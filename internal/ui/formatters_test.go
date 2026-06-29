@@ -34,7 +34,7 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 			t.Fatalf("formatted task event missing %q: %s", part, got)
 		}
 	}
-	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Итог:</b>\n\n<blockquote>") {
+	if strings.Contains(got, "<b>Задача:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Результат:</b>\n\n<blockquote>") {
 		t.Fatalf("formatted task event has extra blank line around blockquote: %s", got)
 	}
 	if strings.Contains(got, "https://example.com/task") {
@@ -63,17 +63,36 @@ func TestFormatProgressEventDailyTaskAutoFailedDoesNotLinkTaskText(t *testing.T)
 
 func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	task := postgres.DailyTask{
-		Text:   "Подготовить короткий итог по задаче",
+		Text:   "Подготовить результат по задаче",
 		Status: domain.DailyTaskActive,
 	}
 	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
-	for _, part := range []string{"Задача дня", "<b>План:</b>", "<b>Состояние:</b> в процессе"} {
+	for _, part := range []string{"🎯 <b>Задача дня</b> @igor", "<b>Задача:</b>", "Подготовить результат по задаче"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("daily task card missing %q: %s", part, got)
 		}
 	}
-	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") {
+	for _, forbidden := range []string{"<b>Состояние:</b>", "<b>Статус:</b>", "<b>План:</b>"} {
+		if strings.Contains(got, forbidden) {
+			t.Fatalf("daily task card should not contain %q: %s", forbidden, got)
+		}
+	}
+	if strings.Contains(got, "<b>Задача:</b>\n\n<blockquote>") {
 		t.Fatalf("daily task card has extra blank line before plan blockquote: %s", got)
+	}
+
+	done := task
+	done.Status = domain.DailyTaskDone
+	report := "Результат готов"
+	done.ReportText = &report
+	closed := FormatDailyTaskCard(done, "Игорь", "igor", "")
+	for _, part := range []string{"✅ <b>Задача дня</b> @igor", "<b>Результат:</b>", "Результат готов"} {
+		if !strings.Contains(closed, part) {
+			t.Fatalf("closed daily task card missing %q: %s", part, closed)
+		}
+	}
+	if strings.Contains(closed, "<b>Состояние:</b>") || strings.Contains(closed, "<b>Статус:</b>") {
+		t.Fatalf("closed daily task card should encode status in title only: %s", closed)
 	}
 }
 
@@ -278,7 +297,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 
 func TestPersonalDailyAlertCopyForEgor(t *testing.T) {
 	alert := AlertText(domain.AlertDayClosedPendingReport, "Егор Ковалец", "whysoxxx", 77, "daily-alert:3:day_closed_pending_report")
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где дела, бро?", "Закрой итог, не будь нищим"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где дела, бро?", "Запиши результат, не будь нищим"} {
 		if !strings.Contains(alert, part) {
 			t.Fatalf("personal daily alert missing %q: %s", part, alert)
 		}

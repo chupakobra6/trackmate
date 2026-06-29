@@ -15,7 +15,7 @@ func TestTextLoadsCatalog(t *testing.T) {
 }
 
 func TestFormatReplacesPlaceholders(t *testing.T) {
-	got := Format("daily.card.title", "person", "@igor")
+	got := Format("daily.card.title", "emoji", "🎯", "person", "@igor")
 	if got != "🎯 <b>Задача дня</b> @igor" {
 		t.Fatalf("formatted title = %q", got)
 	}
