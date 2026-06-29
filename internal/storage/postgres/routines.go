@@ -305,7 +305,7 @@ WHERE rci.routine_checkin_id = rc.id
 	return checkin, found, err
 }
 
-func (q *Queries) CompleteRoutineCheckin(ctx context.Context, checkinID int64, ownerUserID int64, reflectionHTML string) (RoutineCheckin, bool, error) {
+func (q *Queries) CompleteRoutineCheckinWithoutReflection(ctx context.Context, checkinID int64, ownerUserID int64) (RoutineCheckin, bool, error) {
 	var missing int
 	if err := q.db.QueryRow(ctx, `
 SELECT count(*)
@@ -320,11 +320,10 @@ WHERE rc.id = $1 AND rc.owner_user_id = $2 AND rci.status IS NULL
 	}
 	tag, err := q.db.Exec(ctx, `
 UPDATE routine_checkins
-SET reflection_text = $3,
-    completed_at = COALESCE(completed_at, now()),
+SET completed_at = COALESCE(completed_at, now()),
     updated_at = now()
 WHERE id = $1 AND owner_user_id = $2
-`, checkinID, ownerUserID, reflectionHTML)
+`, checkinID, ownerUserID)
 	if err != nil || tag.RowsAffected() == 0 {
 		return RoutineCheckin{}, false, err
 	}

@@ -137,11 +137,11 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkin.ID, participant.UserID, 1, domain.RoutineItemPartial, &reason); err != nil || !ok {
 		t.Fatalf("routine partial ok=%v err=%v", ok, err)
 	}
-	completed, ok, err := q.CompleteRoutineCheckin(ctx, checkin.ID, participant.UserID, "Что помогло / что мешало / правка")
+	completed, ok, err := q.CompleteRoutineCheckinWithoutReflection(ctx, checkin.ID, participant.UserID)
 	if err != nil || !ok {
 		t.Fatalf("routine complete ok=%v err=%v", ok, err)
 	}
-	if completed.CompletedAt == nil || completed.ReflectionText == nil {
+	if completed.CompletedAt == nil || completed.ReflectionText != nil {
 		t.Fatalf("routine completion not stored: %+v", completed)
 	}
 	leaderboard, err := q.GetRoutineLeaderboard(ctx, workspace.ID, time.Date(2026, 5, 29, 12, 0, 0, 0, time.UTC))

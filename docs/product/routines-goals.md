@@ -23,8 +23,8 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 6. Treat all routine items as daily in MVP.
 7. Send the daily routine check-in after 20:00 in the workspace timezone.
 8. Use item-by-item routine check-in: done, partial, failed.
-9. Ask for a short reason after partial/failed.
-10. Ask final reflection: `Что помогло / что помешало / какую одну правку сделаешь завтра?`
+9. Ask for a short reason after partial/failed in a separate temporary message, then delete the prompt and the user reply after the answer is saved.
+10. Do not ask for a final routine reflection; Today owns the day summary.
 11. Publish routine leaderboard only in the Routines topic, not in Progress.
 12. Add a Goals control message and seasonal goals format based on result, metric, weekly step, and why.
 13. Store goals as raw text in MVP; do not over-parse.

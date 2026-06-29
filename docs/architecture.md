@@ -99,10 +99,11 @@ created the same evening; plans configured after that start the next day. The
 card is advanced in place with
 `routine:item:<checkin_id>:<index>:<done|partial|failed>`.
 
-`partial` and `failed` ask for one short reason. After all items are answered,
-the same card asks for one reflection:
-
-`Что помогло / что помешало / какую одну правку сделаешь завтра?`
+`partial` and `failed` mark the item in the main card and send a separate short
+reason prompt. After the user answers, Trackmate deletes that prompt and the
+user reply, stores the reason, and advances the main card. After all items are
+answered, the routine check-in closes immediately without a separate day
+reflection.
 
 Routine results stay in `Рутины`. They do not create `progress_events`.
 

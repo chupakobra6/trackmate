@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-012`
+- active step: `STEP-013`
 - status: `готово`
 
 ## Завершено
@@ -72,6 +72,13 @@
   - reason prompt теперь переиспользует обычную карточку рутины, сохраняет автора и формат вопроса, добавляя только `Что помешало?`;
   - первый emoji routine header/control заменен с `🔁` на `🌿`;
   - production deploy не выполнялся в STEP-012.
+- Закрыт STEP-013 по S012:
+  - production проверен read-only: текущий prod на `9a58215`, logs 2026-06-24 17:00 UTC подтверждают, что старый flow редактировал основную карточку для причины;
+  - `Нет`/`Частично` теперь сразу отмечают пункт в основной карточке и отправляют отдельный временный reason prompt reply к карточке;
+  - после ответа пользователя Trackmate удаляет reason prompt и ответ пользователя, сохраняет причину и двигает основную карточку дальше;
+  - после последнего пункта routine check-in закрывается сразу, обновляет карточку и таблицу рутин, без routine final reflection;
+  - active `routine_reflection` path удален из bot/domain/storage API; историческое поле `reflection_text` в схеме не трогалось;
+  - цели не менялись, production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -118,6 +125,11 @@
 - STEP-012: `go test ./... -count=1`: pass.
 - STEP-012: `make lint`: pass.
 - STEP-012: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-013 production read-only check: VPS `/opt/trackmate` at `9a58215`, docker compose healthy; logs around 2026-06-24 20:00 MSK inspected.
+- STEP-013: `go test ./internal/ui ./internal/bot ./internal/app/routine ./internal/storage/postgres`: pass.
+- STEP-013: `go test ./... -count=1`: pass.
+- STEP-013: `make lint`: pass.
+- STEP-013: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -129,11 +141,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- STEP-012 локально готов, но не выкачен на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
-- В STEP-012 production данные не чистились и не менялись.
+- STEP-012 и STEP-013 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
+- В STEP-012/STEP-013 production данные не чистились и не менялись.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту. Текущий локальный fix можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту. Текущие локальные fixes можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

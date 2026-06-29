@@ -10,8 +10,6 @@
 {"id":"mark_first_done","action":"click_button","button_text":"✅ Да","message_text":"зарядка?","timeout_ms":60000}
 {"id":"wait_second_item","action":"wait","timeout_ms":60000}
 {"id":"mark_second_partial","action":"click_button","button_text":"🔸 Частично","message_text":"йога?","timeout_ms":60000}
-{"id":"wait_reason_prompt","action":"wait","timeout_ms":60000}
+{"id":"wait_reason_prompt","action":"assert_visible_text","text":"Коротко: что помешало?","timeout_ms":60000}
 {"id":"send_reason","action":"send_text","text":"Сорвался график."}
-{"id":"wait_reflection_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_reflection","action":"send_text","text":"Помогло: планирование. Завтра начну раньше."}
 {"id":"wait_routine_table","action":"wait","timeout_ms":90000}

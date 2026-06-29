@@ -115,6 +115,14 @@ func RoutinePlanPrompt() string {
 }
 
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
+	return formatRoutineCheckinCard(checkin, displayName, username, notice, true)
+}
+
+func FormatRoutineCheckinStatusCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
+	return formatRoutineCheckinCard(checkin, displayName, username, notice, false)
+}
+
+func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string, showNextQuestion bool) string {
 	person := personLabel(username, displayName)
 	lines := []string{
 		fmt.Sprintf("%s <b>Рутина за %s</b> %s", routineHeaderEmoji, checkin.CheckinDate.Format("02.01"), person),
@@ -133,25 +141,20 @@ func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 		}
 		return appendNotice(lines, notice)
 	}
-	if nextIndex := NextRoutineItemIndex(checkin); nextIndex >= 0 {
+	if nextIndex := NextRoutineItemIndex(checkin); showNextQuestion && nextIndex >= 0 {
 		item := checkin.Items[nextIndex]
 		lines = append(lines, "", fmt.Sprintf("<b>%d/%d:</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
 	}
 	return appendNotice(lines, notice)
 }
 
-func FormatRoutineReasonPrompt(checkin postgres.RoutineCheckin, displayName string, username string, itemIndex int) string {
-	lines := strings.Split(FormatRoutineCheckinCard(checkin, displayName, username, ""), "\n")
-	if itemIndex >= 0 && itemIndex < len(checkin.Items) {
-		lines = append(lines, "Что помешало?")
-	}
-	return strings.Join(lines, "\n")
-}
-
-func FormatRoutineReflectionPrompt(checkin postgres.RoutineCheckin, displayName string, username string) string {
-	lines := strings.Split(FormatRoutineCheckinCard(checkin, displayName, username, ""), "\n")
-	lines = append(lines, "", "<b>Итог дня</b>", "Что помогло? Что мешало? Что изменишь завтра?")
-	return strings.Join(lines, "\n")
+func FormatRoutineReasonPrompt(itemText string) string {
+	return strings.Join([]string{
+		"✍️ <b>Коротко: что помешало?</b>",
+		"",
+		"Пункт:",
+		renderSectionHTML(itemText),
+	}, "\n")
 }
 
 func RoutineReminderText(checkin postgres.RoutineCheckin) string {

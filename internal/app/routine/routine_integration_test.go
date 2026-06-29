@@ -96,7 +96,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err := q.SetRoutineCheckinCardMessageID(ctx, checkin.ID, 2100, 30); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 30, domain.PendingRoutineReflection, map[string]any{
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 30, domain.PendingRoutineReason, map[string]any{
 		"checkin_id":        checkin.ID,
 		"prompt_message_id": 2100,
 	}); err != nil {

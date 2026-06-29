@@ -363,8 +363,6 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 		return s.consumeRoutinePlan(ctx, workspace, message, pending)
 	case domain.PendingRoutineReason:
 		return s.consumeRoutineReason(ctx, workspace, message)
-	case domain.PendingRoutineReflection:
-		return s.consumeRoutineReflection(ctx, workspace, message)
 	case domain.PendingSeasonalGoals:
 		return s.consumeSeasonalGoals(ctx, workspace, message, pending)
 	case domain.PendingGoalWeeklyReview:
@@ -771,8 +769,6 @@ func pendingBusyText(kind domain.PendingInputKind) string {
 		return "Я уже жду список рутин"
 	case domain.PendingRoutineReason:
 		return "Я уже жду короткую причину по рутине"
-	case domain.PendingRoutineReflection:
-		return "Сначала закончи итог по рутине"
 	case domain.PendingSeasonalGoals:
 		return "Я уже жду список сезонных целей"
 	case domain.PendingGoalWeeklyReview:

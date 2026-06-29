@@ -335,14 +335,20 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	reasonEdit, ok := fake.findEdit(100)
-	if !ok {
-		t.Fatalf("expected routine reason prompt edit")
+	statusEdit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(statusEdit.Text, "🔸 йога") || strings.Contains(statusEdit.Text, "Что помешало?") {
+		t.Fatalf("expected main routine card to only mark status, found=%v edit=%+v", ok, statusEdit)
 	}
-	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "<b>2/2:</b> йога?", "Что помешало?"} {
-		if !strings.Contains(reasonEdit.Text, part) {
-			t.Fatalf("routine reason prompt missing %q: %s", part, reasonEdit.Text)
+	if len(fake.sent) != 1 {
+		t.Fatalf("expected separate routine reason prompt, got %+v", fake.sent)
+	}
+	for _, part := range []string{"Коротко: что помешало?", "йога"} {
+		if !strings.Contains(fake.sent[0].Text, part) {
+			t.Fatalf("routine reason prompt missing %q: %s", part, fake.sent[0].Text)
 		}
+	}
+	if fake.sent[0].ReplyToMessageID != 100 {
+		t.Fatalf("routine reason prompt should reply to main card: %+v", fake.sent[0])
 	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
 		t.Fatalf("routine reason pending found=%v pending=%+v err=%v", found, pending, err)
@@ -359,26 +365,22 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reason}); err != nil {
 		t.Fatal(err)
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReflection {
-		t.Fatalf("routine reflection pending found=%v pending=%+v err=%v", found, pending, err)
-	}
-	reflectionEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(reflectionEdit.Text, "Что изменишь завтра") {
-		t.Fatalf("expected reflection prompt, found=%v edit=%+v", ok, reflectionEdit)
-	}
-
-	reflection := reason
-	reflection.MessageID = 302
-	reflection.Text = "Помогло: планирование. Завтра начну раньше."
-	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reflection}); err != nil {
-		t.Fatal(err)
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || found {
+		t.Fatalf("routine pending should be cleared found=%v err=%v", found, err)
 	}
 	updated, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
 	if err != nil || !found {
 		t.Fatalf("routine checkin found=%v err=%v", found, err)
 	}
-	if updated.CompletedAt == nil || updated.ReflectionText == nil {
+	if updated.CompletedAt == nil || updated.ReflectionText != nil {
 		t.Fatalf("routine not completed: %+v", updated)
+	}
+	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) {
+		t.Fatalf("routine reason prompt and answer should be deleted, deleted=%+v", fake.deleted)
+	}
+	finalEdit, ok := fake.findEdit(100)
+	if !ok || strings.Contains(finalEdit.Text, "Итог дня") || strings.Contains(finalEdit.Text, "Что изменишь завтра") {
+		t.Fatalf("routine should close without final reflection prompt, found=%v edit=%+v", ok, finalEdit)
 	}
 	tableEdit, ok := fake.findEdit(900)
 	if !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {

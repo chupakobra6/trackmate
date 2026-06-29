@@ -75,7 +75,6 @@ const (
 	PendingDailyTaskReport     PendingInputKind = "daily_task_report"
 	PendingRoutinePlan         PendingInputKind = "routine_plan"
 	PendingRoutineReason       PendingInputKind = "routine_reason"
-	PendingRoutineReflection   PendingInputKind = "routine_reflection"
 	PendingSeasonalGoals       PendingInputKind = "seasonal_goals"
 	PendingGoalWeeklyReview    PendingInputKind = "goal_weekly_review"
 	PendingGoalFinalReflection PendingInputKind = "goal_final_reflection"

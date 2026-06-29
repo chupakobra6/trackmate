@@ -113,22 +113,35 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			return nil
 		}
 		if status == domain.RoutineItemPartial || status == domain.RoutineItemFailed {
-			_, err := q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingRoutineReason, map[string]any{
-				"checkin_id":        checkinID,
-				"item_index":        itemIndex,
-				"status":            string(status),
-				"prompt_message_id": callback.Message.MessageID,
-				"thread_id":         callback.Message.MessageThreadID,
+			updated, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkinID, callback.From.ID, itemIndex, status, nil)
+			if err != nil || !ok {
+				return err
+			}
+			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+				ChatID:      callback.Message.Chat.ID,
+				MessageID:   callback.Message.MessageID,
+				Text:        ui.FormatRoutineCheckinStatusCard(updated, telegram.DisplayName(callback.From), callback.From.Username, ""),
+				ReplyMarkup: ui.EmptyKeyboard(),
+			})
+			prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+				ChatID:              callback.Message.Chat.ID,
+				MessageThreadID:     callback.Message.MessageThreadID,
+				Text:                ui.FormatRoutineReasonPrompt(checkin.Items[itemIndex].Text),
+				ReplyToMessageID:    callback.Message.MessageID,
+				DisableNotification: true,
 			})
 			if err != nil {
 				return err
 			}
-			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
-				ChatID:    callback.Message.Chat.ID,
-				MessageID: callback.Message.MessageID,
-				Text:      ui.FormatRoutineReasonPrompt(checkin, telegram.DisplayName(callback.From), callback.From.Username, itemIndex),
+			_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingRoutineReason, map[string]any{
+				"checkin_id":        checkinID,
+				"item_index":        itemIndex,
+				"status":            string(status),
+				"card_message_id":   callback.Message.MessageID,
+				"prompt_message_id": prompt.MessageID,
+				"thread_id":         callback.Message.MessageThreadID,
 			})
-			return nil
+			return err
 		}
 		updated, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkinID, callback.From.ID, itemIndex, status, nil)
 		if err != nil || !ok {
@@ -154,32 +167,13 @@ func (s *Service) consumeRoutineReason(ctx context.Context, workspace postgres.W
 		if err != nil || !saved {
 			return err
 		}
-		return s.advanceRoutineCheckin(ctx, q, workspace, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), message.MessageThreadID, *message.From, updated)
-	})
-}
-
-func (s *Service) consumeRoutineReflection(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
-	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutineReflection)
-		if err != nil || !ok {
-			return err
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
+		cardMessageID := payloadInt64(pending.Payload, "card_message_id")
+		if cardMessageID == 0 {
+			cardMessageID = payloadInt64(pending.Payload, "prompt_message_id")
 		}
-		checkinID := payloadInt64(pending.Payload, "checkin_id")
-		input := telegram.NewMessageInput(message)
-		checkin, completed, err := q.CompleteRoutineCheckin(ctx, checkinID, message.From.ID, input.TextHTML)
-		if err != nil || !completed {
-			return err
-		}
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
-			ChatID:    message.Chat.ID,
-			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
-			Text:      ui.FormatRoutineCheckinCard(checkin, telegram.DisplayName(*message.From), message.From.Username, ""),
-		})
-		now, err := q.CurrentNow(ctx, time.Now().UTC())
-		if err != nil {
-			return err
-		}
-		return approutine.RefreshLeaderboard(ctx, q, s.Telegram, workspace, message.Chat.ID, now)
+		return s.advanceRoutineCheckin(ctx, q, workspace, message.Chat.ID, cardMessageID, message.MessageThreadID, *message.From, updated)
 	})
 }
 
@@ -193,21 +187,18 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 			ReplyMarkup: ui.RoutineItemKeyboard(checkin.ID, nextIndex),
 		})
 	}
-	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID, threadID); err != nil {
-		return err
-	} else if found && pending.Kind != domain.PendingRoutineReflection {
-		return nil
-	}
-	if _, err := q.UpsertPendingInput(ctx, workspace.ID, user.ID, threadID, domain.PendingRoutineReflection, map[string]any{
-		"checkin_id":        checkin.ID,
-		"prompt_message_id": messageID,
-		"thread_id":         threadID,
-	}); err != nil {
+	completed, ok, err := q.CompleteRoutineCheckinWithoutReflection(ctx, checkin.ID, user.ID)
+	if err != nil || !ok {
 		return err
 	}
-	return s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+	_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 		ChatID:    chatID,
 		MessageID: messageID,
-		Text:      ui.FormatRoutineReflectionPrompt(checkin, telegram.DisplayName(user), user.Username),
+		Text:      ui.FormatRoutineCheckinCard(completed, telegram.DisplayName(user), user.Username, ""),
 	})
+	now, err := q.CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return approutine.RefreshLeaderboard(ctx, q, s.Telegram, workspace, chatID, now)
 }

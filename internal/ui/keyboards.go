@@ -31,6 +31,10 @@ func GoalsControlKeyboard() *telegram.InlineKeyboardMarkup {
 	}}
 }
 
+func EmptyKeyboard() *telegram.InlineKeyboardMarkup {
+	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{}}
+}
+
 func RoutineItemKeyboard(checkinID int64, itemIndex int) *telegram.InlineKeyboardMarkup {
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
 		{
