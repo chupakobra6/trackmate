@@ -118,22 +118,26 @@ func (s *Service) handleEditedMessage(ctx context.Context, message telegram.Mess
 		return nil
 	}
 	if task.TodayCardMessageID != nil {
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
 			ChatID:      message.Chat.ID,
 			MessageID:   *task.TodayCardMessageID,
 			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
 			ReplyMarkup: dailyTaskCardKeyboard(task),
-		})
+		}, messages.Text("progress.edit_failed.target_today_card"), optionalInt64(task.TaskMessageThreadID)); err != nil {
+			return err
+		}
 	}
 	for _, event := range progressEvents {
 		if event.PublishedMessageID == nil {
 			continue
 		}
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
 			ChatID:    message.Chat.ID,
 			MessageID: *event.PublishedMessageID,
 			Text:      ui.FormatProgressEvent(event),
-		})
+		}, messages.Text("progress.edit_failed.target_progress_message"), 0); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -680,6 +684,32 @@ func (s *Service) editMessageSafe(ctx context.Context, chatID int64, messageID i
 		return false
 	}
 	return true
+}
+
+func (s *Service) editMessageOrQueueProgressAlert(ctx context.Context, workspace postgres.Workspace, request telegram.EditMessageTextRequest, target string, threadID int64) error {
+	if err := s.Telegram.EditMessageText(ctx, request); err != nil {
+		if telegram.IsNotModifiedError(err) {
+			return nil
+		}
+		messageLink := postgres.MessageLink(request.ChatID, request.MessageID, threadID)
+		_, createErr := s.Store.Queries().CreateProgressEvent(ctx, workspace.ID, domain.ProgressSystemAlert, map[string]any{
+			"kind":       "edit_failed",
+			"target":     target,
+			"message_id": request.MessageID,
+			"message":    messageLink,
+			"error":      truncateProgressAlertError(err.Error()),
+		}, nil, nil)
+		return createErr
+	}
+	return nil
+}
+
+func truncateProgressAlertError(text string) string {
+	const maxLen = 300
+	if len(text) <= maxLen {
+		return text
+	}
+	return text[:maxLen] + "..."
 }
 
 func dailyTaskCardKeyboard(task postgres.DailyTask) *telegram.InlineKeyboardMarkup {

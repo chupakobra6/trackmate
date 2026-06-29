@@ -334,9 +334,37 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		}, "\n")
 	case domain.ProgressCustomUpdate:
 		return formatCustomProgressUpdate(payload)
+	case domain.ProgressSystemAlert:
+		return formatSystemProgressAlert(payload)
 	default:
 		return messages.Text("progress.system") + "\n" + fmt.Sprint(payload)
 	}
+}
+
+func formatSystemProgressAlert(payload map[string]any) string {
+	if payloadString(payload, "kind") != "edit_failed" {
+		return messages.Text("progress.system") + "\n" + fmt.Sprint(payload)
+	}
+	target := payloadString(payload, "target")
+	if link := payloadString(payload, "message"); link != "" && target != "" {
+		target = fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(link), html.EscapeString(target))
+	} else {
+		target = html.EscapeString(target)
+	}
+	if target == "" {
+		target = messages.Text("progress.edit_failed.target_unknown")
+	}
+	lines := []string{
+		messages.Text("progress.edit_failed.title"),
+		"",
+		messages.Text("progress.edit_failed.body"),
+		"",
+		messages.Format("progress.edit_failed.target", "target", target),
+	}
+	if errText := payloadString(payload, "error"); errText != "" {
+		lines = append(lines, messages.Format("progress.edit_failed.error", "error", html.EscapeString(errText)))
+	}
+	return strings.Join(lines, "\n")
 }
 
 func formatCustomProgressUpdate(payload map[string]any) string {

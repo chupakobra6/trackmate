@@ -2,11 +2,13 @@ package bot_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
+	appprogress "github.com/igor/trackmate/internal/app/progress"
 	"github.com/igor/trackmate/internal/bot"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/logging"
@@ -275,6 +277,77 @@ WHERE id = $1
 	}
 	if reportLink != "https://t.me/c/1234567890/301?thread=10" {
 		t.Fatalf("progress payload report_link = %q", reportLink)
+	}
+}
+
+func TestEditedReportMessageQueuesProgressAlertWhenPublishedEditFails(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	fake.editErrors = map[int64]error{500: errors.New("Bad Request: message to edit not found")}
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicToday, 10, "Сегодня"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicProgress, 11, "Прогресс"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 28, 0, 0, 0, 0, time.UTC), "План дня", 201, 10)
+	if err != nil || !created {
+		t.Fatalf("task created=%v err=%v", created, err)
+	}
+	if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 100); err != nil {
+		t.Fatal(err)
+	}
+	submitted, err := q.SubmitTaskReport(ctx, task.ID, participant.UserID, domain.DailyTaskDone, "Старый итог", "Игорь", 301, 10)
+	if err != nil || !submitted {
+		t.Fatalf("submitted=%v err=%v", submitted, err)
+	}
+	events, err := q.ListPendingProgressEvents(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("progress events = %d, want 1", len(events))
+	}
+	if err := q.MarkProgressEventPublished(ctx, events[0].ID, 500, time.Now().UTC()); err != nil {
+		t.Fatal(err)
+	}
+
+	edited := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 10,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Новый итог",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{UpdateID: 4, EditedMessage: &edited}); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := q.ListPendingProgressEvents(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pending) != 1 || pending[0].EventType != domain.ProgressSystemAlert || pending[0].Payload["kind"] != "edit_failed" {
+		t.Fatalf("edit failure alert was not queued: %+v", pending)
+	}
+
+	if err := appprogress.PublishPending(ctx, store, fake); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.hasSentToThread(11, "Не смог обновить сообщение") || !fake.hasSentToThread(11, "сообщение в Прогрессе") || !fake.hasSentToThread(11, "Bad Request: message to edit not found") {
+		t.Fatalf("progress alert was not published clearly: %+v", fake.sent)
 	}
 }
 
@@ -736,6 +809,7 @@ type fakeTelegram struct {
 	nextThreadID  int64
 	nextMessageID int64
 	edits         []telegram.EditMessageTextRequest
+	editErrors    map[int64]error
 	sent          []telegram.SendMessageRequest
 	deleted       []int64
 }
@@ -757,6 +831,9 @@ func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessa
 }
 func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditMessageTextRequest) error {
 	f.edits = append(f.edits, request)
+	if f.editErrors != nil && f.editErrors[request.MessageID] != nil {
+		return f.editErrors[request.MessageID]
+	}
 	return nil
 }
 func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
@@ -791,6 +868,15 @@ func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextReques
 		}
 	}
 	return telegram.EditMessageTextRequest{}, false
+}
+
+func (f *fakeTelegram) hasSentToThread(threadID int64, text string) bool {
+	for _, request := range f.sent {
+		if request.MessageThreadID == threadID && strings.Contains(request.Text, text) {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeTelegram) wasDeleted(messageID int64) bool {

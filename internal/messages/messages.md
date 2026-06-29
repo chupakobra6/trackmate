@@ -362,6 +362,27 @@
 ## progress.system
 🔔 Системное сообщение
 
+## progress.edit_failed.title
+⚠️ <b>Не смог обновить сообщение</b>
+
+## progress.edit_failed.body
+Данные сохранены, но старое сообщение в Telegram не отредактировалось.
+
+## progress.edit_failed.target
+<b>Где:</b> {{target}}
+
+## progress.edit_failed.target_today_card
+карточка задачи дня
+
+## progress.edit_failed.target_progress_message
+сообщение в Прогрессе
+
+## progress.edit_failed.target_unknown
+сообщение
+
+## progress.edit_failed.error
+<b>Ошибка:</b> {{error}}
+
 ## progress.daily.task_link
 задачу дня
 
