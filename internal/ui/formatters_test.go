@@ -17,19 +17,47 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 			"display_name": "Igor",
 			"username":     "igor",
 			"status":       "done",
-			"task_html":    "Написать движок на Go",
+			"task_html":    `<a href="https://example.com/task">Написать движок на Go</a>`,
+			"task_link":    "https://t.me/c/1/300?thread=10",
 			"report_html":  "Готово",
 			"report_link":  "https://t.me/c/1/301?thread=10",
 		},
 	}
 	got := FormatProgressEvent(event)
-	for _, part := range []string{`<a href="tg://user?id=42">Igor</a>`, `<a href="https://t.me/c/1/301?thread=10">выполнил</a> задачу дня`, "Написать движок на Go", `<a href="https://t.me/c/1/301?thread=10">Готово</a>`} {
+	for _, part := range []string{
+		`<a href="tg://user?id=42">Igor</a>`,
+		`<a href="https://t.me/c/1/301?thread=10">выполнил</a> <a href="https://t.me/c/1/300?thread=10">задачу дня</a>`,
+		"Написать движок на Go",
+		`<a href="https://t.me/c/1/301?thread=10">Готово</a>`,
+	} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("formatted task event missing %q: %s", part, got)
 		}
 	}
 	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Итог:</b>\n\n<blockquote>") {
 		t.Fatalf("formatted task event has extra blank line around blockquote: %s", got)
+	}
+	if strings.Contains(got, "https://example.com/task") {
+		t.Fatalf("formatted task event should not link the task text: %s", got)
+	}
+}
+
+func TestFormatProgressEventDailyTaskAutoFailedDoesNotLinkTaskText(t *testing.T) {
+	event := postgres.ProgressEvent{
+		EventType: domain.ProgressDailyTaskAutoFail,
+		Payload: map[string]any{
+			"user_id":      float64(42),
+			"display_name": "Igor",
+			"task_html":    `<a href="https://example.com/task">Написать движок на Go</a>`,
+			"task_link":    "https://t.me/c/1/300?thread=10",
+		},
+	}
+	got := FormatProgressEvent(event)
+	if !strings.Contains(got, `<a href="https://t.me/c/1/300?thread=10">задачу дня</a>`) {
+		t.Fatalf("formatted auto-fail event should link the task label: %s", got)
+	}
+	if strings.Contains(got, "https://example.com/task") {
+		t.Fatalf("formatted auto-fail event should not link the task text: %s", got)
 	}
 }
 

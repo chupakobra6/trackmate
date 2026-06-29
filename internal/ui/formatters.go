@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"html"
+	"regexp"
 	"strings"
 
 	"github.com/igor/trackmate/internal/domain"
@@ -18,6 +19,7 @@ var (
 	SetupReadyText     = messages.Text("setup.ready")
 	SetupRepairedText  = messages.Text("setup.repaired")
 	routineHeaderEmoji = messages.Text("routine.header_emoji")
+	anchorTagPattern   = regexp.MustCompile(`(?i)</?a(?:\s+[^>]*)?>`)
 )
 
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
@@ -314,12 +316,13 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		taskLabel := messages.Text("progress.daily.task_link")
 		task := payloadLink(payload, "task_link", taskLabel)
 		action := dailyTaskClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
-		title := strings.Replace(dailyTaskClosedTitle(payloadString(payload, "status"), person, action), taskLabel, task, 1)
+		title := dailyTaskClosedTitle(payloadString(payload, "status"), person, action)
+		title = strings.Replace(title, taskLabel, task, 1)
 		return strings.Join([]string{
 			title,
 			"",
 			messages.Text("daily.card.plan"),
-			renderSectionHTML(payloadString(payload, "task_html")),
+			renderTaskSectionHTML(payloadString(payload, "task_html")),
 			"",
 			messages.Text("daily.card.report"),
 			renderSectionHTML(linkedReportHTML(payload)),
@@ -330,7 +333,7 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			messages.Format("progress.daily.auto_failed", "person", person, "task", task),
 			"",
 			messages.Text("daily.card.plan"),
-			renderSectionHTML(payloadString(payload, "task_html")),
+			renderTaskSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
 	case domain.ProgressCustomUpdate:
 		return formatCustomProgressUpdate(payload)
@@ -549,6 +552,10 @@ func renderSectionHTML(value string) string {
 		return value
 	}
 	return "<blockquote>" + value + "</blockquote>"
+}
+
+func renderTaskSectionHTML(value string) string {
+	return renderSectionHTML(anchorTagPattern.ReplaceAllString(value, ""))
 }
 
 func renderInlineHTML(value string) string {
