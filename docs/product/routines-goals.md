@@ -21,7 +21,7 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 4. Accept routine setup as line-based text, supporting plain lines, dash bullets, bullet symbols, and numbered lines.
 5. Limit routine items to 9.
 6. Treat all routine items as daily in MVP.
-7. Send the daily routine check-in after 20:00 in the workspace timezone.
+7. Send the daily routine check-in at 08:00 the next day for the previous routine date.
 8. Use item-by-item routine check-in: done, partial, failed.
 9. Ask for a short reason after partial/failed in a separate temporary message, then delete the prompt and the user reply after the answer is saved.
 10. Do not ask for a final routine reflection; Today owns the day summary.
@@ -34,7 +34,10 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 17. Final seasonal review asks completed, partial, or failed plus a short summary.
 18. Add rare Today reminders that connect daily tasks with seasonal goals.
 19. Clean up unfinished input after 24 hours silently, deleting the stored bot prompt and known process messages.
-20. Remind about an unclosed routine after the local day ends and auto-close missing items as failed at 12:00 the next day.
+20. Remind about an unclosed routine at 20:00 on the check-in day and auto-close missing items as failed at 00:00 the next day.
+21. Keep Progress silent: daily result messages do not notify the group.
+22. Use pings only for missed/forgotten actions such as routine reminders and missed daily task alerts.
+23. Link Progress person labels to the participant profile and link daily result actions/media labels to the source report message.
 
 ## Non-goals for MVP
 

@@ -187,6 +187,7 @@ WHERE id = $1 AND owner_user_id = $4 AND status IN ('active', 'awaiting_report')
 			threadID = todayBinding.ThreadID
 		}
 		payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		payload["report_link"] = MessageLink(workspace.ChatID, messageID, threadID)
 	}
 	if _, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, domain.ProgressDailyTaskClosed, payload, &task.ParticipantID, &task.ID); err != nil {
 		return false, err
@@ -251,6 +252,7 @@ RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text
 
 func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyTask) ([]ProgressEvent, error) {
 	taskLink := ""
+	reportLink := ""
 	workspace, found, err := q.GetWorkspaceByID(ctx, task.WorkspaceGroupID)
 	if err != nil {
 		return nil, err
@@ -265,6 +267,7 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 			threadID = todayBinding.ThreadID
 		}
 		taskLink = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		reportLink = MessageLink(workspace.ChatID, optionalInt64(task.ReportMessageID), threadID)
 	}
 	reportHTML := ""
 	if task.ReportText != nil {
@@ -274,7 +277,7 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 UPDATE progress_events
 SET payload = CASE
     WHEN event_type = 'daily_task.closed'::progresseventtype THEN
-        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_task.auto_failed'::progresseventtype THEN
         payload::jsonb || jsonb_build_object('task_html', $2::text, 'task_link', $4::text)
     ELSE payload
@@ -283,7 +286,7 @@ WHERE daily_task_id = $1
   AND event_type IN ('daily_task.closed'::progresseventtype, 'daily_task.auto_failed'::progresseventtype)
 RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::text,
           publish_status::text, payload, published_message_id, created_at, published_at
-`, task.ID, task.Text, reportHTML, taskLink)
+`, task.ID, task.Text, reportHTML, taskLink, reportLink)
 	if err != nil {
 		return nil, err
 	}

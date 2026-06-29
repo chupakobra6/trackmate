@@ -84,16 +84,16 @@ func TestParseRoutineItemsRejectsTooManyItems(t *testing.T) {
 	}
 }
 
-func TestRoutineCheckinDueStartsSameEveningWhenCreatedBeforeDispatch(t *testing.T) {
+func TestRoutineCheckinDueSendsNextMorningForPreviousDay(t *testing.T) {
 	created := time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)
-	_, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 23, 19, 59, 0, 0, time.UTC))
+	_, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 24, 7, 59, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if due {
-		t.Fatal("routine should not be due before evening dispatch")
+		t.Fatal("routine should not be due before morning dispatch")
 	}
-	date, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 23, 20, 0, 0, 0, time.UTC))
+	date, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 24, 8, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,16 +102,16 @@ func TestRoutineCheckinDueStartsSameEveningWhenCreatedBeforeDispatch(t *testing.
 	}
 }
 
-func TestRoutineCheckinDueSkipsSameDayWhenCreatedAfterDispatch(t *testing.T) {
-	created := time.Date(2026, 6, 23, 20, 1, 0, 0, time.UTC)
-	_, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 23, 21, 0, 0, 0, time.UTC))
+func TestRoutineCheckinDueSkipsDaysBeforePlanExists(t *testing.T) {
+	created := time.Date(2026, 6, 24, 7, 0, 0, 0, time.UTC)
+	_, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 24, 8, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if due {
-		t.Fatal("routine should not start immediately when configured after evening dispatch")
+		t.Fatal("routine should not create a check-in for a day before the plan existed")
 	}
-	date, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 24, 20, 0, 0, 0, time.UTC))
+	date, due, err := RoutineCheckinDue(created, "UTC", time.Date(2026, 6, 25, 8, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,26 +122,33 @@ func TestRoutineCheckinDueSkipsSameDayWhenCreatedAfterDispatch(t *testing.T) {
 
 func TestRoutineReminderAndAutoFailDue(t *testing.T) {
 	checkinDate := time.Date(2026, 6, 23, 0, 0, 0, 0, time.UTC)
-	reminder, err := RoutineReminderDue(checkinDate, "UTC", nil, nil, time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC))
+	reminder, err := RoutineReminderDue(checkinDate, "UTC", nil, nil, time.Date(2026, 6, 24, 19, 59, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reminder {
+		t.Fatal("routine should not remind before 20:00")
+	}
+	reminder, err = RoutineReminderDue(checkinDate, "UTC", nil, nil, time.Date(2026, 6, 24, 20, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !reminder {
-		t.Fatal("expected reminder after local day end")
+		t.Fatal("expected reminder at 20:00 next day")
 	}
-	autoFail, err := RoutineAutoFailDue(checkinDate, "UTC", nil, time.Date(2026, 6, 24, 11, 59, 0, 0, time.UTC))
+	autoFail, err := RoutineAutoFailDue(checkinDate, "UTC", nil, time.Date(2026, 6, 24, 23, 59, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if autoFail {
-		t.Fatal("routine should not auto-close before noon")
+		t.Fatal("routine should not auto-close before midnight")
 	}
-	autoFail, err = RoutineAutoFailDue(checkinDate, "UTC", nil, time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC))
+	autoFail, err = RoutineAutoFailDue(checkinDate, "UTC", nil, time.Date(2026, 6, 25, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !autoFail {
-		t.Fatal("expected routine auto-close at noon next day")
+		t.Fatal("expected routine auto-close at midnight after the check-in day")
 	}
 }
 

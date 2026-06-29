@@ -56,8 +56,14 @@ func TestWorkerTransitionsDispatchesAlertAndPublishesProgress(t *testing.T) {
 	if fake.sent[0].MessageThreadID != 10 || fake.sent[0].ReplyToMessageID != 555 {
 		t.Fatalf("alert was not sent into today thread as a task reply: %+v", fake.sent[0])
 	}
+	if fake.sent[0].DisableNotification {
+		t.Fatalf("missed-task alert should notify: %+v", fake.sent[0])
+	}
 	if fake.sent[1].MessageThreadID != 20 {
 		t.Fatalf("progress was not published into progress thread: %+v", fake.sent[1])
+	}
+	if !fake.sent[1].DisableNotification {
+		t.Fatalf("progress should be silent: %+v", fake.sent[1])
 	}
 }
 
@@ -102,6 +108,12 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	fake := &fakeTelegram{nextMessageID: 2000}
 	runner := &worker.Runner{Store: store, TG: fake, Logger: logging.New("ERROR")}
 	if err := runner.Tick(ctx, time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if fake.hasSentToThread(30, "Рутина") {
+		t.Fatalf("routine check-in should not be sent before the next 08:00 window: %+v", fake.sent)
+	}
+	if err := runner.Tick(ctx, time.Date(2026, 6, 29, 8, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if !fake.hasSentToThread(30, "Рутина") {

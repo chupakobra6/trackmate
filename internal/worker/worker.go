@@ -97,14 +97,13 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
 			return nil
 		}
-		message, err := r.TG.SendMessage(ctx, telegram.SendMessageRequest{
-			ChatID:              workspace.ChatID,
-			MessageThreadID:     todayTopic.ThreadID,
-			Text:                ui.AlertText(alert.AlertKind),
-			ReplyToMessageID:    optionalInt64(task.TodayCardMessageID),
-			ReplyMarkup:         ui.AlertKeyboard(task.ID, alert.ID),
-			DisableNotification: true,
-		})
+		message, err := r.TG.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
+			ChatID:           workspace.ChatID,
+			MessageThreadID:  todayTopic.ThreadID,
+			Text:             ui.AlertText(alert.AlertKind),
+			ReplyToMessageID: optionalInt64(task.TodayCardMessageID),
+			ReplyMarkup:      ui.AlertKeyboard(task.ID, alert.ID),
+		}))
 		if err != nil {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
 			if r.Logger != nil {

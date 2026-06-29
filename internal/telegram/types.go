@@ -174,6 +174,27 @@ type SendMessageRequest struct {
 	DisableWebPagePreview *bool                 `json:"disable_web_page_preview,omitempty"`
 }
 
+func SilentMessage(request SendMessageRequest) SendMessageRequest {
+	request.DisableNotification = true
+	return request
+}
+
+func RegularMessage(request SendMessageRequest) SendMessageRequest {
+	request.DisableNotification = false
+	return request
+}
+
+func ReplyMessage(request SendMessageRequest, replyToMessageID int64) SendMessageRequest {
+	request.ReplyToMessageID = replyToMessageID
+	request.DisableNotification = false
+	return request
+}
+
+func PingMessage(request SendMessageRequest) SendMessageRequest {
+	request.DisableNotification = false
+	return request
+}
+
 type EditMessageTextRequest struct {
 	ChatID      int64                 `json:"chat_id"`
 	MessageID   int64                 `json:"message_id"`

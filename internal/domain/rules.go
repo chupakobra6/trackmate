@@ -11,8 +11,9 @@ import (
 
 const (
 	MaxRoutineItems         = 9
-	RoutineCheckinHour      = 20
-	RoutineAutoFailHour     = 12
+	RoutineCheckinHour      = 8
+	RoutineReminderHour     = 20
+	RoutineAutoFailHour     = 0
 	RoutineNoticeMaxAge     = 24 * time.Hour
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
@@ -100,20 +101,28 @@ func RoutineCheckinDue(planCreatedAt time.Time, workspaceTimezone string, nowUTC
 	if localNow.Hour() < RoutineCheckinHour {
 		return time.Time{}, false, nil
 	}
+	checkinDate, due := RoutinePreviousCheckinDate(planCreatedAt, workspaceTimezone, nowUTC)
+	if !due {
+		return time.Time{}, false, nil
+	}
+	return checkinDate, true, nil
+}
+
+func RoutinePreviousCheckinDate(planCreatedAt time.Time, workspaceTimezone string, nowUTC time.Time) (time.Time, bool) {
+	location, err := time.LoadLocation(workspaceTimezone)
+	if err != nil {
+		return time.Time{}, false
+	}
+	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
-	checkinDate := time.Date(year, month, day, 0, 0, 0, 0, location)
+	today := time.Date(year, month, day, 0, 0, 0, 0, location)
+	checkinDate := today.AddDate(0, 0, -1)
 	createdYear, createdMonth, createdDay := planCreatedAt.In(location).Date()
 	createdDate := time.Date(createdYear, createdMonth, createdDay, 0, 0, 0, 0, location)
 	if checkinDate.Before(createdDate) {
-		return time.Time{}, false, nil
+		return time.Time{}, false
 	}
-	if checkinDate.Equal(createdDate) {
-		firstDispatchAt := time.Date(createdYear, createdMonth, createdDay, RoutineCheckinHour, 0, 0, 0, location)
-		if !planCreatedAt.In(location).Before(firstDispatchAt) {
-			return time.Time{}, false, nil
-		}
-	}
-	return checkinDate, true, nil
+	return checkinDate, true
 }
 
 func RoutineReminderDue(checkinDate time.Time, workspaceTimezone string, reminderSentAt *time.Time, completedAt *time.Time, nowUTC time.Time) (bool, error) {
@@ -125,9 +134,11 @@ func RoutineReminderDue(checkinDate time.Time, workspaceTimezone string, reminde
 		return false, err
 	}
 	localNow := nowUTC.In(location)
-	dayEnd := routineCheckinLocalDate(checkinDate, location).AddDate(0, 0, 1)
-	deadline := time.Date(dayEnd.Year(), dayEnd.Month(), dayEnd.Day(), RoutineAutoFailHour, 0, 0, 0, location)
-	return !localNow.Before(dayEnd) && localNow.Before(deadline), nil
+	nextDay := routineCheckinLocalDate(checkinDate, location).AddDate(0, 0, 1)
+	reminderAt := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), RoutineReminderHour, 0, 0, 0, location)
+	deadlineDay := nextDay.AddDate(0, 0, 1)
+	deadline := time.Date(deadlineDay.Year(), deadlineDay.Month(), deadlineDay.Day(), RoutineAutoFailHour, 0, 0, 0, location)
+	return !localNow.Before(reminderAt) && localNow.Before(deadline), nil
 }
 
 func RoutineAutoFailDue(checkinDate time.Time, workspaceTimezone string, completedAt *time.Time, nowUTC time.Time) (bool, error) {
@@ -139,8 +150,8 @@ func RoutineAutoFailDue(checkinDate time.Time, workspaceTimezone string, complet
 		return false, err
 	}
 	localNow := nowUTC.In(location)
-	dayEnd := routineCheckinLocalDate(checkinDate, location).AddDate(0, 0, 1)
-	deadline := time.Date(dayEnd.Year(), dayEnd.Month(), dayEnd.Day(), RoutineAutoFailHour, 0, 0, 0, location)
+	nextDay := routineCheckinLocalDate(checkinDate, location).AddDate(0, 0, 2)
+	deadline := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), RoutineAutoFailHour, 0, 0, 0, location)
 	return !localNow.Before(deadline), nil
 }
 

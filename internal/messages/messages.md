@@ -101,9 +101,9 @@
 🌿 <b>Рутины</b>
 Здесь живет одна ежедневная рутина: привычки, задачи и повторяющиеся действия, которые важно держать в ритме.
 
-Нажми кнопку ниже и пришли список. Я буду присылать одну карточку для отметки каждый день после 20:00.
+Нажми кнопку ниже и пришли список. Я буду присылать карточку в 08:00 следующего дня.
 
-Закрыть ее можно до 12:00 следующего дня.
+Если не закрыть до 20:00, напомню. В 00:00 карточка закроется сама.
 
 ## goals.control
 🎯 <b>Цели</b>
@@ -213,10 +213,8 @@
 <blockquote>{{item}}</blockquote>
 
 ## routine.reminder
-🔔 <b>Рутина за {{date}}</b>
-Закрой до 12:00
-
-Неотмеченные пункты станут невыполненными
+🔔 <b>Рутина за {{date}}</b> {{person}}
+Отметь до полуночи
 
 ## routine.auto_closed
 ⚠️ <b>Рутина за {{date}} закрыта</b>
@@ -325,20 +323,29 @@
 ## progress.daily.task_link
 задачу дня
 
+## progress.daily.action.done
+выполнил
+
+## progress.daily.action.partial
+частично выполнил
+
+## progress.daily.action.failed
+не выполнил
+
 ## progress.daily.auto_failed
 ⏰ <b>{{person}} не выполнил {{task}} вовремя</b>
 
 ## progress.daily.closed.done
-✅ <b>{{person}} выполнил задачу дня</b>
+✅ <b>{{person}} {{action}} задачу дня</b>
 
 ## progress.daily.closed.partial
-🔸 <b>{{person}} частично выполнил задачу дня</b>
+🔸 <b>{{person}} {{action}} задачу дня</b>
 
 ## progress.daily.closed.failed
-❌ <b>{{person}} не выполнил задачу дня</b>
+❌ <b>{{person}} {{action}} задачу дня</b>
 
 ## progress.daily.closed.default
-✅ <b>{{person}} завершил задачу дня</b>
+✅ <b>{{person}} {{action}} задачу дня</b>
 
 ## alert.day_closed_pending_report
 🔔 День закончился, а итог по задаче еще не подведен

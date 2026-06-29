@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-022`
+- active step: `STEP-023`
 - status: `готово`
 
 ## Завершено
@@ -153,6 +153,14 @@
   - реплика Ярика про `второй день` относилась к Игорю: Игорь добавил задачу через минуту, source message `3476`, card `3477`, progress message `3493`;
   - пользовательские реплики Ярика в общем чате не удалялись, потому что это не bot noise и не сломанный pending prompt;
   - current production healthy: `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0; новых DB/Telegram правок и deploy не выполнялось.
+- Закрыт STEP-023 по S022:
+  - routine timing локально заменен: карточка за дату `D` приходит в 08:00 `D+1`, reminder в 20:00 `D+1`, auto-close в 00:00 `D+2`;
+  - routine reminder стал коротким ping-сообщением: `Рутина за DD.MM`, имя участника ссылкой, `Отметь до полуночи`;
+  - auto-close notice остается временным, уведомляет пользователя и чистится через TTL около суток или кнопку `Понял`;
+  - перед сохранением нового списка routine создается snapshot check-in за последний прошедший день по старому списку, чтобы открытая/наступившая проверка не поменяла пункты задним числом;
+  - добавлены helper-уровни Telegram сообщений: `SilentMessage`, `RegularMessage`, `ReplyMessage`, `PingMessage`; Progress и routine cards тихие, missed-task/routine alerts уведомляют;
+  - `Прогресс` теперь показывает имя как ссылку на пользователя, а действие результата и простой media label итога ведут на исходное сообщение отчета;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -244,6 +252,9 @@
 - STEP-022 Harvest dumps: current `Чат` has Yaroslav messages `3454`, `3471`, `3472`; Egor complaint messages `3464`/`3465` are already deleted.
 - STEP-022 Today/log verification: Yaroslav task `3456`/`3457` succeeded, Egor old failure restored as task `172`, Igor task `3476`/`3477` succeeded after Yaroslav's complaint.
 - STEP-022 SQL/service verification: progress messages `3487`, `3493`, `3653` exist; `api`, `worker`, `postgres` healthy; progress outbox clean; Today pending inputs = 0.
+- STEP-023 focused tests: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/app/progress ./internal/worker ./internal/bot ./internal/storage/postgres`: pass.
+- STEP-023 broad tests: `go test ./...`: pass.
+- STEP-023 make validation: `make test`: pass; `make lint`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -262,9 +273,10 @@
 - STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 - STEP-021 был проверкой без data/code changes.
 - STEP-022 был проверкой без data/code changes.
+- STEP-023 локально готов, но не выкачен на production.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

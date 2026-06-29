@@ -43,13 +43,12 @@ func DispatchDueCheckins(ctx context.Context, store *postgres.Store, tg telegram
 		if nextIndex < 0 {
 			continue
 		}
-		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
-			ChatID:              item.Workspace.ChatID,
-			MessageThreadID:     routineTopic.ThreadID,
-			Text:                ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), ""),
-			ReplyMarkup:         ui.RoutineItemKeyboard(checkin.ID, nextIndex),
-			DisableNotification: true,
-		})
+		message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+			ChatID:          item.Workspace.ChatID,
+			MessageThreadID: routineTopic.ThreadID,
+			Text:            ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), ""),
+			ReplyMarkup:     ui.RoutineItemKeyboard(checkin.ID, nextIndex),
+		}))
 		if err != nil {
 			if logger != nil {
 				logger.WarnContext(ctx, "routine_checkin_dispatch_failed", "checkin_id", checkin.ID, "error", err)
@@ -102,13 +101,12 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 				}
 			}
 			_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.CardMessageID)
-			notice, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
-				ChatID:              item.Workspace.ChatID,
-				MessageThreadID:     *item.Checkin.CardMessageThreadID,
-				Text:                ui.RoutineAutoClosedText(closed),
-				ReplyMarkup:         ui.DismissKeyboard(),
-				DisableNotification: true,
-			})
+			notice, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
+				ChatID:          item.Workspace.ChatID,
+				MessageThreadID: *item.Checkin.CardMessageThreadID,
+				Text:            ui.RoutineAutoClosedText(closed),
+				ReplyMarkup:     ui.DismissKeyboard(),
+			}))
 			if err != nil {
 				if logger != nil {
 					logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", item.Checkin.ID, "error", err)
@@ -128,14 +126,13 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 		if !reminderDue {
 			continue
 		}
-		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
-			ChatID:              item.Workspace.ChatID,
-			MessageThreadID:     *item.Checkin.CardMessageThreadID,
-			Text:                ui.RoutineReminderText(item.Checkin),
-			ReplyMarkup:         ui.DismissKeyboard(),
-			ReplyToMessageID:    *item.Checkin.CardMessageID,
-			DisableNotification: true,
-		})
+		message, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
+			ChatID:           item.Workspace.ChatID,
+			MessageThreadID:  *item.Checkin.CardMessageThreadID,
+			Text:             ui.RoutineReminderText(item.Checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
+			ReplyMarkup:      ui.DismissKeyboard(),
+			ReplyToMessageID: *item.Checkin.CardMessageID,
+		}))
 		if err != nil {
 			if logger != nil {
 				logger.WarnContext(ctx, "routine_reminder_dispatch_failed", "checkin_id", item.Checkin.ID, "error", err)
@@ -192,12 +189,11 @@ func RefreshLeaderboard(ctx context.Context, q *postgres.Queries, tg telegram.AP
 			return nil
 		}
 	}
-	message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
-		ChatID:              chatID,
-		MessageThreadID:     binding.ThreadID,
-		Text:                text,
-		DisableNotification: true,
-	})
+	message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+		ChatID:          chatID,
+		MessageThreadID: binding.ThreadID,
+		Text:            text,
+	}))
 	if err != nil {
 		return err
 	}

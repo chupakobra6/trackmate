@@ -34,13 +34,12 @@ func PublishPending(ctx context.Context, store *postgres.Store, tg telegram.API)
 			continue
 		}
 		disablePreview := true
-		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
+		message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
 			ChatID:                workspace.ChatID,
 			MessageThreadID:       progressTopic.ThreadID,
 			Text:                  ui.FormatProgressEvent(event),
-			DisableNotification:   true,
 			DisableWebPagePreview: &disablePreview,
-		})
+		}))
 		if err != nil {
 			if telegram.IsTransientRequestError(err) {
 				_ = store.Queries().RequeueProgressEvent(ctx, event.ID)

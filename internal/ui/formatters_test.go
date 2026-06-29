@@ -19,10 +19,11 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 			"status":       "done",
 			"task_html":    "Написать движок на Go",
 			"report_html":  "Готово",
+			"report_link":  "https://t.me/c/1/301?thread=10",
 		},
 	}
 	got := FormatProgressEvent(event)
-	for _, part := range []string{"выполнил задачу дня", "Написать движок на Go", "Готово"} {
+	for _, part := range []string{`<a href="tg://user?id=42">Igor</a>`, `<a href="https://t.me/c/1/301?thread=10">выполнил</a> задачу дня`, "Написать движок на Go", `<a href="https://t.me/c/1/301?thread=10">Готово</a>`} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("formatted task event missing %q: %s", part, got)
 		}
@@ -189,13 +190,13 @@ func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
 func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 	checkin := postgres.RoutineCheckin{CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC)}
 
-	reminder := RoutineReminderText(checkin)
-	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", "Закрой до 12:00", "Неотмеченные пункты станут невыполненными"} {
+	reminder := RoutineReminderText(checkin, "Игорь", "igor", 42)
+	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", `<a href="tg://user?id=42">Игорь</a>`, "Отметь до полуночи"} {
 		if !strings.Contains(reminder, part) {
 			t.Fatalf("routine reminder missing %q: %s", part, reminder)
 		}
 	}
-	if strings.Contains(reminder, "будут засчитаны") || strings.Contains(reminder, "еще не закрыта") {
+	if strings.Contains(reminder, "будут засчитаны") || strings.Contains(reminder, "еще не закрыта") || strings.Contains(reminder, "12:00") {
 		t.Fatalf("routine reminder kept old wording: %s", reminder)
 	}
 

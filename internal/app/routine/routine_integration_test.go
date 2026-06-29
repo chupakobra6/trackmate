@@ -41,14 +41,14 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	}
 
 	fake := &fakeTelegram{nextMessageID: 2000}
-	now := time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 6, 29, 8, 0, 0, 0, time.UTC)
 	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || fake.sent[0].MessageThreadID != 30 || !strings.Contains(fake.sent[0].Text, "Рутина") {
+	if len(fake.sent) != 1 || fake.sent[0].MessageThreadID != 30 || !strings.Contains(fake.sent[0].Text, "Рутина за 28.06") || !fake.sent[0].DisableNotification {
 		t.Fatalf("unexpected routine dispatch: %+v", fake.sent)
 	}
-	checkin, found, err := q.GetRoutineCheckinForDate(ctx, workspace.ID, participant.ID, now)
+	checkin, found, err := q.GetRoutineCheckinForDate(ctx, workspace.ID, participant.ID, time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC))
 	if err != nil || !found {
 		t.Fatalf("checkin found=%v err=%v", found, err)
 	}
@@ -105,10 +105,16 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	}
 
 	fake := &fakeTelegram{nextMessageID: 3000}
-	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)); err != nil {
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 19, 59, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Закрой до 12:00") || strings.Contains(fake.sent[0].Text, "засчитаны") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil {
+	if len(fake.sent) != 0 {
+		t.Fatalf("routine should not remind before 20:00: %+v", fake.sent)
+	}
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 20, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Отметь до полуночи") || strings.Contains(fake.sent[0].Text, "12:00") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil || fake.sent[0].DisableNotification {
 		t.Fatalf("unexpected reminder send: %+v", fake.sent)
 	}
 	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
@@ -116,7 +122,13 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 		t.Fatalf("reminder was not stored found=%v checkin=%+v err=%v", found, reminded, err)
 	}
 
-	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC)); err != nil {
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 23, 59, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if fake.wasDeleted(2100) {
+		t.Fatalf("routine should not auto-close before midnight, deleted=%+v", fake.deleted)
+	}
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 30, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	closed, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
@@ -145,7 +157,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if fake.findEditCount(2100) != 0 {
 		t.Fatalf("routine card should not be edited on auto-close, edits=%+v", fake.edits)
 	}
-	if len(fake.sent) != 2 || !strings.Contains(fake.sent[1].Text, "Рутина за 28.06 закрыта") || fake.sent[1].ReplyMarkup == nil {
+	if len(fake.sent) != 2 || !strings.Contains(fake.sent[1].Text, "Рутина за 28.06 закрыта") || fake.sent[1].ReplyMarkup == nil || fake.sent[1].DisableNotification {
 		t.Fatalf("auto-close notice missing: %+v", fake.sent)
 	}
 	closedWithNotice, found, err := q.GetRoutineCheckin(ctx, checkin.ID)

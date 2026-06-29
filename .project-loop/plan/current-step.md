@@ -4,22 +4,21 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-022`
+- id: `STEP-023`
 - status: `готово`
-- objective: Проверить жалобы Ярика и Егора из общего чата, что задачи дня не принимает.
-- requirement IDs: `REQ-041`
-- owned paths: `.project-loop/`
-- validation: prod logs/db: pass; Harvest Chat/Today dumps: pass; service health: pass; no data edit needed
-- done criteria: chat complaints are matched to exact Today messages, production logs, DB task rows and progress messages; current production health is known; no unrelated Telegram/DB cleanup is done.
+- objective: Локально изменить routine timing, notification levels и ссылки в `Прогресс`.
+- requirement IDs: `REQ-042..REQ-044`
+- owned paths: `internal/domain/`, `internal/app/routine/`, `internal/bot/`, `internal/worker/`, `internal/app/progress/`, `internal/storage/postgres/`, `internal/ui/`, `internal/messages/`, `docs/`, `.project-loop/`
+- validation: focused Go tests: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass
+- done criteria: routine card is created at 08:00 next day for the previous date; reminder pings at 20:00 and auto-close pings at 00:00; routine plan changes preserve the previous day's old checklist; Progress remains silent and links people/actions/media reports to useful Telegram targets.
 
 ## Фокус Ревью
-- Это production verification, не кодовый deploy.
-- Не трогать routine local fixes и не выкатывать локальную пачку.
-- Если текущая проверка показывает, что сообщения уже засчитаны или это обычный общий чат, не делать лишних Telegram/DB правок.
+- Это локальная продуктовая правка, не production deploy.
+- Не делать Telegram cleanup и не трогать production DB.
+- Сохранять тексты в `internal/messages/messages.md`, не размазывать новые русские строки по Go-коду.
 
 ## Примечания
-- Скрин соответствует общему topic `Чат` 2026-06-26: Ярик пишет Игорю в 06:17 MSK, Егор жалуется в 08:54 MSK, Ярик пишет `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` в 14:18 MSK.
-- Задача Ярика за 2026-06-26 была принята: source message `3456`, Trackmate card `3457`, progress message `3487`.
-- Жалоба Егора была реальной: `today:add` падал на старый `uq_pending_inputs_workspace_group_id`; это уже восстановлено как task `172` и progress message `3653`, а complaint messages `3464`/`3465` удалены ранее.
-- Реплика Ярика `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` относилась к отсутствующей на тот момент задаче Игоря; Игорь добавил ее через минуту, source message `3476`, card `3477`, progress message `3493`.
-- Production сейчас работает: `api`, `worker`, `postgres` healthy; progress outbox clean; Today pending input count = 0.
+- Новая routine-семантика: дата `D` заполняется утром `D+1` в 08:00; reminder в 20:00 `D+1`; auto-close в 00:00 `D+2`.
+- Старый список рутины сохраняется для уже наступившей проверки через snapshot check-in перед upsert нового плана.
+- `Прогресс` остается message level 1: тихие сообщения без уведомлений.
+- Missed/forgotten alerts используют notification level 4: уведомление плюс, где уместно, reply/mention.

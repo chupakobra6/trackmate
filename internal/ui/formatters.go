@@ -110,8 +110,12 @@ func FormatRoutineReasonPrompt(itemText string) string {
 	return messages.Format("routine.reason.prompt", "item", html.EscapeString(itemText))
 }
 
-func RoutineReminderText(checkin postgres.RoutineCheckin) string {
-	return messages.Format("routine.reminder", "date", checkin.CheckinDate.Format("02.01"))
+func RoutineReminderText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64) string {
+	return messages.Format(
+		"routine.reminder",
+		"date", checkin.CheckinDate.Format("02.01"),
+		"person", userLinkLabel(displayName, username, userID),
+	)
 }
 
 func RoutineAutoClosedText(checkin postgres.RoutineCheckin) string {
@@ -247,7 +251,8 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 	case domain.ProgressDailyTaskClosed:
 		taskLabel := messages.Text("progress.daily.task_link")
 		task := payloadLink(payload, "task_link", taskLabel)
-		title := strings.Replace(dailyTaskClosedTitle(payloadString(payload, "status"), person), taskLabel, task, 1)
+		action := dailyTaskClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
+		title := strings.Replace(dailyTaskClosedTitle(payloadString(payload, "status"), person, action), taskLabel, task, 1)
 		return strings.Join([]string{
 			title,
 			"",
@@ -255,7 +260,7 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			renderSectionHTML(payloadString(payload, "task_html")),
 			"",
 			messages.Text("daily.card.report"),
-			renderSectionHTML(payloadString(payload, "report_html")),
+			renderSectionHTML(linkedReportHTML(payload)),
 		}, "\n")
 	case domain.ProgressDailyTaskAutoFail:
 		task := payloadLink(payload, "task_link", messages.Text("progress.daily.task_link"))
@@ -367,17 +372,31 @@ func routineItemsCountLabel(count int) string {
 	}
 }
 
-func dailyTaskClosedTitle(status string, person string) string {
+func dailyTaskClosedTitle(status string, person string, action string) string {
 	switch status {
 	case "done":
-		return messages.Format("progress.daily.closed.done", "person", person)
+		return messages.Format("progress.daily.closed.done", "person", person, "action", action)
 	case "partial":
-		return messages.Format("progress.daily.closed.partial", "person", person)
+		return messages.Format("progress.daily.closed.partial", "person", person, "action", action)
 	case "failed":
-		return messages.Format("progress.daily.closed.failed", "person", person)
+		return messages.Format("progress.daily.closed.failed", "person", person, "action", action)
 	default:
-		return messages.Format("progress.daily.closed.default", "person", person)
+		return messages.Format("progress.daily.closed.default", "person", person, "action", action)
 	}
+}
+
+func dailyTaskClosedAction(status string, reportLink string) string {
+	label := messages.Text("progress.daily.action.done")
+	switch status {
+	case "partial":
+		label = messages.Text("progress.daily.action.partial")
+	case "failed":
+		label = messages.Text("progress.daily.action.failed")
+	}
+	if reportLink == "" {
+		return label
+	}
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(reportLink), label)
 }
 
 func personLabel(username string, displayName string) string {
@@ -400,15 +419,25 @@ func profileLinkLabel(payload map[string]any) string {
 	if displayName == "" {
 		displayName = messages.Text("participant.fallback_name")
 	}
-	label := html.EscapeString(displayName)
 	if username := payloadString(payload, "username"); username != "" {
-		label = html.EscapeString(username)
+		return userLinkLabel(displayName, username, payloadInt64(payload, "user_id"))
 	}
-	userID := payloadInt64(payload, "user_id")
+	return userLinkLabel(displayName, "", payloadInt64(payload, "user_id"))
+}
+
+func userLinkLabel(displayName string, username string, userID int64) string {
+	label := displayName
+	if strings.TrimSpace(label) == "" {
+		label = username
+	}
+	if strings.TrimSpace(label) == "" {
+		label = messages.Text("participant.fallback_name")
+	}
+	escaped := html.EscapeString(label)
 	if userID == 0 {
-		return label
+		return escaped
 	}
-	return fmt.Sprintf(`<a href="tg://user?id=%d">%s</a>`, userID, label)
+	return fmt.Sprintf(`<a href="tg://user?id=%d">%s</a>`, userID, escaped)
 }
 
 func payloadLink(payload map[string]any, key string, label string) string {
@@ -437,6 +466,15 @@ func renderInlineHTML(value string) string {
 		return value
 	}
 	return html.EscapeString(value)
+}
+
+func linkedReportHTML(payload map[string]any) string {
+	report := payloadString(payload, "report_html")
+	reportLink := payloadString(payload, "report_link")
+	if report == "" || reportLink == "" || strings.Contains(report, "<") || strings.Contains(report, ">") {
+		return report
+	}
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(reportLink), report)
 }
 
 func payloadString(payload map[string]any, key string) string {

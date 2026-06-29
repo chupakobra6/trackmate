@@ -68,6 +68,19 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if err != nil {
 			return err
 		}
+		if existing, found, err := q.GetRoutinePlan(ctx, workspace.ID, participant.ID); err != nil {
+			return err
+		} else if found {
+			now, err := q.CurrentNow(ctx, time.Now().UTC())
+			if err != nil {
+				return err
+			}
+			if checkinDate, ok := domain.RoutinePreviousCheckinDate(existing.CreatedAt, workspace.Timezone, now); ok {
+				if _, err := q.GetOrCreateRoutineCheckin(ctx, existing, checkinDate); err != nil {
+					return err
+				}
+			}
+		}
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}

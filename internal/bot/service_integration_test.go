@@ -259,19 +259,22 @@ func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
 		t.Fatalf("task card edit missing new report: found=%v edit=%+v", ok, cardEdit)
 	}
 	progressEdit, ok := fake.findEdit(500)
-	if !ok || !strings.Contains(progressEdit.Text, "Новый итог") || strings.Contains(progressEdit.Text, "Старый итог") {
+	if !ok || !strings.Contains(progressEdit.Text, "Новый итог") || !strings.Contains(progressEdit.Text, `<a href="https://t.me/c/1234567890/301?thread=10">выполнил</a>`) || strings.Contains(progressEdit.Text, "Старый итог") {
 		t.Fatalf("progress edit mismatch: found=%v edit=%+v", ok, progressEdit)
 	}
-	var reportHTML string
+	var reportHTML, reportLink string
 	if err := store.Pool().QueryRow(ctx, `
-SELECT payload ->> 'report_html'
+SELECT payload ->> 'report_html', payload ->> 'report_link'
 FROM progress_events
 WHERE id = $1
-`, events[0].ID).Scan(&reportHTML); err != nil {
+`, events[0].ID).Scan(&reportHTML, &reportLink); err != nil {
 		t.Fatal(err)
 	}
 	if reportHTML != "Новый итог" {
 		t.Fatalf("progress payload report_html = %q", reportHTML)
+	}
+	if reportLink != "https://t.me/c/1234567890/301?thread=10" {
+		t.Fatalf("progress payload report_link = %q", reportLink)
 	}
 }
 
@@ -341,6 +344,68 @@ func TestRoutinePlanSaveDeletesSetupMessagesWithoutConfirmation(t *testing.T) {
 		if plan.Items[i] != want[i] {
 			t.Fatalf("routine items = %v want %v", plan.Items, want)
 		}
+	}
+}
+
+func TestRoutinePlanChangeSnapshotsPreviousRoutineBeforeSavingNewList(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"старая зарядка", "старый сон"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Pool().Exec(ctx, `UPDATE routine_plans SET created_at = $2 WHERE id = $1`, oldPlan.ID, time.Date(2026, 6, 23, 12, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 6, 24, 7, 30, 0, 0, time.UTC)
+	if err := q.SetClockOverride(ctx, &now); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = q.SetClockOverride(ctx, nil) }()
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 13, domain.PendingRoutinePlan, map[string]any{
+		"thread_id":         13,
+		"prompt_message_id": 100,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	input := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 13,
+		DateUnix:        now.Unix(),
+		From:            &telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "- новая работа\n- новый спорт",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
+		t.Fatal(err)
+	}
+
+	yesterday, found, err := q.GetRoutineCheckinForDate(ctx, workspace.ID, participant.ID, time.Date(2026, 6, 23, 0, 0, 0, 0, time.UTC))
+	if err != nil || !found {
+		t.Fatalf("previous checkin found=%v err=%v", found, err)
+	}
+	if got := []string{yesterday.Items[0].Text, yesterday.Items[1].Text}; fmt.Sprint(got) != "[старая зарядка старый сон]" {
+		t.Fatalf("previous checkin should keep old routine, got %v", got)
+	}
+	newPlan, found, err := q.GetRoutinePlan(ctx, workspace.ID, participant.ID)
+	if err != nil || !found {
+		t.Fatalf("new plan found=%v err=%v", found, err)
+	}
+	if fmt.Sprint(newPlan.Items) != "[новая работа новый спорт]" {
+		t.Fatalf("new routine was not saved: %v", newPlan.Items)
 	}
 }
 
