@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
 )
+
+var errGoalInputNotAccepted = errors.New("goal input was not accepted")
 
 func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
@@ -107,14 +110,20 @@ func (s *Service) consumeGoalWeeklyReview(ctx context.Context, workspace postgre
 		reviewID := payloadInt64(pending.Payload, "review_id")
 		input := telegram.NewMessageInput(message)
 		review, saved, err := q.SubmitGoalWeeklyReview(ctx, reviewID, message.From.ID, input.TextHTML)
-		if err != nil || !saved {
+		if err != nil {
 			return err
 		}
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
-			ChatID:    message.Chat.ID,
-			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
-			Text:      ui.FormatGoalWeeklyReviewSaved(review),
-		})
+		if !saved {
+			return errGoalInputNotAccepted
+		}
+		text := ui.FormatGoalWeeklyReviewSaved(review)
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+				ChatID:          message.Chat.ID,
+				MessageThreadID: message.MessageThreadID,
+				Text:            text,
+			}))
+		}
 		return nil
 	})
 }
@@ -186,14 +195,20 @@ func (s *Service) consumeGoalFinalReflection(ctx context.Context, workspace post
 		}
 		input := telegram.NewMessageInput(message)
 		review, saved, err := q.CompleteGoalFinalReview(ctx, goalSetID, message.From.ID, input.TextHTML)
-		if err != nil || !saved {
+		if err != nil {
 			return err
 		}
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
-			ChatID:    message.Chat.ID,
-			MessageID: payloadInt64(pending.Payload, "prompt_message_id"),
-			Text:      ui.FormatGoalFinalReviewSaved(goalSet, review),
-		})
+		if !saved {
+			return errGoalInputNotAccepted
+		}
+		text := ui.FormatGoalFinalReviewSaved(goalSet, review)
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+				ChatID:          message.Chat.ID,
+				MessageThreadID: message.MessageThreadID,
+				Text:            text,
+			}))
+		}
 		return nil
 	})
 }

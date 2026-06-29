@@ -1,13 +1,13 @@
 # Handoff
 
 Проект: trackmate
-Обновлено: 2026-06-29
+Обновлено: 2026-06-30
 
 ## Цель
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-028`
+- active step: `STEP-027`
 - status: `готово`
 
 ## Завершено
@@ -189,6 +189,16 @@
   - active routine card ids `3655`, `3656`, `3657` уже отсутствовали в Telegram (`message to delete not found`);
   - `api`, `worker`, `postgres` снова running после операции;
   - важно для следующего update message: попросить участников заново настроить рутины.
+- Закрыт STEP-027 по S026/REQ-049:
+  - полный live E2E текущего локального head выполнен на тестовом Telegram-боте, run id `s030-015143`;
+  - сценарии `00`, `01..11`, split `12`, split `13`, `14` прошли после исправлений;
+  - найден и исправлен реальный bug: `pending_inputs.created_at` создавался через `now()` Postgres, а worker чистил stale inputs по управляемым часам E2E; теперь pending использует `CurrentNow`;
+  - routine reason prompt теперь отправляется отдельным root-сообщением в topic, чтобы Telegram topic history и E2E видели его как обычное сообщение, а не nested reply;
+  - weekly/final цели получили fallback-сообщение, если edit prompt не прошел, чтобы сохраненный ответ не пропадал визуально;
+  - `/control/tick` больше не возвращает ложное `ok`, если worker lock занят: control endpoint ждет реальный tick или отдает ошибку;
+  - E2E reset чистит `goal_nudge_cooldowns`, чтобы deterministic goal-nudge не подавлялся старым cooldown;
+  - сценарий `09-progress-topic-event` проверяет видимый текст в `Прогресс`, а не ждет новое изменение после уже опубликованного события;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -207,6 +217,7 @@
 - STEP-025 validation: `go test ./internal/domain ./internal/ui ./internal/storage/postgres ./internal/app/goals ./internal/bot ./internal/worker`: pass; `make docker-up`: pass; `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass; `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - STEP-026 validation: `go test ./internal/bot ./internal/ui ./internal/messages ./internal/app/goals ./internal/storage/postgres`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - S027 production reset validation: backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`: pass; Telegram leaderboard edit message `3285`: ok; prod SQL `routine_reset_verify|0|0|0|0`: pass; `docker compose ps`: `api`/`worker`/`postgres` running.
+- STEP-027 validation: `make docker-up`: pass; `docker compose ps`: `api`/`worker`/`postgres` healthy; live E2E run `s030-015143`: scenarios `00`, `01..11`, split `12`, split `13`, `14` pass; log scan found no `timeout`, `error`, `panic`; DB summary after final scenario: `pending_inputs=0`, unpublished progress `0`; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate`: pass.
 - `telegram-bot-e2e-test-tool make doctor`: pass.
 - `telegram-bot-e2e-test-tool make test`: pass.
 - Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.

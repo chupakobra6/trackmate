@@ -5,10 +5,10 @@
 {"id":"open_goals_setup","action":"click_button","button_text":"✏️ Настроить цели","timeout_ms":60000}
 {"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}
 {"id":"send_goals","action":"send_text","text":"1. Работа\n— Результат: получить предложение о работе в серверной разработке до 01.09.2026\n— Метрика: 10 подходящих откликов в неделю\n— Шаг недели: 2 сессии подготовки + 5 откликов\n— Зачем: восстановить доход"}
-{"id":"wait_goals_saved","action":"wait","timeout_ms":90000}
+{"id":"wait_goals_saved","action":"assert_visible_text","text":"Обзор будет приходить раз в две недели","timeout_ms":90000}
 {"id":"wait_weekly_review_prompt","action":"assert_visible_text","text":"Обзор целей","timeout_ms":120000}
 {"id":"send_weekly_review","action":"send_text","text":"Шаги: сделал 6 откликов и обновил резюме.\nСложности: сбивался режим.\nСледующие две недели: 10 откликов + 2 тренировочных собеседования."}
-{"id":"wait_weekly_saved","action":"wait","timeout_ms":90000}
+{"id":"wait_weekly_saved","action":"assert_visible_text","text":"Обзор целей сохранен","timeout_ms":90000}
 {"id":"wait_final_review_prompt","action":"assert_visible_text","text":"Итог периода","timeout_ms":120000}
 {"id":"choose_final_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Итог периода","timeout_ms":60000}
 {"id":"wait_final_summary_prompt","action":"wait","timeout_ms":60000}

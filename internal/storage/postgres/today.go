@@ -396,15 +396,19 @@ func (q *Queries) UpsertPendingInput(ctx context.Context, workspaceID int64, use
 	if err != nil {
 		return PendingInput{}, err
 	}
+	current, err := q.CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return PendingInput{}, err
+	}
 	row := q.db.QueryRow(ctx, `
 INSERT INTO pending_inputs (workspace_group_id, user_id, message_thread_id, kind, payload, created_at)
-VALUES ($1, $2, $3, $4, $5, now())
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (workspace_group_id, user_id, message_thread_id) DO UPDATE SET
     kind = EXCLUDED.kind,
     payload = EXCLUDED.payload,
-    created_at = now()
+    created_at = EXCLUDED.created_at
 RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
-`, workspaceID, userID, threadID, string(kind), encoded)
+`, workspaceID, userID, threadID, string(kind), encoded, current)
 	return scanPending(row)
 }
 

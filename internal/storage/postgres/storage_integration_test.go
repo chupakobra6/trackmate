@@ -219,7 +219,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if reset.DeletedTasks != 1 || reset.DeletedAlerts != 1 || reset.DeletedPending != 0 || reset.DeletedProgress != 1 || reset.DeletedRoutines != 1 || reset.DeletedGoals != 1 || reset.ResetSetup != 1 {
+	if reset.DeletedTasks != 1 || reset.DeletedAlerts != 1 || reset.DeletedPending != 0 || reset.DeletedProgress != 1 || reset.DeletedRoutines != 1 || reset.DeletedCheckins != 1 || reset.DeletedGoals != 1 || reset.DeletedNudges != 1 || reset.ResetSetup != 1 {
 		t.Fatalf("unexpected reset result: %+v", reset)
 	}
 	reloaded, found, err := q.GetWorkspaceByChatID(ctx, workspace.ChatID)

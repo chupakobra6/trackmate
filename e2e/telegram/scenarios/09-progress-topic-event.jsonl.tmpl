@@ -11,4 +11,4 @@
 {"id":"send_report","action":"send_text","text":"Задача закрыта, жду событие в теме «Прогресс»."}
 {"id":"wait_report_saved","action":"wait","timeout_ms":90000}
 {"id":"select_progress","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
-{"id":"wait_progress_event","action":"wait","timeout_ms":120000}
+{"id":"wait_progress_event","action":"assert_visible_text","text":"Задача закрыта, жду событие в теме «Прогресс»","timeout_ms":120000}

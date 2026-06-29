@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -52,7 +53,7 @@ func run() error {
 	ticker := time.NewTicker(time.Duration(cfg.WorkerTickSeconds) * time.Second)
 	defer ticker.Stop()
 	for {
-		if err := runner.Tick(ctx, time.Now().UTC()); err != nil {
+		if err := runner.Tick(ctx, time.Now().UTC()); err != nil && !errors.Is(err, worker.ErrWorkerLockBusy) {
 			logger.ErrorContext(ctx, "worker_tick_failed", "error", err)
 		}
 		select {

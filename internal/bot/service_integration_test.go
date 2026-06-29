@@ -554,8 +554,8 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 			t.Fatalf("routine reason prompt missing %q: %s", part, fake.sent[0].Text)
 		}
 	}
-	if fake.sent[0].ReplyToMessageID != 100 {
-		t.Fatalf("routine reason prompt should reply to main card: %+v", fake.sent[0])
+	if fake.sent[0].ReplyToMessageID != 0 {
+		t.Fatalf("routine reason prompt should stay in topic root, got reply: %+v", fake.sent[0])
 	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
 		t.Fatalf("routine reason pending found=%v pending=%+v err=%v", found, pending, err)
@@ -595,6 +595,65 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}
 	if progressCount != 0 {
 		t.Fatalf("routine flow must not publish progress events, got %d", progressCount)
+	}
+}
+
+func TestRoutineReasonRollbackKeepsPendingWhenReasonNotAccepted(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, owner.ID, owner.UserID, []string{"зарядка"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 43, 13, domain.PendingRoutineReason, map[string]any{
+		"checkin_id":        checkin.ID,
+		"item_index":        0,
+		"status":            string(domain.RoutineItemFailed),
+		"card_message_id":   100,
+		"prompt_message_id": 101,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	reason := telegram.Message{
+		MessageID:       301,
+		MessageThreadID: 13,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: 43, Username: "wrong", FirstName: "Другой"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Не мой чек-ин",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &reason}); err == nil {
+		t.Fatal("expected routine reason to fail and keep pending input")
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, 43, 13); err != nil || !found || pending.Kind != domain.PendingRoutineReason {
+		t.Fatalf("routine pending should remain found=%v pending=%+v err=%v", found, pending, err)
+	}
+	updated, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found {
+		t.Fatalf("routine checkin found=%v err=%v", found, err)
+	}
+	if updated.Items[0].Status != nil || updated.Items[0].ReasonText != nil {
+		t.Fatalf("routine item should not be changed: %+v", updated.Items[0])
+	}
+	if len(fake.deleted) != 0 || len(fake.edits) != 0 {
+		t.Fatalf("routine failure should not touch Telegram messages: deleted=%+v edits=%+v", fake.deleted, fake.edits)
 	}
 }
 
@@ -775,6 +834,135 @@ WHERE workspace_group_id = $1 AND participant_id = $2
 	}
 	if sourceMessageID != 301 || sourceThreadID != 14 {
 		t.Fatalf("goals source message not stored: message=%d thread=%d", sourceMessageID, sourceThreadID)
+	}
+}
+
+func TestGoalWeeklyReviewRollbackKeepsPendingWhenReviewNotAccepted(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period, err := domain.CurrentGoalPeriod(workspace.Timezone, time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, owner.ID, owner.UserID, period, "1. Работа", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalWeeklyReviewPrompt(ctx, review.ID, 701, 14); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 43, 14, domain.PendingGoalWeeklyReview, map[string]any{
+		"review_id":         review.ID,
+		"goal_set_id":       goalSet.ID,
+		"prompt_message_id": 701,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := telegram.Message{
+		MessageID:       801,
+		MessageThreadID: 14,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: 43, Username: "wrong", FirstName: "Другой"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Шаги: не мои цели",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &response}); err == nil {
+		t.Fatal("expected weekly review to fail and keep pending input")
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, 43, 14); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
+		t.Fatalf("goal pending should remain found=%v pending=%+v err=%v", found, pending, err)
+	}
+	var responseText *string
+	if err := store.Pool().QueryRow(ctx, `SELECT response_text FROM seasonal_goal_weekly_reviews WHERE id = $1`, review.ID).Scan(&responseText); err != nil {
+		t.Fatal(err)
+	}
+	if responseText != nil {
+		t.Fatalf("weekly review should not be saved: %q", *responseText)
+	}
+	if len(fake.edits) != 0 {
+		t.Fatalf("weekly failure should not edit prompt: %+v", fake.edits)
+	}
+}
+
+func TestGoalWeeklyReviewSendsFallbackWhenPromptEditFails(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	fake.editErrors = map[int64]error{701: errors.New("message to edit not found")}
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period, err := domain.CurrentGoalPeriod(workspace.Timezone, time.Date(2026, 6, 29, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, owner.ID, owner.UserID, period, "1. Работа", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	review, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 7, 6, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalWeeklyReviewPrompt(ctx, review.ID, 701, 14); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, owner.UserID, 14, domain.PendingGoalWeeklyReview, map[string]any{
+		"review_id":         review.ID,
+		"goal_set_id":       goalSet.ID,
+		"prompt_message_id": 701,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	response := telegram.Message{
+		MessageID:       801,
+		MessageThreadID: 14,
+		DateUnix:        time.Now().Unix(),
+		From:            &telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"},
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		Text:            "Шаги: обновил резюме",
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &response}); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, owner.UserID, 14); err != nil || found {
+		t.Fatalf("goal pending should be cleared found=%v err=%v", found, err)
+	}
+	var responseText *string
+	if err := store.Pool().QueryRow(ctx, `SELECT response_text FROM seasonal_goal_weekly_reviews WHERE id = $1`, review.ID).Scan(&responseText); err != nil {
+		t.Fatal(err)
+	}
+	if responseText == nil || !strings.Contains(*responseText, "обновил резюме") {
+		t.Fatalf("weekly review was not saved: %v", responseText)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Обзор целей сохранен") || !fake.sent[0].DisableNotification {
+		t.Fatalf("expected silent fallback confirmation, got %+v", fake.sent)
 	}
 }
 

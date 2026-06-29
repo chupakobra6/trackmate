@@ -2,6 +2,7 @@ package bot
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -12,6 +13,8 @@ import (
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
 )
+
+var errRoutineInputNotAccepted = errors.New("routine input was not accepted")
 
 func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
@@ -140,7 +143,6 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 				ChatID:              callback.Message.Chat.ID,
 				MessageThreadID:     callback.Message.MessageThreadID,
 				Text:                ui.FormatRoutineReasonPrompt(checkin.Items[itemIndex].Text),
-				ReplyToMessageID:    callback.Message.MessageID,
 				DisableNotification: true,
 			})
 			if err != nil {
@@ -177,8 +179,11 @@ func (s *Service) consumeRoutineReason(ctx context.Context, workspace postgres.W
 		input := telegram.NewMessageInput(message)
 		reason := input.TextHTML
 		updated, saved, err := q.SetRoutineCheckinItemStatus(ctx, checkinID, message.From.ID, itemIndex, status, &reason)
-		if err != nil || !saved {
+		if err != nil {
 			return err
+		}
+		if !saved {
+			return errRoutineInputNotAccepted
 		}
 		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
 		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)

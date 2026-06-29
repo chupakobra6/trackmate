@@ -14,7 +14,9 @@ type ResetWorkspaceResult struct {
 	DeletedPending  int64 `json:"deleted_pending_inputs"`
 	DeletedProgress int64 `json:"deleted_progress_events"`
 	DeletedRoutines int64 `json:"deleted_routine_plans"`
+	DeletedCheckins int64 `json:"deleted_routine_checkins"`
 	DeletedGoals    int64 `json:"deleted_goal_sets"`
+	DeletedNudges   int64 `json:"deleted_goal_nudge_cooldowns"`
 	ResetSetup      int64 `json:"reset_setup_messages"`
 }
 
@@ -44,6 +46,11 @@ func (q *Queries) ResetWorkspaceForE2E(ctx context.Context, chatID int64) (Reset
 		return result, err
 	}
 	result.DeletedTasks = tag.RowsAffected()
+	tag, err = q.db.Exec(ctx, `DELETE FROM routine_checkins WHERE workspace_group_id = $1`, workspace.ID)
+	if err != nil {
+		return result, err
+	}
+	result.DeletedCheckins = tag.RowsAffected()
 	tag, err = q.db.Exec(ctx, `DELETE FROM routine_plans WHERE workspace_group_id = $1`, workspace.ID)
 	if err != nil {
 		return result, err
@@ -54,6 +61,11 @@ func (q *Queries) ResetWorkspaceForE2E(ctx context.Context, chatID int64) (Reset
 		return result, err
 	}
 	result.DeletedGoals = tag.RowsAffected()
+	tag, err = q.db.Exec(ctx, `DELETE FROM goal_nudge_cooldowns WHERE workspace_group_id = $1`, workspace.ID)
+	if err != nil {
+		return result, err
+	}
+	result.DeletedNudges = tag.RowsAffected()
 	tag, err = q.db.Exec(ctx, `
 UPDATE workspace_groups
 SET setup_status = 'pending',

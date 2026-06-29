@@ -1,7 +1,7 @@
 # Чеклист Требований
 
 Проект: trackmate
-Обновлено: 2026-06-29
+Обновлено: 2026-06-30
 
 ## Значения Статусов
 Используй `кандидат`, `принято`, `в работе`, `готово`, `отложено`, `заблокировано` или `отклонено`.
@@ -57,7 +57,7 @@
 | REQ-046 | `готово` | S024 | Переделать обзор целей на период раз в две недели и убрать дублирование полного текста целей. | Обзор целей приходит раз в две недели по воскресеньям после 20:00; prompt содержит ссылку на исходное сообщение целей, дни и число будущих проверок до итога, но не вставляет полный текст целей; финальный prompt тоже ссылается на цели без echo. | `migrations/202606290003_track_goal_source_message.sql`, `internal/domain/rules.go`, `internal/app/goals/goals.go`, `internal/bot/goals.go`, `internal/ui/formatters.go`; focused tests |
 | REQ-047 | `отложено` | S024 | Отдельно отревьювить все вопросы и случайные вставки Trackmate. | В будущем пройти тексты вопросов в goal nudges, goals review/final prompts, routine prompts и Today случайных вставках; проверить пользу, тон, частоту и отсутствие лишних уточнений вроде `сезонные`, где контекст уже понятен. | todo |
 | REQ-048 | `готово` | S025 | Исправить хронологию подтверждения при сохранении целей. | При вводе целей Trackmate не редактирует старый prompt выше по истории, не отвечает reply на пользовательское сообщение и не эхо-вставляет полный текст целей; старый prompt удаляется, сообщение пользователя остается источником, а новое тихое подтверждение отправляется после него и содержит ссылку на слово `Цели`. | `internal/bot/goals.go`, `internal/ui/formatters.go`, `internal/messages/messages.md`, `TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho` |
-| REQ-049 | `отложено` | S026 | Выполнить полный live E2E текущего локального head и сверить историю сообщений. | Все сценарии `00..14` проходят на тестовом Telegram-боте; новые правки проверены по видимой истории и БД: цели не echo-ятся, source link ведет на сообщение целей, обзор целей идет раз в две недели, routine timing/alerts/cleanup работают, pending inputs изолированы, Progress-ссылки кликабельны. | pending |
+| REQ-049 | `готово` | S026 | Выполнить полный live E2E текущего локального head и сверить историю сообщений. | Все сценарии `00..14` проходят на тестовом Telegram-боте; новые правки проверены по видимой истории и БД: цели не echo-ятся, source link ведет на сообщение целей, обзор целей идет раз в две недели, routine timing/alerts/cleanup работают, pending inputs изолированы, Progress-ссылки кликабельны. | Live E2E run `s030-015143`; logs `tmp/e2e-live-logs-s030-015143`; DB `pending_inputs=0`, unpublished progress `0`; `go test ./...`; `make test`; `make lint`; `git diff --check`; `loopctl.py validate` |
 | REQ-050 | `готово` | S027 | Сбросить production-рутины и зафиксировать просьбу заново настроить их в будущем апдейт-сообщении. | В основной группе production routine plans/checkins/items/pending inputs обнулены; таблица рутин сброшена в пустое состояние; сервисы снова running; в handoff есть заметка попросить участников заново настроить рутины. | backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`; prod SQL `routine_reset_verify|0|0|0|0`; Telegram edit leaderboard ok; services running |
 
 ## Ограничения
@@ -79,7 +79,7 @@
 | VAL-004 | `готово` | S003 | После Docker availability выполнить полное тестирование с PostgreSQL. | `docker compose ps`; `TRACKMATE_TEST_DATABASE_URL=... go test ./...`; `go test ./... -cover`; `make lint`; `make test`; `make migrate`; `loopctl.py validate`. |
 | VAL-005 | `готово` | S004 | Выполнить полный live E2E на тестовом Telegram-боте по новым workflow и исправить найденные ошибки. | Setup/Today/Routine/Goals/Progress/alerts scenarios через `telegram-bot-e2e-test-tool`; failing scenarios повторены после fixes; final review timezone regression covered by `TestGoalFinalReviewDueUsesWorkspaceLocalDate`. |
 | VAL-006 | `готово` | S009 | Покрыть topic-scoped pending, stale cleanup и routine transitions тестами. | `go test ./internal/domain ./internal/storage/postgres ./internal/app/pending ./internal/app/routine ./internal/app/goals ./internal/worker ./internal/bot ./internal/ui`; `go test ./... -count=1`; `make test`; `make lint`. DB-backed integration tests and PostgreSQL `make migrate` blocked locally because Docker daemon is unavailable. |
-| VAL-007 | `отложено` | S026 | Перед ревью текущей пачки прогнать полный Telegram E2E и сохранить evidence. | pending |
+| VAL-007 | `готово` | S026 | Перед ревью текущей пачки прогнать полный Telegram E2E и сохранить evidence. | Live E2E run `s030-015143`: scenarios `00`, `01..11`, split `12`, split `13`, `14`; final log scan found no timeout/error/panic; DB summary had `pending_inputs=0` and unpublished progress `0`; `go test ./...`, `make test`, `make lint`, `git diff --check`, `loopctl.py validate` pass. |
 
 ## Границы Объема
 | ID | Статус | Источник | Граница | Примечания |

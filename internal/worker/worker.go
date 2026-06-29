@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -23,10 +24,15 @@ type Runner struct {
 	Logger *slog.Logger
 }
 
+var ErrWorkerLockBusy = errors.New("worker lock is busy")
+
 func (r *Runner) Tick(ctx context.Context, now time.Time) error {
 	acquired, err := r.Store.TryAcquireWorkerLock(ctx)
 	if err != nil || !acquired {
-		return err
+		if err != nil {
+			return err
+		}
+		return ErrWorkerLockBusy
 	}
 	defer r.Store.ReleaseWorkerLock(ctx)
 

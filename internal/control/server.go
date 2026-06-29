@@ -3,6 +3,7 @@ package control
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -89,8 +90,24 @@ func (s *Server) handleClock(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleTick(w http.ResponseWriter, r *http.Request) {
-	err := s.Worker.Tick(r.Context(), time.Now().UTC())
-	writeJSON(w, map[string]any{"ok": err == nil}, err)
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		err := s.Worker.Tick(r.Context(), time.Now().UTC())
+		if !errors.Is(err, worker.ErrWorkerLockBusy) {
+			writeJSON(w, map[string]any{"ok": err == nil}, err)
+			return
+		}
+		if time.Now().After(deadline) {
+			http.Error(w, worker.ErrWorkerLockBusy.Error(), http.StatusConflict)
+			return
+		}
+		select {
+		case <-r.Context().Done():
+			writeJSON(w, map[string]any{"ok": false}, r.Context().Err())
+			return
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
 }
 
 func int64Param(w http.ResponseWriter, r *http.Request, key string) (int64, bool) {
