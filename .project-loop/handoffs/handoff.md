@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-026`
+- active step: `STEP-028`
 - status: `готово`
 
 ## Завершено
@@ -182,6 +182,13 @@
   - подтверждение теперь отправляется новым тихим сообщением ниже ввода, не reply и без полной вставки текста целей;
   - слово `Цели` в подтверждении ведет на исходное сообщение пользователя;
   - production deploy не выполнялся.
+- Закрыт production operation S027:
+  - перед сбросом снят backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`;
+  - в основной группе `Haru` сброшены сохраненные рутины и статистика рутин: `routine_plans=0`, `routine_checkins=0`, `routine_checkin_items=0`, routine pending inputs `0`;
+  - таблица рутин message `3285` отредактирована в пустое состояние;
+  - active routine card ids `3655`, `3656`, `3657` уже отсутствовали в Telegram (`message to delete not found`);
+  - `api`, `worker`, `postgres` снова running после операции;
+  - важно для следующего update message: попросить участников заново настроить рутины.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -199,6 +206,7 @@
 - STEP-024 validation: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/worker`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - STEP-025 validation: `go test ./internal/domain ./internal/ui ./internal/storage/postgres ./internal/app/goals ./internal/bot ./internal/worker`: pass; `make docker-up`: pass; `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass; `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - STEP-026 validation: `go test ./internal/bot ./internal/ui ./internal/messages ./internal/app/goals ./internal/storage/postgres`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- S027 production reset validation: backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`: pass; Telegram leaderboard edit message `3285`: ok; prod SQL `routine_reset_verify|0|0|0|0`: pass; `docker compose ps`: `api`/`worker`/`postgres` running.
 - `telegram-bot-e2e-test-tool make doctor`: pass.
 - `telegram-bot-e2e-test-tool make test`: pass.
 - Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.
