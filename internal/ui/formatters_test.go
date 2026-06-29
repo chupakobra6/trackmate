@@ -200,10 +200,48 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 		t.Fatalf("routine reminder kept old wording: %s", reminder)
 	}
 
-	autoClosed := RoutineAutoClosedText(checkin)
+	autoClosed := RoutineAutoClosedText(checkin, "Игорь", "igor", 42)
 	for _, part := range []string{"⚠️ <b>Рутина за 28.06 закрыта</b>", "Неотмеченные пункты стали невыполненными"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("routine auto-close notice missing %q: %s", part, autoClosed)
 		}
+	}
+}
+
+func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
+	reminderCheckin := postgres.RoutineCheckin{
+		ID:          1,
+		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
+	}
+	reminder := RoutineReminderText(reminderCheckin, "Егор Ковалец", "whysoxxx", 77)
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, где рутина, бро?", "не будь нищим по дисциплине"} {
+		if !strings.Contains(reminder, part) {
+			t.Fatalf("personal routine reminder missing %q: %s", part, reminder)
+		}
+	}
+
+	autoClosedCheckin := postgres.RoutineCheckin{
+		ID:          3,
+		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
+	}
+	autoClosed := RoutineAutoClosedText(autoClosedCheckin, "Егор Ковалец", "whysoxxx", 77)
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, рутина ушла в минус", "Не будь нищим по дисциплине"} {
+		if !strings.Contains(autoClosed, part) {
+			t.Fatalf("personal routine auto-close missing %q: %s", part, autoClosed)
+		}
+	}
+}
+
+func TestPersonalDailyAlertCopyForEgor(t *testing.T) {
+	alert := AlertText(domain.AlertDayClosedPendingReport, "Егор Ковалец", "whysoxxx", 77, "daily-alert:3:day_closed_pending_report")
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, где дела, бро?", "Закрой итог"} {
+		if !strings.Contains(alert, part) {
+			t.Fatalf("personal daily alert missing %q: %s", part, alert)
+		}
+	}
+
+	defaultAlert := AlertText(domain.AlertDayClosedPendingReport, "Игорь", "igor", 42, "daily-alert:3:day_closed_pending_report")
+	if strings.Contains(defaultAlert, "Егор") || !strings.Contains(defaultAlert, "День закончился") {
+		t.Fatalf("default daily alert changed unexpectedly: %s", defaultAlert)
 	}
 }

@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -182,6 +183,42 @@ func TestGoalWeeklyReviewDueOnSundayEvening(t *testing.T) {
 func TestGoalNudgeIsDeterministic(t *testing.T) {
 	if ShouldShowGoalNudge("same-seed") != ShouldShowGoalNudge("same-seed") {
 		t.Fatal("nudge decision must be stable for one seed")
+	}
+}
+
+func TestPersonalAlertTargetsOnlyEgorWithWUsername(t *testing.T) {
+	if !isPersonalAlertTarget("whysoxxx", "Егор Ковалец") {
+		t.Fatal("expected Egor with w username to be a personal alert target")
+	}
+	for _, item := range []struct {
+		username    string
+		displayName string
+	}{
+		{username: "whysoxxx", displayName: "Игорь"},
+		{username: "igor", displayName: "Егор Ковалец"},
+		{username: "", displayName: "Егор Ковалец"},
+	} {
+		if isPersonalAlertTarget(item.username, item.displayName) {
+			t.Fatalf("unexpected personal alert target: %+v", item)
+		}
+	}
+}
+
+func TestPersonalAlertUsesStableThirtyPercentBucket(t *testing.T) {
+	if ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", "same-seed") != ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", "same-seed") {
+		t.Fatal("personal alert decision must be stable for one seed")
+	}
+	shown := 0
+	for i := 0; i < 1000; i++ {
+		if ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", fmt.Sprintf("seed-%d", i)) {
+			shown++
+		}
+	}
+	if shown < 250 || shown > 350 {
+		t.Fatalf("unexpected personal alert share: %d/1000", shown)
+	}
+	if ShouldShowPersonalAlert("whysoxxx", "Игорь", "seed-1") {
+		t.Fatal("personal alert should not show for non-target display name")
 	}
 }
 

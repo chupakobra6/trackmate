@@ -104,7 +104,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			notice, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
 				ChatID:          item.Workspace.ChatID,
 				MessageThreadID: *item.Checkin.CardMessageThreadID,
-				Text:            ui.RoutineAutoClosedText(closed),
+				Text:            ui.RoutineAutoClosedText(closed, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
 				ReplyMarkup:     ui.DismissKeyboard(),
 			}))
 			if err != nil {

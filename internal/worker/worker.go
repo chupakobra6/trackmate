@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -79,6 +80,19 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
 			continue
 		}
+		participant, participantFound, err := r.Store.Queries().GetParticipantByID(ctx, task.ParticipantID)
+		if err != nil {
+			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			return err
+		}
+		displayName := ""
+		username := ""
+		userID := task.OwnerUserID
+		if participantFound {
+			displayName = participant.DisplayName
+			username = participantUsername(participant)
+			userID = participant.UserID
+		}
 		workspace, found, err := r.Store.Queries().GetWorkspaceByID(ctx, task.WorkspaceGroupID)
 		if err != nil {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
@@ -100,7 +114,7 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 		message, err := r.TG.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
 			ChatID:           workspace.ChatID,
 			MessageThreadID:  todayTopic.ThreadID,
-			Text:             ui.AlertText(alert.AlertKind),
+			Text:             ui.AlertText(alert.AlertKind, displayName, username, userID, fmt.Sprintf("daily-alert:%d:%s", alert.ID, alert.AlertKind)),
 			ReplyToMessageID: optionalInt64(task.TodayCardMessageID),
 			ReplyMarkup:      ui.AlertKeyboard(task.ID, alert.ID),
 		}))
@@ -122,4 +136,11 @@ func optionalInt64(value *int64) int64 {
 		return 0
 	}
 	return *value
+}
+
+func participantUsername(participant postgres.Participant) string {
+	if participant.Username == nil {
+		return ""
+	}
+	return *participant.Username
 }

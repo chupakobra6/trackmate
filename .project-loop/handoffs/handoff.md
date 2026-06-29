@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-023`
+- active step: `STEP-024`
 - status: `готово`
 
 ## Завершено
@@ -161,6 +161,13 @@
   - добавлены helper-уровни Telegram сообщений: `SilentMessage`, `RegularMessage`, `ReplyMessage`, `PingMessage`; Progress и routine cards тихие, missed-task/routine alerts уведомляют;
   - `Прогресс` теперь показывает имя как ссылку на пользователя, а действие результата и простой media label итога ведут на исходное сообщение отчета;
   - production deploy не выполнялся.
+- Закрыт STEP-024 по S023:
+  - добавлен персональный алерт для Егора: target = username на `w` плюс display name с `Егор`;
+  - шанс 30% считается детерминированно через FNV от `username + seed события`, поэтому retry одного и того же alert не меняет текст;
+  - персональная ветка подключена к routine reminder, routine auto-close notice и daily missed-task alerts;
+  - daily worker теперь загружает participant для alert text formatter;
+  - новые видимые тексты лежат в `internal/messages/messages.md`, обычные пользователи продолжают получать прежние формулировки;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -175,6 +182,7 @@
 - `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make test`: pass.
 - `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
 - `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-024 validation: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/worker`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - `telegram-bot-e2e-test-tool make doctor`: pass.
 - `telegram-bot-e2e-test-tool make test`: pass.
 - Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.

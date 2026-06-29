@@ -19,6 +19,7 @@ const (
 	GoalWeeklyReviewHour    = 20
 	GoalNudgePercent        = 10
 	GoalNudgeCooldown       = 72 * time.Hour
+	PersonalAlertPercent    = 30
 	PendingInputMaxAge      = 24 * time.Hour
 )
 
@@ -235,6 +236,28 @@ func ShouldShowGoalNudge(seed string) bool {
 	hash := fnv.New32a()
 	_, _ = hash.Write([]byte(seed))
 	return hash.Sum32()%100 < GoalNudgePercent
+}
+
+func ShouldShowPersonalAlert(username string, displayName string, seed string) bool {
+	if !isPersonalAlertTarget(username, displayName) {
+		return false
+	}
+	hash := fnv.New32a()
+	_, _ = hash.Write([]byte(normalizeUsername(username) + ":" + seed))
+	return hash.Sum32()%100 < PersonalAlertPercent
+}
+
+func isPersonalAlertTarget(username string, displayName string) bool {
+	normalizedUsername := normalizeUsername(username)
+	if !strings.HasPrefix(normalizedUsername, "w") {
+		return false
+	}
+	normalizedName := strings.ToLower(strings.TrimSpace(displayName))
+	return strings.Contains(normalizedName, "егор") || strings.Contains(normalizedName, "egor")
+}
+
+func normalizeUsername(username string) string {
+	return strings.TrimPrefix(strings.ToLower(strings.TrimSpace(username)), "@")
 }
 
 func GoalNudgeAllowed(lastShownAt *time.Time, nowUTC time.Time) bool {

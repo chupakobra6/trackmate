@@ -111,14 +111,29 @@ func FormatRoutineReasonPrompt(itemText string) string {
 }
 
 func RoutineReminderText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64) string {
+	person := userLinkLabel(displayName, username, userID)
+	if domain.ShouldShowPersonalAlert(username, displayName, fmt.Sprintf("routine-reminder:%d", checkin.ID)) {
+		return messages.Format(
+			"routine.reminder.egor",
+			"date", checkin.CheckinDate.Format("02.01"),
+			"person", person,
+		)
+	}
 	return messages.Format(
 		"routine.reminder",
 		"date", checkin.CheckinDate.Format("02.01"),
-		"person", userLinkLabel(displayName, username, userID),
+		"person", person,
 	)
 }
 
-func RoutineAutoClosedText(checkin postgres.RoutineCheckin) string {
+func RoutineAutoClosedText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64) string {
+	if domain.ShouldShowPersonalAlert(username, displayName, fmt.Sprintf("routine-auto-closed:%d", checkin.ID)) {
+		return messages.Format(
+			"routine.auto_closed.egor",
+			"date", checkin.CheckinDate.Format("02.01"),
+			"person", userLinkLabel(displayName, username, userID),
+		)
+	}
 	return messages.Format("routine.auto_closed", "date", checkin.CheckinDate.Format("02.01"))
 }
 
@@ -295,7 +310,10 @@ func formatCustomProgressUpdate(payload map[string]any) string {
 	return strings.Join(lines, "\n")
 }
 
-func AlertText(kind domain.AlertKind) string {
+func AlertText(kind domain.AlertKind, displayName string, username string, userID int64, seed string) string {
+	if domain.ShouldShowPersonalAlert(username, displayName, seed) {
+		return messages.Format("alert.egor", "person", userLinkLabel(displayName, username, userID))
+	}
 	if kind == domain.AlertDayClosedPendingReport {
 		return messages.Text("alert.day_closed_pending_report")
 	}

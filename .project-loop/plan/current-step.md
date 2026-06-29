@@ -4,13 +4,13 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-023`
+- id: `STEP-024`
 - status: `готово`
-- objective: Локально изменить routine timing, notification levels и ссылки в `Прогресс`.
-- requirement IDs: `REQ-042..REQ-044`
-- owned paths: `internal/domain/`, `internal/app/routine/`, `internal/bot/`, `internal/worker/`, `internal/app/progress/`, `internal/storage/postgres/`, `internal/ui/`, `internal/messages/`, `docs/`, `.project-loop/`
-- validation: focused Go tests: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass
-- done criteria: routine card is created at 08:00 next day for the previous date; reminder pings at 20:00 and auto-close pings at 00:00; routine plan changes preserve the previous day's old checklist; Progress remains silent and links people/actions/media reports to useful Telegram targets.
+- objective: Локально добавить персональный 30% текст для алертов Егора.
+- requirement IDs: `REQ-045`
+- owned paths: `internal/domain/`, `internal/app/routine/`, `internal/worker/`, `internal/ui/`, `internal/messages/`, `.project-loop/`
+- validation: focused Go tests: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate`: pass
+- done criteria: routine reminder, routine auto-close notice and daily missed-task alert can use personalized Trackmate-style copy for Egor with deterministic 30% chance; non-target users keep the default copy.
 
 ## Фокус Ревью
 - Это локальная продуктовая правка, не production deploy.
@@ -18,7 +18,6 @@
 - Сохранять тексты в `internal/messages/messages.md`, не размазывать новые русские строки по Go-коду.
 
 ## Примечания
-- Новая routine-семантика: дата `D` заполняется утром `D+1` в 08:00; reminder в 20:00 `D+1`; auto-close в 00:00 `D+2`.
-- Старый список рутины сохраняется для уже наступившей проверки через snapshot check-in перед upsert нового плана.
-- `Прогресс` остается message level 1: тихие сообщения без уведомлений.
-- Missed/forgotten alerts используют notification level 4: уведомление плюс, где уместно, reply/mention.
+- Персональный текст должен быть стабильным для одного события, чтобы retry не менял сообщение.
+- Target ограничен username на `w` и display name с `Егор`, чтобы случайно не обращаться к другому `w...` пользователю как к Егору.
+- Все новые видимые строки должны оставаться в `internal/messages/messages.md`.
