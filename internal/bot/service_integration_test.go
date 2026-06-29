@@ -323,8 +323,8 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 		t.Fatal(err)
 	}
 	edit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(edit.Text, "йога?") {
-		t.Fatalf("expected next routine item edit, found=%v edit=%+v", ok, edit)
+	if !ok || !strings.Contains(edit.Text, "✅ зарядка") || strings.Contains(edit.Text, "йога?") {
+		t.Fatalf("expected routine status-only edit, found=%v edit=%+v", ok, edit)
 	}
 
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
@@ -342,7 +342,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if len(fake.sent) != 1 {
 		t.Fatalf("expected separate routine reason prompt, got %+v", fake.sent)
 	}
-	for _, part := range []string{"Коротко: что помешало?", "йога"} {
+	for _, part := range []string{"Что помешало?", "йога"} {
 		if !strings.Contains(fake.sent[0].Text, part) {
 			t.Fatalf("routine reason prompt missing %q: %s", part, fake.sent[0].Text)
 		}
@@ -537,6 +537,9 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 14); err != nil || found {
 		t.Fatalf("pending input found=%v err=%v", found, err)
 	}
+	if !fake.wasDeleted(301) {
+		t.Fatalf("goals input message should be deleted after save: %+v", fake.deleted)
+	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
 	if err != nil {
 		t.Fatal(err)
@@ -551,6 +554,32 @@ WHERE workspace_group_id = $1 AND participant_id = $2
 	}
 	if goalCount != 1 {
 		t.Fatalf("goal sets = %d, want 1", goalCount)
+	}
+}
+
+func TestNoticeDismissDeletesMessage(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+
+	answer, err := service.HandleUpdate(context.Background(), telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "notice-dismiss",
+		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Data: "notice:dismiss",
+		Message: &telegram.Message{
+			MessageID:       777,
+			MessageThreadID: 13,
+			Chat:            telegram.Chat{ID: -1001234567890, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Text != "" {
+		t.Fatalf("dismiss should be silent, got %q", answer.Text)
+	}
+	if !fake.wasDeleted(777) {
+		t.Fatalf("notice message was not deleted: %+v", fake.deleted)
 	}
 }
 

@@ -4,12 +4,12 @@
 {"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}
 {"id":"open_routine_setup","action":"click_button","button_text":"✏️ Настроить рутину","timeout_ms":60000}
 {"id":"wait_routine_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_routine_items","action":"send_text","text":"зарядка\nйога"}
+{"id":"send_routine_items","action":"send_text","text":"- зарядка\n- йога"}
 {"id":"wait_routine_saved","action":"wait","timeout_ms":90000}
-{"id":"wait_routine_card","action":"assert_visible_text","text":"1/2: зарядка?","timeout_ms":120000}
-{"id":"mark_first_done","action":"click_button","button_text":"✅ Да","message_text":"зарядка?","timeout_ms":60000}
+{"id":"wait_routine_card","action":"assert_visible_text","text":"Рутина за","timeout_ms":120000}
+{"id":"mark_first_done","action":"click_button","button_text":"✅ Да","message_text":"Рутина за","timeout_ms":60000}
 {"id":"wait_second_item","action":"wait","timeout_ms":60000}
-{"id":"mark_second_partial","action":"click_button","button_text":"🔸 Частично","message_text":"йога?","timeout_ms":60000}
-{"id":"wait_reason_prompt","action":"assert_visible_text","text":"Коротко: что помешало?","timeout_ms":60000}
+{"id":"mark_second_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Рутина за","timeout_ms":60000}
+{"id":"wait_reason_prompt","action":"assert_visible_text","text":"Что помешало?","timeout_ms":60000}
 {"id":"send_reason","action":"send_text","text":"Сорвался график."}
 {"id":"wait_routine_table","action":"wait","timeout_ms":90000}

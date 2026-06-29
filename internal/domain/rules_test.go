@@ -34,8 +34,8 @@ func TestDailyTaskTransitions(t *testing.T) {
 	}
 }
 
-func TestParseRoutineItemsAcceptsSimpleBulletsDashesAndNumbers(t *testing.T) {
-	got, err := ParseRoutineItems("  - зарядка\n— работа\n1. английский перед сном\n2) йога\n\n")
+func TestParseRoutineItemsAcceptsDashLines(t *testing.T) {
+	got, err := ParseRoutineItems("  - зарядка\n— работа\n- английский перед сном\n- йога\n\n")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,8 +50,20 @@ func TestParseRoutineItemsAcceptsSimpleBulletsDashesAndNumbers(t *testing.T) {
 	}
 }
 
+func TestParseRoutineItemsRejectsPlainLinesAndNumbers(t *testing.T) {
+	for _, input := range []string{
+		"зарядка\n- работа",
+		"1. зарядка\n- работа",
+		"• зарядка\n- работа",
+	} {
+		if _, err := ParseRoutineItems(input); err == nil {
+			t.Fatalf("expected error for %q", input)
+		}
+	}
+}
+
 func TestParseRoutineItemsRejectsTooManyItems(t *testing.T) {
-	_, err := ParseRoutineItems("1\n2\n3\n4\n5\n6\n7\n8\n9\n10")
+	_, err := ParseRoutineItems("- 1\n- 2\n- 3\n- 4\n- 5\n- 6\n- 7\n- 8\n- 9\n- 10")
 	if err == nil {
 		t.Fatal("expected error")
 	}

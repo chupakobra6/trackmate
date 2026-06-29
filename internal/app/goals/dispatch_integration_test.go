@@ -42,7 +42,7 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(40, "Еженедельная проверка целей") {
+	if !fake.hasSentToThread(40, "Недельный обзор целей") {
 		t.Fatalf("weekly review was not sent to goals topic: %+v", fake.sent)
 	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
@@ -55,7 +55,7 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if err := appgoals.DispatchFinalReviews(ctx, store, fake, time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(40, "Финал периода") {
+	if !fake.hasSentToThread(40, "Итог периода") {
 		t.Fatalf("final review was not sent to goals topic: %+v", fake.sent)
 	}
 }

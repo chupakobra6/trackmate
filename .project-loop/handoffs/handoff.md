@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-014`
+- active step: `STEP-015`
 - status: `готово`
 
 ## Завершено
@@ -88,6 +88,17 @@
   - production schema исправлена вручную: старый constraint `uq_pending_inputs_workspace_group_id` удален, остался `ux_pending_inputs_workspace_user_thread`;
   - старые Telegram messages `3385` и `3404` удалить не удалось: Bot API вернул `Bad Request: message can't be deleted`;
   - локально добавлена миграция `202606290001_drop_legacy_pending_input_unique.sql`, production deploy кода не выполнялся.
+- Закрыт STEP-015 по S014:
+  - все пользовательские тексты, подписи кнопок, callback-ответы, media labels и названия сезонов вынесены в `internal/messages/messages.md`;
+  - добавлен `internal/messages` с `go:embed`-импортом и тестами загрузки/шаблонов;
+  - production Go-код больше не содержит русских user-facing string literals вне каталога сообщений;
+  - prompt рутины упрощен: пример только через дефисы `-`, без текста про максимум;
+  - routine parser теперь принимает только пункты с `-` или `—`, номера/буллеты/свободные строки отклоняет;
+  - основная карточка рутины больше не показывает `1/N: пункт?`, а только дату, пояснение и список статусов;
+  - служебные notice/problem messages получили общий `notice:dismiss` и кнопку `👀 Понял`;
+  - routine reminders/auto-close notices отправляются с `Понял`, а старое напоминание удаляется при автозакрытии/ручном закрытии;
+  - при успешном сохранении рутины/целей удаляются сохраненные ошибочные user messages и текущий setup input, prompt редактируется в короткое подтверждение с `Понял`;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -146,6 +157,11 @@
 - STEP-014: `make lint`: pass.
 - STEP-014: `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
 - STEP-014: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-015 message catalog/routine input: `go test ./internal/messages ./internal/domain ./internal/ui ./internal/telegram ./internal/app/goals ./internal/app/routine ./internal/bot ./internal/worker`: pass.
+- STEP-015: `make test`: pass.
+- STEP-015: `make lint`: pass.
+- STEP-015: `git diff --check`: pass.
+- STEP-015: `loopctl.py validate .`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -157,11 +173,11 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- STEP-012 и STEP-013 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
+- STEP-012, STEP-013 и STEP-015 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
 - STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту. Текущие локальные fixes STEP-012/STEP-013 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

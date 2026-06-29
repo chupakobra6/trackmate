@@ -2,12 +2,12 @@ package bot
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
 	approutine "github.com/igor/trackmate/internal/app/routine"
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -16,7 +16,7 @@ import (
 func (s *Service) handleRoutineConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
+		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -51,16 +51,17 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 	raw := messagePlainText(message)
 	items, parseErr := domain.ParseRoutineItems(raw)
 	if raw == "" || parseErr != nil {
-		text := "⚠️ <b>Пришли список текстом: один пункт на строку</b>"
+		text := messages.Text("routine.plan.invalid")
 		if parseErr != nil && strings.Contains(parseErr.Error(), "max") {
-			text = "⚠️ <b>Слишком много пунктов</b>\nОграничение — не более 9 рутин"
+			text = messages.Text("routine.plan.too_many")
 		}
 		_ = s.refreshPendingInputActivity(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pending, message.MessageID)
 		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text+"\n\n"+ui.RoutinePlanPrompt(), nil)
 		return nil
 	}
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutinePlan); err != nil || !ok {
+		claimed, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingRoutinePlan)
+		if err != nil || !ok {
 			return err
 		}
 		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
@@ -70,9 +71,11 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
 			return err
 		}
-		text := fmt.Sprintf("✅ <b>Рутины сохранены</b>\nВсего пунктов: %d\nПервая карточка придет сегодня после 20:00, если список сохранен до этого времени\nЗакрыть ее можно до 12:00 следующего дня", len(items))
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+		s.deletePendingUserMessages(ctx, message.Chat.ID, claimed.Payload)
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
+		text := messages.Text("routine.plan.saved")
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(claimed.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
 		}
 		return nil
 	})
@@ -81,7 +84,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.CallbackQuery, checkinID int64, itemIndex int, status domain.RoutineItemStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
+		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -90,20 +93,20 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			return err
 		}
 		if !found {
-			answer.Text = "Проверка не найдена"
+			answer.Text = messages.Text("routine.checkin.not_found")
 			return nil
 		}
 		if checkin.OwnerUserID != callback.From.ID {
-			answer.Text = "Отметить рутину может только ее автор"
+			answer.Text = messages.Text("routine.checkin.author_only")
 			return nil
 		}
 		if checkin.CompletedAt != nil {
-			answer.Text = "Эта проверка уже завершена"
+			answer.Text = messages.Text("routine.checkin.completed")
 			return nil
 		}
 		nextIndex := ui.NextRoutineItemIndex(checkin)
 		if nextIndex != itemIndex {
-			answer.Text = "Этот пункт уже не актуален"
+			answer.Text = messages.Text("routine.checkin.stale_item")
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
@@ -190,6 +193,9 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 	completed, ok, err := q.CompleteRoutineCheckinWithoutReflection(ctx, checkin.ID, user.ID)
 	if err != nil || !ok {
 		return err
+	}
+	if completed.ReminderMessageID != nil {
+		_ = s.Telegram.DeleteMessage(ctx, chatID, *completed.ReminderMessageID)
 	}
 	_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 		ChatID:    chatID,

@@ -3,9 +3,10 @@ package domain
 import (
 	"fmt"
 	"hash/fnv"
-	"regexp"
 	"strings"
 	"time"
+
+	"github.com/igor/trackmate/internal/messages"
 )
 
 const (
@@ -32,15 +33,25 @@ type GoalPeriod struct {
 	EndsOn   time.Time
 }
 
-var routineLinePrefix = regexp.MustCompile(`^\s*(?:[-—–*•]\s*|\d+[\.)]\s*)`)
-
 func ParseRoutineItems(raw string) ([]string, error) {
 	lines := strings.Split(raw, "\n")
 	items := make([]string, 0, len(lines))
 	for _, line := range lines {
-		item := strings.TrimSpace(routineLinePrefix.ReplaceAllString(line, ""))
-		if item == "" {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
 			continue
+		}
+		var item string
+		switch {
+		case strings.HasPrefix(trimmed, "-"):
+			item = strings.TrimSpace(strings.TrimPrefix(trimmed, "-"))
+		case strings.HasPrefix(trimmed, "—"):
+			item = strings.TrimSpace(strings.TrimPrefix(trimmed, "—"))
+		default:
+			return nil, fmt.Errorf("routine list must use dash items")
+		}
+		if item == "" {
+			return nil, fmt.Errorf("routine item is empty")
 		}
 		items = append(items, item)
 	}
@@ -135,20 +146,24 @@ func CurrentGoalPeriod(workspaceTimezone string, nowUTC time.Time) (GoalPeriod, 
 	var startMonth, endMonth time.Month
 	switch {
 	case month >= time.March && month <= time.May:
-		key, title = fmt.Sprintf("spring-%d", year), fmt.Sprintf("Весна %d", year)
+		key = fmt.Sprintf("spring-%d", year)
+		title = messages.Format("season.spring", "year", fmt.Sprint(year))
 		startMonth, endMonth = time.March, time.June
 	case month >= time.June && month <= time.August:
-		key, title = fmt.Sprintf("summer-%d", year), fmt.Sprintf("Лето %d", year)
+		key = fmt.Sprintf("summer-%d", year)
+		title = messages.Format("season.summer", "year", fmt.Sprint(year))
 		startMonth, endMonth = time.June, time.September
 	case month >= time.September && month <= time.November:
-		key, title = fmt.Sprintf("autumn-%d", year), fmt.Sprintf("Осень %d", year)
+		key = fmt.Sprintf("autumn-%d", year)
+		title = messages.Format("season.autumn", "year", fmt.Sprint(year))
 		startMonth, endMonth = time.September, time.December
 	default:
 		isWinter = true
 		if month <= time.February {
 			seasonYear = year - 1
 		}
-		key, title = fmt.Sprintf("winter-%d", seasonYear), fmt.Sprintf("Зима %d/%d", seasonYear, seasonYear+1)
+		key = fmt.Sprintf("winter-%d", seasonYear)
+		title = messages.Format("season.winter", "start_year", fmt.Sprint(seasonYear), "end_year", fmt.Sprint(seasonYear+1))
 		startMonth, endMonth = time.December, time.March
 	}
 	startYear := seasonYear

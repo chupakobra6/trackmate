@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -42,11 +43,11 @@ func MaybeNudge(ctx context.Context, q *postgres.Queries, workspace postgres.Wor
 	}
 	switch status {
 	case string(domain.DailyTaskFailed):
-		return "Как это событие влияет на твои цели до 1 сентября?", nil
+		return messages.Text("goal.nudge.failed"), nil
 	case string(domain.DailyTaskDone), string(domain.DailyTaskPartial):
-		return "Как этот итог приближает тебя к сезонным целям?", nil
+		return messages.Text("goal.nudge.done"), nil
 	default:
-		return "Связана ли эта задача с твоими целями на лето?", nil
+		return messages.Text("goal.nudge.task"), nil
 	}
 }
 

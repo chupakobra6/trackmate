@@ -4,15 +4,16 @@ import (
 	"context"
 
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 )
 
 var TopicTitles = map[domain.TopicKey]string{
-	domain.TopicToday:    "Сегодня",
-	domain.TopicProgress: "Прогресс",
-	domain.TopicRoutine:  "Рутины",
-	domain.TopicGoals:    "Цели",
+	domain.TopicToday:    messages.Text("topic.today.title"),
+	domain.TopicRoutine:  messages.Text("topic.routine.title"),
+	domain.TopicGoals:    messages.Text("topic.goals.title"),
+	domain.TopicProgress: messages.Text("topic.progress.title"),
 }
 
 type Prerequisites struct {

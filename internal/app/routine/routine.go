@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -87,6 +88,9 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			if !completed {
 				continue
 			}
+			if item.Checkin.ReminderMessageID != nil {
+				_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.ReminderMessageID)
+			}
 			_ = tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
 				ChatID:    item.Workspace.ChatID,
 				MessageID: *item.Checkin.CardMessageID,
@@ -94,13 +98,14 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 					updated,
 					item.Participant.DisplayName,
 					participantUsername(item.Participant),
-					"Время вышло. Неотмеченные пункты засчитаны как невыполненные.",
+					messages.Text("routine.auto_closed.notice"),
 				),
 			})
 			if _, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
 				ChatID:              item.Workspace.ChatID,
 				MessageThreadID:     *item.Checkin.CardMessageThreadID,
 				Text:                ui.RoutineAutoClosedText(updated),
+				ReplyMarkup:         ui.DismissKeyboard(),
 				ReplyToMessageID:    *item.Checkin.CardMessageID,
 				DisableNotification: true,
 			}); err != nil {
@@ -123,6 +128,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			ChatID:              item.Workspace.ChatID,
 			MessageThreadID:     *item.Checkin.CardMessageThreadID,
 			Text:                ui.RoutineReminderText(item.Checkin),
+			ReplyMarkup:         ui.DismissKeyboard(),
 			ReplyToMessageID:    *item.Checkin.CardMessageID,
 			DisableNotification: true,
 		})

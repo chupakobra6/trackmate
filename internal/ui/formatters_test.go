@@ -96,17 +96,20 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 		},
 	}
 	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "Отметь, как прошел этот день", "<b>1/2:</b> зарядка?"} {
+	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "Отметь пункты за этот день", "— зарядка", "— английский"} {
 		if !strings.Contains(card, part) {
 			t.Fatalf("routine card missing %q: %s", part, card)
 		}
+	}
+	if strings.Contains(card, "1/2:") || strings.Contains(card, "зарядка?") {
+		t.Fatalf("routine card should not ask item inside the main card: %s", card)
 	}
 	statusOnly := FormatRoutineCheckinStatusCard(checkin, "Игорь", "igor", "")
 	if strings.Contains(statusOnly, "<b>1/2:</b> зарядка?") {
 		t.Fatalf("routine status card should not ask the next item: %s", statusOnly)
 	}
 	reason := FormatRoutineReasonPrompt("зарядка")
-	for _, part := range []string{"Коротко: что помешало?", "зарядка"} {
+	for _, part := range []string{"Что помешало?", "зарядка"} {
 		if !strings.Contains(reason, part) {
 			t.Fatalf("routine reason prompt missing %q: %s", part, reason)
 		}
@@ -117,7 +120,7 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	if !strings.Contains(TodayControlText, "Здесь у каждого одна главная задача дня") {
 		t.Fatalf("today control text should keep old topic style: %s", TodayControlText)
 	}
-	if !strings.Contains(RoutineControlText, "Здесь живут повторяющиеся действия") {
+	if !strings.Contains(RoutineControlText, "Здесь живет одна ежедневная рутина") {
 		t.Fatalf("routine control text should keep old topic style: %s", RoutineControlText)
 	}
 	if !strings.Contains(ProgressIntroText, "Здесь собирается все важное") {
@@ -141,9 +144,9 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	goalSet := postgres.SeasonalGoalSet{PeriodTitle: "Лето 2026", GoalsText: "1. Работа"}
 	weekly := FormatGoalWeeklyReviewPrompt(goalSet, "Игорь", "igor")
 	for _, part := range []string{
-		"Какие шаги сделаны по сезонным целям за эту неделю?",
-		"С какими сложностями пришлось столкнуться?",
-		"Какой главный шаг планируешь на следующую неделю?",
+		"Что продвинулось по сезонным целям за эту неделю?",
+		"Что мешало двигаться?",
+		"Какой главный шаг берешь на следующую неделю?",
 	} {
 		if !strings.Contains(weekly, part) {
 			t.Fatalf("weekly prompt missing %q: %s", part, weekly)
@@ -163,5 +166,19 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	}
 	if strings.Contains(final, "Напиши короткий вывод") || strings.Contains(final, "•") {
 		t.Fatalf("final reflection prompt kept old wording or bullets: %s", final)
+	}
+}
+
+func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
+	prompt := RoutinePlanPrompt()
+	for _, part := range []string{"- зарядка", "- работа", "- английский перед сном", "- йога"} {
+		if !strings.Contains(prompt, part) {
+			t.Fatalf("routine prompt missing dash example %q: %s", part, prompt)
+		}
+	}
+	for _, forbidden := range []string{"Можно использовать маркеры", "номера", "Максимум 9"} {
+		if strings.Contains(prompt, forbidden) {
+			t.Fatalf("routine prompt should not mention %q: %s", forbidden, prompt)
+		}
 	}
 }

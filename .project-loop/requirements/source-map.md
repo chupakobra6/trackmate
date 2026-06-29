@@ -28,9 +28,11 @@
 | S011 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-c88a6f65-65d8-4919-851d-90137a4b96e9.png` | принято | Прод-наблюдение: prompt причины рутины выглядит иначе, чем обычная карточка; нужно унифицировать вид и заменить первый emoji рутины. |
 | S012 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-0914828b-48af-41a5-ac70-9785d8f1a187.png` | принято | Прод-наблюдение/UX-решение: причина по `Нет`/`Частично` должна спрашиваться отдельным временным сообщением, основная карточка рутины только отмечает пункты, финальный итог рутины убирается. |
 | S013 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-4dc107f3-ea8e-4b59-9bc4-379941454acb.png` | принято | Production bug: сообщение Егора `3386` не прикрепилось к задаче `160`, потому что старый уникальный constraint `pending_inputs(workspace_group_id,user_id)` остался после topic-scoped миграции и блокировал pending в другом топике. |
+| S014 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-3e1a8117-5364-45ec-8663-82c0445b0536.png` | принято | Copy/UX delta: routine example with dashes only, simpler style like `Сегодня`, all bot copy imported from one document, problem messages dismissible and cleaned after action/fix. |
 
 ## Конфликты
 | Источники | Решение | Дата |
 | --- | --- | --- |
 | S008 vs S009 | S009 заменяет сброс setup-черновиков между `Рутины`/`Цели`: теперь разные топики изолированы, wrong-topic сообщения игнорируются, а stale cleanup через 24 часа чистит старые pending молча. | 2026-06-24 |
 | S001/CON-001/REQ-005 vs S012 | S012 разрешает отдельные временные reason prompts для routine `Нет`/`Частично`, потому что они удаляются после ответа; final reflection рутины удаляется, чтобы не дублировать `Сегодня`. | 2026-06-29 |
+| S001 vs S014 | S014 заменяет широкий routine parser: вместо свободных строк, номеров и разных маркеров принимаются только пункты с `-` или `—`; пример в prompt тоже дефисный. | 2026-06-29 |

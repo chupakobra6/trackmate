@@ -4,21 +4,20 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-014`
+- id: `STEP-015`
 - status: `готово`
-- objective: Исправить production case Егора и закрепить schema-fix для topic-scoped pending.
-- requirement IDs: `REQ-031`
-- owned paths: `.project-loop/`, `migrations/202606290001_drop_legacy_pending_input_unique.sql`
-- validation: production SQL/log verification: pass; `TRACKMATE_TEST_DATABASE_URL=... go test ./internal/storage/postgres ./internal/bot ./internal/app/pending`: pass; `git diff --check`: pass; `make test`: pass; `make lint`: pass; `TRACKMATE__DATABASE_URL=... make migrate`: pass; `loopctl.py validate`: pass
-- done criteria: task `160` on production stores report message `3386` and status `done`; wrong auto-fail progress event removed without new chat publication; legacy pending constraint removed on production; local migration exists and validation passes.
+- objective: Централизовать тексты в `messages.md`, упростить routine copy/input и добавить dismiss для служебных problem messages.
+- requirement IDs: `REQ-032..REQ-034`
+- owned paths: `.project-loop/`, `internal/messages/`, `internal/ui/`, `internal/bot/`, `internal/app/`, `internal/domain/`, `internal/telegram/`, `e2e/telegram/scenarios/`
+- validation: `go test ./internal/messages ./internal/domain ./internal/ui ./internal/telegram ./internal/app/goals ./internal/app/routine ./internal/bot ./internal/worker`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate .`: pass
+- done criteria: visible bot copy is imported from one editable document; routine prompt uses dash examples and no max-count copy; routine parser accepts only `-`/`—` items; service notices/reminders have dismiss/action cleanup; tests pass.
 
 ## Фокус Ревью
-- Не деплоить локальные routine fixes из STEP-012/STEP-013 в рамках этой ручной прод-правки.
-- Не создавать новую публикацию в `Прогресс` при восстановлении старого отчета.
-- Схема должна разрешать несколько pending inputs для одного пользователя в разных `message_thread_id`.
+- Сохранить поведение топиков, менять только copy/input/cleanup mechanics из S014.
+- Не выносить runtime config или domain enums в copy-файл; только user-facing text.
+- Не деплоить production до отдельной команды.
 
 ## Примечания
-- Production logs 2026-06-24 19:33 UTC показали: `task:status:160:done` упал с `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"`, поэтому message `3386` не мог быть привязан к pending report.
-- На production удален legacy constraint `uq_pending_inputs_workspace_group_id`; остался `ux_pending_inputs_workspace_user_thread`.
-- Production task `160` исправлен на `done`, `report_message_id=3386`, `report_text=Голосовое сообщение`; неверный `progress_events.id=183` удален без новой публикации.
-- Telegram не дал удалить старые сообщения `3385` и `3404`: `Bad Request: message can't be deleted`.
+- S014 заменяет прежний широкий routine parser из S001.
+- `messages.md` должен быть удобен для редакторского review: один файл с ключами и HTML-разметкой Telegram.
+- Production не трогался в STEP-015.

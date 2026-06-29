@@ -5,6 +5,8 @@ import (
 	"html"
 	"sort"
 	"strings"
+
+	"github.com/igor/trackmate/internal/messages"
 )
 
 func DisplayName(user User) string {
@@ -62,73 +64,73 @@ func MessageInputText(message Message) string {
 	}
 	switch {
 	case message.Voice != nil:
-		return "Голосовое сообщение"
+		return messages.Text("input.voice")
 	case message.VideoNote != nil:
-		return "Видео-кружок"
+		return messages.Text("input.video_note")
 	case message.Video != nil:
-		return "Видео"
+		return messages.Text("input.video")
 	case len(message.Photo) > 0:
-		return "Фото"
+		return messages.Text("input.photo")
 	case message.Audio != nil:
 		if message.Audio.Title != "" && message.Audio.Performer != "" {
-			return fmt.Sprintf("Аудио: %s - %s", message.Audio.Performer, message.Audio.Title)
+			return fmt.Sprintf("%s: %s - %s", messages.Text("input.audio"), message.Audio.Performer, message.Audio.Title)
 		}
 		if message.Audio.Title != "" {
-			return "Аудио: " + message.Audio.Title
+			return messages.Text("input.audio") + ": " + message.Audio.Title
 		}
-		return "Аудио"
+		return messages.Text("input.audio")
 	case message.Document != nil:
 		if message.Document.FileName != "" {
-			return "Документ: " + message.Document.FileName
+			return messages.Text("input.document") + ": " + message.Document.FileName
 		}
-		return "Документ"
+		return messages.Text("input.document")
 	case message.Animation != nil:
-		return "Анимация"
+		return messages.Text("input.animation")
 	case message.Sticker != nil:
 		if message.Sticker.Emoji != "" {
-			return "Стикер " + message.Sticker.Emoji
+			return messages.Text("input.sticker") + " " + message.Sticker.Emoji
 		}
-		return "Стикер"
+		return messages.Text("input.sticker")
 	case message.Contact != nil:
 		if message.Contact.FirstName != "" && message.Contact.PhoneNumber != "" {
-			return fmt.Sprintf("Контакт: %s (%s)", message.Contact.FirstName, message.Contact.PhoneNumber)
+			return fmt.Sprintf("%s: %s (%s)", messages.Text("input.contact"), message.Contact.FirstName, message.Contact.PhoneNumber)
 		}
 		if message.Contact.FirstName != "" {
-			return "Контакт: " + message.Contact.FirstName
+			return messages.Text("input.contact") + ": " + message.Contact.FirstName
 		}
-		return "Контакт"
+		return messages.Text("input.contact")
 	case message.Location != nil:
-		return fmt.Sprintf("Локация: %v, %v", message.Location.Latitude, message.Location.Longitude)
+		return fmt.Sprintf("%s: %v, %v", messages.Text("input.location"), message.Location.Latitude, message.Location.Longitude)
 	case message.Venue != nil:
 		if message.Venue.Title != "" && message.Venue.Address != "" {
-			return fmt.Sprintf("Место: %s, %s", message.Venue.Title, message.Venue.Address)
+			return fmt.Sprintf("%s: %s, %s", messages.Text("input.venue"), message.Venue.Title, message.Venue.Address)
 		}
 		if message.Venue.Title != "" {
-			return "Место: " + message.Venue.Title
+			return messages.Text("input.venue") + ": " + message.Venue.Title
 		}
-		return "Место"
+		return messages.Text("input.venue")
 	case message.Poll != nil:
 		if message.Poll.Question != "" {
-			return "Опрос: " + message.Poll.Question
+			return messages.Text("input.poll") + ": " + message.Poll.Question
 		}
-		return "Опрос"
+		return messages.Text("input.poll")
 	case message.Dice != nil:
 		if message.Dice.Emoji != "" && message.Dice.Value != 0 {
-			return fmt.Sprintf("Кубик %s: %d", message.Dice.Emoji, message.Dice.Value)
+			return fmt.Sprintf("%s %s: %d", messages.Text("input.dice"), message.Dice.Emoji, message.Dice.Value)
 		}
-		return "Кубик"
+		return messages.Text("input.dice")
 	case message.Game != nil:
 		if message.Game.Title != "" {
-			return "Игра: " + message.Game.Title
+			return messages.Text("input.game") + ": " + message.Game.Title
 		}
-		return "Игра"
+		return messages.Text("input.game")
 	case message.Invoice != nil:
 		if message.Invoice.Title != "" {
-			return "Счет: " + message.Invoice.Title
+			return messages.Text("input.invoice") + ": " + message.Invoice.Title
 		}
-		return "Счет"
+		return messages.Text("input.invoice")
 	default:
-		return "Сообщение"
+		return messages.Text("input.message")
 	}
 }
 

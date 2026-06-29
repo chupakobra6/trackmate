@@ -6,65 +6,36 @@ import (
 	"strings"
 
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 )
 
-const routineHeaderEmoji = "🌿"
-
-const TodayControlText = "🎯 <b>Сегодня</b>\n" +
-	"Здесь у каждого одна главная задача дня. Нажми кнопку ниже, чтобы зафиксировать свой главный фокус.\n\n" +
-	"Как это работает:\n" +
-	"— Ты формулируешь одну главную задачу дня\n" +
-	"— Я закрепляю ее в отдельной карточке\n" +
-	"— Вечером в этой же карточке можно отметить итог"
-
-const ProgressIntroText = "✨ <b>Прогресс</b>\n" +
-	"Здесь собирается все важное в аккуратную общую ленту.\n\n" +
-	"Что появляется здесь:\n" +
-	"— Выполненные задачи участников\n" +
-	"— Автоматические итоги просроченных задач\n\n" +
-	"Так всегда видно, кто что сделал и довел до результата."
-
-const RoutineControlText = routineHeaderEmoji + " <b>Рутины</b>\n" +
-	"Здесь живут повторяющиеся действия: зарядка, английский, йога, режим и другие ежедневные опоры.\n\n" +
-	"Нажми кнопку ниже и пришли список. Я буду присылать одну карточку для отметки каждый день после 20:00.\n\n" +
-	"Закрыть ее можно до 12:00 следующего дня."
-
-const GoalsControlText = "🎯 <b>Цели</b>\n" +
-	"Здесь живут долгосрочные цели, которых мы хотим достичь за сезон (например, за лето). Нажми кнопку ниже, чтобы записать свои цели.\n\n" +
-	"Текущий период: <b>Лето 2026</b> (до <b>01.09.2026</b>)\n\n" +
-	"Рекомендую формулировать каждую цель по такой схеме:\n" +
-	"1. Направление — сфера жизни или работы (например: Спорт, Работа, Языки)\n" +
-	"— <b>Результат:</b> конкретный и измеримый финал к концу сезона\n" +
-	"— <b>Метрика:</b> показатель, по которому будет точно ясно, что цель достигнута\n" +
-	"— <b>Шаг недели:</b> регулярное простое действие на каждую неделю\n" +
-	"— <b>Зачем:</b> главный смысл цели, почему ее важно держать в фокусе"
-
-const SetupReadyText = "✅ <b>Все на месте</b>\nТемы и стартовые сообщения в порядке"
-
-const SetupRepairedText = "✨ <b>Готово</b>\nПространство оформлено, темы на месте\n\n" +
-	"Что дальше:\n" +
-	"— В <b>Сегодня</b> у каждого одна главная задача дня\n" +
-	"— В <b>Рутинах</b> — ежедневные отметки и таблица результатов\n" +
-	"— В <b>Целях</b> — долгосрочные цели и недельные обзоры\n" +
-	"— В <b>Прогрессе</b> — общая лента выполненных задач"
+var (
+	TodayControlText   = messages.Text("today.control")
+	ProgressIntroText  = messages.Text("progress.intro")
+	RoutineControlText = messages.Text("routine.control")
+	GoalsControlText   = messages.Text("goals.control")
+	SetupReadyText     = messages.Text("setup.ready")
+	SetupRepairedText  = messages.Text("setup.repaired")
+	routineHeaderEmoji = messages.Text("routine.header_emoji")
+)
 
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
-	status := "До запуска нужно закрыть несколько пунктов"
+	status := messages.Text("setup.checklist.pending")
 	if ready {
-		status = "✅ Можно начинать: все условия выполнены"
+		status = messages.Text("setup.checklist.ready")
 	}
 	lines := []string{
-		"⚙️ <b>Подготовка пространства</b>",
+		messages.Text("setup.checklist.title"),
 		status,
 		"",
-		mark(isSupergroup) + " Группа переведена в супергруппу",
-		mark(isForum) + " Темы включены",
-		mark(isAdmin) + " Бот назначен администратором",
-		mark(canManageTopics) + " Бот может управлять темами",
-		mark(canReadMessages) + " Бот видит сообщения участников",
+		mark(isSupergroup) + " " + messages.Text("setup.checklist.supergroup"),
+		mark(isForum) + " " + messages.Text("setup.checklist.forum"),
+		mark(isAdmin) + " " + messages.Text("setup.checklist.admin"),
+		mark(canManageTopics) + " " + messages.Text("setup.checklist.topics"),
+		mark(canReadMessages) + " " + messages.Text("setup.checklist.messages"),
 		"",
-		"Когда все готово, запускай оформление группы",
+		messages.Text("setup.checklist.footer"),
 	}
 	return appendNotice(lines, notice)
 }
@@ -72,24 +43,21 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🎯 <b>Задача дня</b> %s", person),
+		messages.Format("daily.card.title", "person", person),
 		"",
-		"<b>План:</b>",
+		messages.Text("daily.card.plan"),
 		renderSectionHTML(task.Text),
 		"",
-		"<b>Состояние:</b> " + taskStatusLabel(task.Status),
+		messages.Format("daily.card.status", "status", taskStatusLabel(task.Status)),
 	}
 	if task.ReportText != nil && *task.ReportText != "" {
-		lines = append(lines, "", "<b>Итог:</b>", renderSectionHTML(*task.ReportText))
+		lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*task.ReportText))
 	}
 	return appendNotice(lines, notice)
 }
 
 func DailyTaskTextPrompt(nudge string) string {
-	lines := []string{
-		"✍️ <b>Напиши главную задачу дня одним сообщением</b>",
-		"Можно текстом, голосом, фото или видео",
-	}
+	lines := strings.Split(messages.Text("daily.prompt.task"), "\n")
 	if nudge != "" {
 		lines = append(lines, "", "💡 "+html.EscapeString(nudge))
 	}
@@ -97,10 +65,7 @@ func DailyTaskTextPrompt(nudge string) string {
 }
 
 func DailyTaskReportPrompt(nudge string) string {
-	lines := []string{
-		"✍️ <b>Напиши короткий итог одним сообщением</b>",
-		"Можно текстом, голосом, фото или видео",
-	}
+	lines := strings.Split(messages.Text("daily.prompt.report"), "\n")
 	if nudge != "" {
 		lines = append(lines, "", "💡 "+html.EscapeString(nudge))
 	}
@@ -108,73 +73,55 @@ func DailyTaskReportPrompt(nudge string) string {
 }
 
 func RoutinePlanPrompt() string {
-	return "✏️ <b>Пришли список рутин одним сообщением</b>\n\n" +
-		"Одна строка — один ежедневный пункт:\n" +
-		"<blockquote>зарядка\nработа\nанглийский перед сном\nйога</blockquote>\n\n" +
-		"Можно использовать маркеры или номера. Максимум 9 пунктов."
+	return messages.Text("routine.plan.prompt")
 }
 
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
-	return formatRoutineCheckinCard(checkin, displayName, username, notice, true)
+	return formatRoutineCheckinCard(checkin, displayName, username, notice)
 }
 
 func FormatRoutineCheckinStatusCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
-	return formatRoutineCheckinCard(checkin, displayName, username, notice, false)
+	return formatRoutineCheckinCard(checkin, displayName, username, notice)
 }
 
-func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string, showNextQuestion bool) string {
+func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("%s <b>Рутина за %s</b> %s", routineHeaderEmoji, checkin.CheckinDate.Format("02.01"), person),
-		"Отметь, как прошел этот день",
+		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "date", checkin.CheckinDate.Format("02.01"), "person", person),
+		messages.Text("routine.card.subtitle"),
 		"",
 	}
 	for _, item := range checkin.Items {
 		lines = append(lines, routineItemLine(item))
 		if item.ReasonText != nil && *item.ReasonText != "" {
-			lines = append(lines, "   <i>причина:</i> "+renderInlineHTML(*item.ReasonText))
+			lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
 		}
 	}
 	if checkin.CompletedAt != nil {
 		if checkin.ReflectionText != nil && *checkin.ReflectionText != "" {
-			lines = append(lines, "", "<b>Итог:</b>", renderSectionHTML(*checkin.ReflectionText))
+			lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*checkin.ReflectionText))
 		}
 		return appendNotice(lines, notice)
-	}
-	if nextIndex := NextRoutineItemIndex(checkin); showNextQuestion && nextIndex >= 0 {
-		item := checkin.Items[nextIndex]
-		lines = append(lines, "", fmt.Sprintf("<b>%d/%d:</b> %s?", nextIndex+1, len(checkin.Items), html.EscapeString(item.Text)))
 	}
 	return appendNotice(lines, notice)
 }
 
 func FormatRoutineReasonPrompt(itemText string) string {
-	return strings.Join([]string{
-		"✍️ <b>Коротко: что помешало?</b>",
-		"",
-		"Пункт:",
-		renderSectionHTML(itemText),
-	}, "\n")
+	return messages.Format("routine.reason.prompt", "item", html.EscapeString(itemText))
 }
 
 func RoutineReminderText(checkin postgres.RoutineCheckin) string {
-	return strings.Join([]string{
-		fmt.Sprintf("🔔 <b>Рутина за %s еще не закрыта</b>", checkin.CheckinDate.Format("02.01")),
-		"Закрой ее до 12:00, иначе неотмеченные пункты будут засчитаны как невыполненные.",
-	}, "\n")
+	return messages.Format("routine.reminder", "date", checkin.CheckinDate.Format("02.01"))
 }
 
 func RoutineAutoClosedText(checkin postgres.RoutineCheckin) string {
-	return strings.Join([]string{
-		"⏰ <b>Время вышло</b>",
-		fmt.Sprintf("Рутина за %s закрыта автоматически: неотмеченные пункты засчитаны как невыполненные.", checkin.CheckinDate.Format("02.01")),
-	}, "\n")
+	return messages.Format("routine.auto_closed", "date", checkin.CheckinDate.Format("02.01"))
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {
-	lines := []string{"🏆 <b>Таблица рутин</b>"}
+	lines := []string{messages.Text("routine.leaderboard.title")}
 	if len(entries) == 0 {
-		return strings.Join(append(lines, "", "Пока жду первые завершенные проверки"), "\n")
+		return strings.Join(append(lines, "", messages.Text("routine.leaderboard.empty")), "\n")
 	}
 	limit := len(entries)
 	if limit > 10 {
@@ -182,7 +129,14 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 	}
 	for i := 0; i < limit; i++ {
 		entry := entries[i]
-		lines = append(lines, fmt.Sprintf("%d. %s — %.0f%% за 7 дней, серия %d дней, %s", i+1, participantLabel(entry.Participant), entry.CompletionRate, entry.CurrentStreak, routineItemsCountLabel(entry.RoutineItemCount)))
+		lines = append(lines, messages.Format(
+			"routine.leaderboard.entry",
+			"rank", fmt.Sprint(i+1),
+			"participant", participantLabel(entry.Participant),
+			"rate", fmt.Sprintf("%.0f", entry.CompletionRate),
+			"streak", fmt.Sprint(entry.CurrentStreak),
+			"items", routineItemsCountLabel(entry.RoutineItemCount),
+		))
 	}
 	best := entries[0]
 	for _, entry := range entries {
@@ -190,22 +144,23 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 			best = entry
 		}
 	}
-	lines = append(lines, "", "<b>Лучшая серия сезона</b>", fmt.Sprintf("%s — %d дней", participantLabel(best.Participant), best.MaxStreak))
+	lines = append(lines, "", messages.Text("routine.leaderboard.best_title"), messages.Format(
+		"routine.leaderboard.best_entry",
+		"participant", participantLabel(best.Participant),
+		"streak", fmt.Sprint(best.MaxStreak),
+	))
 	return strings.Join(lines, "\n")
 }
 
 func SeasonalGoalsPrompt() string {
-	return "✏️ <b>Пришли сезонные цели одним сообщением</b>\n\n" +
-		"Текущий период: <b>Лето 2026</b> (до <b>01.09.2026</b>)\n\n" +
-		"Используй для каждой цели эту схему:\n" +
-		"<blockquote>1. Направление (например, Работа)\n— Результат: конкретный измеримый итог к концу сезона\n— Метрика: как именно ты измеришь успех\n— Шаг недели: что делать каждую неделю\n— Зачем: почему эта цель важна для тебя</blockquote>"
+	return messages.Text("goals.prompt")
 }
 
 func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
-		fmt.Sprintf("🎯 <b>Цели на %s</b> · %s", html.EscapeString(strings.ToLower(goalSet.PeriodTitle)), person),
-		fmt.Sprintf("До <b>%s</b>", goalSet.PeriodEndsOn.Format("02.01.2006")),
+		messages.Format("goals.card.title", "period", html.EscapeString(strings.ToLower(goalSet.PeriodTitle)), "person", person),
+		messages.Format("goals.card.deadline", "date", goalSet.PeriodEndsOn.Format("02.01.2006")),
 		"",
 		renderSectionHTML(goalSet.GoalsText),
 	}
@@ -215,21 +170,21 @@ func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string
 func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
 	person := personLabel(username, displayName)
 	return strings.Join([]string{
-		"🎯 <b>Недельный обзор целей</b>",
+		messages.Text("goals.weekly.title"),
 		"",
-		fmt.Sprintf("%s, ответь одним сообщением на три вопроса:", person),
+		messages.Format("goals.weekly.intro", "person", person),
 		"",
-		"1. Какие шаги сделаны по сезонным целям за эту неделю?",
-		"2. С какими сложностями пришлось столкнуться?",
-		"3. Какой главный шаг планируешь на следующую неделю?",
+		messages.Text("goals.weekly.q1"),
+		messages.Text("goals.weekly.q2"),
+		messages.Text("goals.weekly.q3"),
 		"",
-		"<b>Твои цели:</b>",
+		messages.Text("goals.weekly.list_title"),
 		renderSectionHTML(goalSet.GoalsText),
 	}, "\n")
 }
 
 func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
-	lines := []string{"✅ <b>Недельный обзор сохранен</b>"}
+	lines := []string{messages.Text("goals.weekly.saved")}
 	if review.ResponseText != nil && *review.ResponseText != "" {
 		lines = append(lines, "", renderSectionHTML(*review.ResponseText))
 	}
@@ -239,9 +194,9 @@ func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
 func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
 	person := personLabel(username, displayName)
 	return strings.Join([]string{
-		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
 		"",
-		fmt.Sprintf("%s, оцени сезонные цели:", person),
+		messages.Format("goals.final.ask_status", "person", person),
 		"",
 		renderSectionHTML(goalSet.GoalsText),
 	}, "\n")
@@ -249,14 +204,14 @@ func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName s
 
 func FormatGoalFinalReflectionPrompt(goalSet postgres.SeasonalGoalSet, status domain.GoalFinalStatus) string {
 	return strings.Join([]string{
-		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
 		"",
-		"<b>Оценка:</b> " + goalFinalStatusLabel(status),
+		messages.Format("goals.final.score", "status", goalFinalStatusLabel(status)),
 		"",
-		"Опиши конкретные результаты по целям:",
-		"— Что именно удалось довести до конца",
-		"— Что осталось невыполненным и почему",
-		"— Какие выводы и задачи переносишь на следующий сезон",
+		messages.Text("goals.final.reflection_intro"),
+		messages.Text("goals.final.reflection_done"),
+		messages.Text("goals.final.reflection_failed"),
+		messages.Text("goals.final.reflection_next"),
 	}, "\n")
 }
 
@@ -266,12 +221,12 @@ func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgre
 		status = goalFinalStatusLabel(*review.Status)
 	}
 	lines := []string{
-		fmt.Sprintf("🏁 <b>Итог периода: %s</b>", html.EscapeString(goalSet.PeriodTitle)),
+		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
 		"",
-		"<b>Оценка:</b> " + status,
+		messages.Format("goals.final.score", "status", status),
 	}
 	if review.SummaryText != nil && *review.SummaryText != "" {
-		lines = append(lines, "", "<b>Итог:</b>", renderSectionHTML(*review.SummaryText))
+		lines = append(lines, "", messages.Text("goals.final.saved_summary"), renderSectionHTML(*review.SummaryText))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -290,36 +245,37 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 	person := profileLinkLabel(payload)
 	switch event.EventType {
 	case domain.ProgressDailyTaskClosed:
-		task := payloadLink(payload, "task_link", "задачу дня")
-		title := strings.Replace(dailyTaskClosedTitle(payloadString(payload, "status"), person), "задачу дня", task, 1)
+		taskLabel := messages.Text("progress.daily.task_link")
+		task := payloadLink(payload, "task_link", taskLabel)
+		title := strings.Replace(dailyTaskClosedTitle(payloadString(payload, "status"), person), taskLabel, task, 1)
 		return strings.Join([]string{
 			title,
 			"",
-			"<b>План:</b>",
+			messages.Text("daily.card.plan"),
 			renderSectionHTML(payloadString(payload, "task_html")),
 			"",
-			"<b>Итог:</b>",
+			messages.Text("daily.card.report"),
 			renderSectionHTML(payloadString(payload, "report_html")),
 		}, "\n")
 	case domain.ProgressDailyTaskAutoFail:
-		task := payloadLink(payload, "task_link", "задачу дня")
+		task := payloadLink(payload, "task_link", messages.Text("progress.daily.task_link"))
 		return strings.Join([]string{
-			fmt.Sprintf("⏰ <b>%s не выполнил %s вовремя</b>", person, task),
+			messages.Format("progress.daily.auto_failed", "person", person, "task", task),
 			"",
-			"<b>План:</b>",
+			messages.Text("daily.card.plan"),
 			renderSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
 	case domain.ProgressCustomUpdate:
 		return formatCustomProgressUpdate(payload)
 	default:
-		return "🔔 Системное сообщение\n" + fmt.Sprint(payload)
+		return messages.Text("progress.system") + "\n" + fmt.Sprint(payload)
 	}
 }
 
 func formatCustomProgressUpdate(payload map[string]any) string {
 	title := payloadString(payload, "title")
 	if title == "" {
-		title = "Обновление Trackmate"
+		title = messages.Text("progress.custom.default_title")
 	}
 	lines := []string{"🚀 <b>" + html.EscapeString(title) + "</b>"}
 	if body := payloadString(payload, "body"); body != "" {
@@ -336,9 +292,9 @@ func formatCustomProgressUpdate(payload map[string]any) string {
 
 func AlertText(kind domain.AlertKind) string {
 	if kind == domain.AlertDayClosedPendingReport {
-		return "🔔 День закончился, а итог по задаче еще не подведен"
+		return messages.Text("alert.day_closed_pending_report")
 	}
-	return "⏰ Время вышло. Задача отмечена как не выполненная"
+	return messages.Text("alert.auto_failed")
 }
 
 func mark(value bool) string {
@@ -358,15 +314,15 @@ func appendNotice(lines []string, notice string) string {
 func taskStatusLabel(status domain.DailyTaskStatus) string {
 	switch status {
 	case domain.DailyTaskActive:
-		return "в процессе"
+		return messages.Text("daily.status.active")
 	case domain.DailyTaskAwaitingReport:
-		return "ждет итога"
+		return messages.Text("daily.status.awaiting_report")
 	case domain.DailyTaskDone:
-		return "выполнена"
+		return messages.Text("daily.status.done")
 	case domain.DailyTaskPartial:
-		return "выполнена частично"
+		return messages.Text("daily.status.partial")
 	case domain.DailyTaskFailed:
-		return "не выполнена"
+		return messages.Text("daily.status.failed")
 	default:
 		return string(status)
 	}
@@ -390,11 +346,11 @@ func routineItemLine(item postgres.RoutineCheckinItem) string {
 func goalFinalStatusLabel(status domain.GoalFinalStatus) string {
 	switch status {
 	case domain.GoalFinalDone:
-		return "выполнены"
+		return messages.Text("goals.status.done")
 	case domain.GoalFinalPartial:
-		return "частично"
+		return messages.Text("goals.status.partial")
 	case domain.GoalFinalFailed:
-		return "не выполнены"
+		return messages.Text("goals.status.failed")
 	default:
 		return string(status)
 	}
@@ -403,24 +359,24 @@ func goalFinalStatusLabel(status domain.GoalFinalStatus) string {
 func routineItemsCountLabel(count int) string {
 	switch {
 	case count%10 == 1 && count%100 != 11:
-		return fmt.Sprintf("%d пункт", count)
+		return messages.Format("routine.items_count.one", "count", fmt.Sprint(count))
 	case count%10 >= 2 && count%10 <= 4 && (count%100 < 10 || count%100 >= 20):
-		return fmt.Sprintf("%d пункта", count)
+		return messages.Format("routine.items_count.few", "count", fmt.Sprint(count))
 	default:
-		return fmt.Sprintf("%d пунктов", count)
+		return messages.Format("routine.items_count.many", "count", fmt.Sprint(count))
 	}
 }
 
 func dailyTaskClosedTitle(status string, person string) string {
 	switch status {
 	case "done":
-		return fmt.Sprintf("✅ <b>%s выполнил задачу дня</b>", person)
+		return messages.Format("progress.daily.closed.done", "person", person)
 	case "partial":
-		return fmt.Sprintf("🔸 <b>%s частично выполнил задачу дня</b>", person)
+		return messages.Format("progress.daily.closed.partial", "person", person)
 	case "failed":
-		return fmt.Sprintf("❌ <b>%s не выполнил задачу дня</b>", person)
+		return messages.Format("progress.daily.closed.failed", "person", person)
 	default:
-		return fmt.Sprintf("✅ <b>%s завершил задачу дня</b>", person)
+		return messages.Format("progress.daily.closed.default", "person", person)
 	}
 }
 
@@ -442,7 +398,7 @@ func participantLabel(participant postgres.Participant) string {
 func profileLinkLabel(payload map[string]any) string {
 	displayName := payloadString(payload, "display_name")
 	if displayName == "" {
-		displayName = "Без имени"
+		displayName = messages.Text("participant.fallback_name")
 	}
 	label := html.EscapeString(displayName)
 	if username := payloadString(payload, "username"); username != "" {

@@ -107,7 +107,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if !fake.hasSentToThread(30, "Рутина") {
 		t.Fatalf("routine check-in not sent to routine topic: %+v", fake.sent)
 	}
-	if !fake.hasSentToThread(40, "Еженедельная проверка целей") {
+	if !fake.hasSentToThread(40, "Недельный обзор целей") {
 		t.Fatalf("weekly goal review not sent to goals topic: %+v", fake.sent)
 	}
 	if fake.hasThread(20) {
@@ -123,7 +123,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if err := runner.Tick(ctx, time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(40, "Финал периода") {
+	if !fake.hasSentToThread(40, "Итог периода") {
 		t.Fatalf("final goal review not sent to goals topic: %+v", fake.sent)
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	appsetup "github.com/igor/trackmate/internal/app/setup"
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -139,11 +140,11 @@ func (s *Service) handleEditedMessage(ctx context.Context, message telegram.Mess
 
 func (s *Service) handleCallback(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	if callback.Message == nil {
-		return CallbackAnswer{Text: "Кнопка устарела"}, nil
+		return CallbackAnswer{Text: messages.Text("callback.stale_button")}, nil
 	}
 	parsed, err := domain.ParseCallback(callback.Data)
 	if err != nil {
-		return CallbackAnswer{Text: "Кнопка устарела"}, nil
+		return CallbackAnswer{Text: messages.Text("callback.stale_button")}, nil
 	}
 	switch parsed.Kind {
 	case domain.CallbackSetupCheck:
@@ -166,8 +167,10 @@ func (s *Service) handleCallback(ctx context.Context, callback telegram.Callback
 		return s.handleGoalsConfigure(ctx, callback)
 	case domain.CallbackGoalFinalStatus:
 		return s.handleGoalFinalStatus(ctx, callback, parsed.GoalSetID, parsed.GoalFinalStatus)
+	case domain.CallbackNoticeDismiss:
+		return s.handleNoticeDismiss(ctx, callback)
 	default:
-		return CallbackAnswer{Text: "Кнопка устарела"}, nil
+		return CallbackAnswer{Text: messages.Text("callback.stale_button")}, nil
 	}
 }
 
@@ -230,14 +233,14 @@ func (s *Service) handleSetupStart(ctx context.Context, callback telegram.Callba
 		return CallbackAnswer{}, err
 	}
 	if !isAdmin {
-		return CallbackAnswer{Text: "Оформить группу может только администратор"}, nil
+		return CallbackAnswer{Text: messages.Text("callback.setup.admin_only")}, nil
 	}
 	prerequisites, err := s.Setup.CheckPrerequisites(ctx, chat.ID)
 	if err != nil {
 		return CallbackAnswer{}, err
 	}
 	if !prerequisites.IsReady() {
-		return CallbackAnswer{Text: "Сначала закрой пункты выше, а потом запускай оформление"}, nil
+		return CallbackAnswer{Text: messages.Text("callback.setup.not_ready")}, nil
 	}
 	workspace, err := s.ensureWorkspace(ctx, chat.ID, chat.Title)
 	if err != nil {
@@ -308,13 +311,13 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		if _, found, err := q.GetTaskForDate(ctx, workspace.ID, participant.ID, taskDate); err != nil {
 			return err
 		} else if found {
-			answer.Text = "Задача на сегодня уже зафиксирована"
+			answer.Text = messages.Text("callback.today.exists")
 			return nil
 		}
 		if _, found, err := q.GetOpenTask(ctx, workspace.ID, participant.ID); err != nil {
 			return err
 		} else if found {
-			answer.Text = "Сначала закрой предыдущую задачу"
+			answer.Text = messages.Text("callback.today.close_previous")
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, user.ID, callback.Message.MessageThreadID); err != nil {
@@ -400,14 +403,15 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 			return err
 		}
 		if !created {
-			text := "⚠️ <b>Задача на сегодня уже зафиксирована</b>"
+			text := "⚠️ <b>" + messages.Text("callback.today.exists") + "</b>"
 			if task.ID == 0 || task.TaskDate.Format("2006-01-02") != taskDate.Format("2006-01-02") {
-				text = "⚠️ <b>Сначала закрой предыдущую задачу</b>"
+				text = "⚠️ <b>" + messages.Text("callback.today.close_previous") + "</b>"
 			}
 			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 				ChatID:              message.Chat.ID,
 				MessageThreadID:     message.MessageThreadID,
 				Text:                text,
+				ReplyMarkup:         ui.DismissKeyboard(),
 				DisableNotification: true,
 			})
 			return nil
@@ -440,12 +444,12 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 			return err
 		}
 		if !submitted {
-			text := "Итог не принят"
+			text := messages.Text("task.report.rejected")
 			if task, found, err := q.GetTask(ctx, taskID); err == nil && found && !task.Status.IsOpen() {
-				text = "Итог не принят: задача уже закрыта"
+				text = messages.Text("task.report.rejected_closed")
 			}
-			if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
-				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+			if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
+				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
 			}
 			return nil
 		}
@@ -463,9 +467,9 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 				Text:      ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
 			})
 		}
-		text := "✅ <b>Итог сохранен</b>"
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+		text := messages.Text("task.report.saved")
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
 		}
 		return nil
 	})
@@ -479,18 +483,18 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			return err
 		}
 		if !found {
-			answer.Text = "Задача не найдена"
+			answer.Text = messages.Text("callback.task.not_found")
 			return nil
 		}
 		if callback.From.ID != task.OwnerUserID {
-			answer.Text = "Итог может оставить только автор задачи"
+			answer.Text = messages.Text("callback.task.author_only")
 			return nil
 		}
 		if !task.Status.IsOpen() {
 			if err := s.dismissTaskAlerts(ctx, q, callback.Message.Chat.ID, taskID); err != nil {
 				return err
 			}
-			answer.Text = "Эта задача уже закрыта"
+			answer.Text = messages.Text("callback.task.closed")
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, task.WorkspaceGroupID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
@@ -502,7 +506,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 		_, err = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              callback.Message.Chat.ID,
 			MessageThreadID:     callback.Message.MessageThreadID,
-			Text:                "🧾 <b>Выбери итог дня</b>",
+			Text:                messages.Text("task.status.prompt"),
 			ReplyMarkup:         ui.DailyTaskStatusKeyboard(taskID),
 			DisableNotification: true,
 		})
@@ -514,7 +518,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.CallbackQuery, taskID int64, status domain.DailyTaskStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
+		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -523,15 +527,15 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			return err
 		}
 		if !found {
-			answer.Text = "Задача не найдена"
+			answer.Text = messages.Text("callback.task.not_found")
 			return nil
 		}
 		if callback.From.ID != task.OwnerUserID {
-			answer.Text = "Итог может оставить только автор задачи"
+			answer.Text = messages.Text("callback.task.author_only")
 			return nil
 		}
 		if !task.Status.IsOpen() {
-			answer.Text = "Эта задача уже закрыта"
+			answer.Text = messages.Text("callback.task.closed")
 			return nil
 		}
 		if previous, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
@@ -587,10 +591,15 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 		if err := s.dismissAlertMessage(ctx, q, callback.Message.Chat.ID, alert); err != nil {
 			return err
 		}
-		answer.Text = "Напоминание скрыто"
+		answer.Text = messages.Text("callback.alert_hidden")
 		return nil
 	})
 	return answer, err
+}
+
+func (s *Service) handleNoticeDismiss(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
+	_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
+	return CallbackAnswer{}, nil
 }
 
 func (s *Service) dismissTaskAlerts(ctx context.Context, q *postgres.Queries, chatID int64, taskID int64) error {
@@ -752,6 +761,37 @@ func appendPayloadInt64(payload map[string]any, key string, value int64) map[str
 	return result
 }
 
+func (s *Service) deletePendingUserMessages(ctx context.Context, chatID int64, payload map[string]any) {
+	for _, messageID := range payloadInt64Slice(payload, "user_message_ids") {
+		_ = s.Telegram.DeleteMessage(ctx, chatID, messageID)
+	}
+}
+
+func payloadInt64Slice(payload map[string]any, key string) []int64 {
+	switch values := payload[key].(type) {
+	case []int64:
+		return values
+	case []any:
+		result := make([]int64, 0, len(values))
+		for _, value := range values {
+			switch typed := value.(type) {
+			case float64:
+				result = append(result, int64(typed))
+			case int64:
+				result = append(result, typed)
+			case int:
+				result = append(result, int64(typed))
+			case json.Number:
+				parsed, _ := typed.Int64()
+				result = append(result, parsed)
+			}
+		}
+		return result
+	default:
+		return nil
+	}
+}
+
 func messagePlainText(message telegram.Message) string {
 	if message.Text != "" {
 		return message.Text
@@ -762,21 +802,21 @@ func messagePlainText(message telegram.Message) string {
 func pendingBusyText(kind domain.PendingInputKind) string {
 	switch kind {
 	case domain.PendingDailyTaskText:
-		return "Я уже жду формулировку задачи"
+		return messages.Text("pending.daily_task_text")
 	case domain.PendingDailyTaskReport:
-		return "Сначала закончи текущий итог"
+		return messages.Text("pending.daily_task_report")
 	case domain.PendingRoutinePlan:
-		return "Я уже жду список рутин"
+		return messages.Text("pending.routine_plan")
 	case domain.PendingRoutineReason:
-		return "Я уже жду короткую причину по рутине"
+		return messages.Text("pending.routine_reason")
 	case domain.PendingSeasonalGoals:
-		return "Я уже жду список сезонных целей"
+		return messages.Text("pending.seasonal_goals")
 	case domain.PendingGoalWeeklyReview:
-		return "Сначала закончи недельный обзор целей"
+		return messages.Text("pending.goal_weekly_review")
 	case domain.PendingGoalFinalReflection:
-		return "Сначала закончи финальный итог по целям"
+		return messages.Text("pending.goal_final_reflection")
 	default:
-		return "Сначала закончи текущий ввод"
+		return messages.Text("pending.default")
 	}
 }
 

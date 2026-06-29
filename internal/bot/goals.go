@@ -7,6 +7,7 @@ import (
 
 	appgoals "github.com/igor/trackmate/internal/app/goals"
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -15,7 +16,7 @@ import (
 func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
+		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -49,11 +50,12 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {
 	if strings.TrimSpace(messagePlainText(message)) == "" {
 		_ = s.refreshPendingInputActivity(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pending, message.MessageID)
-		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), "⚠️ <b>Пришли цели текстом</b>\n\n"+ui.SeasonalGoalsPrompt(), nil)
+		_ = s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), messages.Text("goals.invalid")+"\n\n"+ui.SeasonalGoalsPrompt(), nil)
 		return nil
 	}
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if _, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingSeasonalGoals); err != nil || !ok {
+		claimed, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingSeasonalGoals)
+		if err != nil || !ok {
 			return err
 		}
 		participant, err := q.RegisterParticipant(ctx, workspace.ID, message.From.ID, message.From.Username, telegram.DisplayName(*message.From))
@@ -79,9 +81,11 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 				return err
 			}
 		}
-		text := "✅ <b>Цели записаны</b>\nНедельный обзор придет в воскресенье после 20:00"
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, nil) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, DisableNotification: true})
+		s.deletePendingUserMessages(ctx, message.Chat.ID, claimed.Payload)
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
+		text := messages.Text("goals.saved")
+		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(claimed.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
 		}
 		return nil
 	})
@@ -111,7 +115,7 @@ func (s *Service) consumeGoalWeeklyReview(ctx context.Context, workspace postgre
 func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.CallbackQuery, goalSetID int64, status domain.GoalFinalStatus) (CallbackAnswer, error) {
 	workspace, err := s.ensureWorkspaceLoaded(ctx, callback.Message.Chat.ID)
 	if err != nil || workspace.ID == 0 {
-		return CallbackAnswer{Text: "Не получилось найти настройки группы"}, err
+		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
 	var answer CallbackAnswer
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -120,11 +124,11 @@ func (s *Service) handleGoalFinalStatus(ctx context.Context, callback telegram.C
 			return err
 		}
 		if !found {
-			answer.Text = "Цели не найдены"
+			answer.Text = messages.Text("goals.not_found")
 			return nil
 		}
 		if goalSet.OwnerUserID != callback.From.ID {
-			answer.Text = "Итог периода может оставить только автор целей"
+			answer.Text = messages.Text("goals.final.author_only")
 			return nil
 		}
 		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {

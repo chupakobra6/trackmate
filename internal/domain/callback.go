@@ -20,6 +20,7 @@ const (
 	CallbackRoutineItem      CallbackKind = "routine_item"
 	CallbackGoalsConfigure   CallbackKind = "goals_configure"
 	CallbackGoalFinalStatus  CallbackKind = "goal_final_status"
+	CallbackNoticeDismiss    CallbackKind = "notice_dismiss"
 )
 
 type Callback struct {
@@ -50,6 +51,8 @@ func ParseCallback(raw string) (Callback, error) {
 		return Callback{Kind: CallbackRoutineConfigure, Raw: raw}, nil
 	case "goals:configure":
 		return Callback{Kind: CallbackGoalsConfigure, Raw: raw}, nil
+	case "notice:dismiss":
+		return Callback{Kind: CallbackNoticeDismiss, Raw: raw}, nil
 	}
 
 	parts := strings.Split(raw, ":")

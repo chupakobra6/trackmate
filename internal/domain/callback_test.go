@@ -49,3 +49,13 @@ func TestParseGoalFinalCallback(t *testing.T) {
 		t.Fatalf("unexpected callback: %+v", got)
 	}
 }
+
+func TestParseNoticeDismissCallback(t *testing.T) {
+	got, err := ParseCallback("notice:dismiss")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != CallbackNoticeDismiss {
+		t.Fatalf("unexpected callback: %+v", got)
+	}
+}

@@ -107,7 +107,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "еще не закрыта") || fake.sent[0].ReplyToMessageID != 2100 {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "еще не закрыта") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil {
 		t.Fatalf("unexpected reminder send: %+v", fake.sent)
 	}
 	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
@@ -133,6 +133,9 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 30); err != nil || found {
 		t.Fatalf("routine pending should be cleared found=%v err=%v", found, err)
 	}
+	if reminded.ReminderMessageID == nil || !fake.wasDeleted(*reminded.ReminderMessageID) {
+		t.Fatalf("routine reminder should be deleted on auto-close, deleted=%+v reminder=%+v", fake.deleted, reminded.ReminderMessageID)
+	}
 	if edit, ok := fake.findEdit(2100); !ok || !strings.Contains(edit.Text, "невыполненные") {
 		t.Fatalf("routine card auto-close edit missing: found=%v edit=%+v", ok, edit)
 	}
@@ -148,6 +151,7 @@ type fakeTelegram struct {
 	nextMessageID int64
 	sent          []telegram.SendMessageRequest
 	edits         []telegram.EditMessageTextRequest
+	deleted       []int64
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -165,7 +169,8 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditM
 	f.edits = append(f.edits, request)
 	return nil
 }
-func (f *fakeTelegram) DeleteMessage(context.Context, int64, int64) error {
+func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
+	f.deleted = append(f.deleted, messageID)
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {
@@ -194,6 +199,15 @@ func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextReques
 		}
 	}
 	return telegram.EditMessageTextRequest{}, false
+}
+
+func (f *fakeTelegram) wasDeleted(messageID int64) bool {
+	for _, deleted := range f.deleted {
+		if deleted == messageID {
+			return true
+		}
+	}
+	return false
 }
 
 func (f *fakeTelegram) hasSentToThread(threadID int64, text string) bool {
