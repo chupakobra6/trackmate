@@ -99,6 +99,14 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
 продуктовые файлы здесь описывают только проверяемый пользовательский путь.
 Кнопки на карточках задач кликаются с `message_text`, чтобы в давно используемой
 тестовой группе не попасть в старую кнопку из истории.
+Если сценарий проверяет сообщение, которое могло появиться до шага ожидания,
+используй `assert_visible_text`, а не `wait`: `wait` ждет новое изменение истории
+и может флапать на уже видимом корректном состоянии.
+
+Сообщения, которые пользователь должен видеть как отдельные подсказки в теме,
+должны отправляться обычными корневыми сообщениями. Вложенный ответ к карточке
+бота может не попасть в историю темы, из-за чего живой пользователь видит одно,
+а MTProto-снимок темы для E2E — другое.
 
 После полного прогона можно очистить видимые тестовые сообщения в темах:
 
@@ -168,3 +176,53 @@ Control API включается только вне production-окружени
 Для вставки про цели в `14` перед запуском нужны уже сохраненные активные цели и дата,
 которая проходит детерминированную проверку; в live-прогоне использовался
 `2026-06-10T09:00:00Z`.
+
+## Финальная Сверка Прогона
+
+Не считай полный live E2E закрытым только по успешному коду выхода сценариев.
+В конце каждого полного прогона проверь логи запускателя, состояние локальной БД и
+последние логи приложения.
+
+```bash
+cd /Users/igor/projects/trackmate
+
+RUN_ID=$(cat tmp/e2e-current-run-id)
+LOG_DIR="tmp/e2e-live-logs-$RUN_ID"
+
+failed=0
+for f in "$LOG_DIR"/*.log; do
+  if rg -q '"type":"timeout"|"type":"error"|callback: read scenario|exit status|panic' "$f"; then
+    echo "bad $f"
+    failed=1
+  fi
+done
+test "$failed" -eq 0
+```
+
+```bash
+docker compose exec -T postgres psql -U postgres -d trackmate -Atc "
+select 'pending_inputs', count(*) from pending_inputs
+union all
+select 'progress_unpublished', count(*) from progress_events where published_at is null;"
+```
+
+Ожидаемо: `pending_inputs=0`, неопубликованных progress-событий `0`. Последний
+сценарий может оставить допустимое доменное состояние, например ограничение
+повторной вставки про цели.
+
+```bash
+docker compose ps
+docker compose logs --since=30m api worker | rg -i 'panic|fatal|error|warn|timeout' || true
+```
+
+Если E2E двигал локальные часы через `control/clock`, в конце верни системное
+время для worker:
+
+```bash
+curl -fsS -X POST 'http://127.0.0.1:8082/control/clock' \
+  -H 'content-type: application/json' \
+  -d '{}'
+```
+
+Запиши id прогона, путь к логам, сводку БД и результат проверок в handoff или
+сообщение для ревью.

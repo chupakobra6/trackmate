@@ -31,6 +31,7 @@
 - The tracked Docker default binds PostgreSQL to `127.0.0.1:5432`; do not broaden that host bind unless the user explicitly needs remote database access.
 - Trackmate is Go-only. Keep tracked docs focused on the current runtime; do not add migration-era Python/Alembic guides back to the public documentation.
 - Product-owned Telegram E2E scenarios live in `e2e/telegram/`; rendered scenarios stay under ignored `tmp/`.
+- Topic-visible E2E prompts should be root messages in the forum topic, not nested replies to bot cards, unless the scenario explicitly tests reply behavior.
 - User-visible Telegram copy lives in `internal/messages/messages.md`; Go code should use `internal/messages` and `internal/ui` instead of embedding Russian message text directly.
 - When public Telegram behavior changes, update the matching product docs and E2E scenario comments or expectations in the same pass: timing, topic flow, parser rules, notification level, visible messages, and Progress links.
 
@@ -44,6 +45,9 @@
 ## Verification
 - Before finishing, run the narrowest relevant validation.
 - If code paths changed materially, run lint + tests relevant to touched files.
+- For full Telegram E2E closure, record the run id and verify scenario logs,
+  `pending_inputs=0`, unpublished progress events `0`, healthy Docker services,
+  and recent `api`/`worker` logs.
 - Do not claim success without checking command output.
 
 ## Safety

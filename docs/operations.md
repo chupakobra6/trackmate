@@ -206,3 +206,7 @@ curl -fsS -X POST 'http://127.0.0.1:8082/control/clock' \
 ```
 
 Control endpoints are available only outside production.
+
+For a full review run, finish with the runner-log, database, and app-log checks
+from [Telegram E2E: Финальная Сверка Прогона](../e2e/telegram/README.md#финальная-сверка-прогона).
+Scenario exit codes alone are not enough evidence for Trackmate Telegram flows.
