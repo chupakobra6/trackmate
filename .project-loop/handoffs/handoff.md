@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-016`
+- active step: `STEP-019`
 - status: `готово`
 
 ## Завершено
@@ -121,6 +121,15 @@
   - создан `progress_events.id=192` с `event_type=daily_task.closed`, `status=done`, `report_html=Голосовое сообщение`, `created_at=2026-06-24 19:35:27.83718+00`;
   - worker штатно опубликовал event в `Прогресс`: Telegram message `3649`, `publish_status=published`;
   - локальный код и production deploy не трогались.
+- Закрыт STEP-019 по S018:
+  - production logs 2026-06-26 08:49-08:55 MSK подтвердили root cause жалобы Егора: `today:add` падал на legacy constraint `uq_pending_inputs_workspace_group_id`;
+  - production schema сейчас исправлена: legacy constraint отсутствует, rollback probe успешно создает два pending inputs одного пользователя в разных топиках;
+  - сообщения жалобы в общем чате `3464` и `3465` удалены через Telegram Harvest main profile, повторный dump их не находит;
+  - задача Егора за 2026-06-26 уже восстановлена как `daily_tasks.id=172`, status `partial`, task message `3467`;
+  - voice `3386` расшифрован через Harvest/Vosk; сырой ASR шумный, поэтому сохранена вычитанная смысловая сводка;
+  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_voice_transcript_20260629T121722Z.dump`;
+  - `daily_tasks.id=160`, `progress_events.id=192`, visible Today message `3361` и Progress message `3649` обновлены без новых Telegram posts;
+  - локальный код и production deploy не трогались.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -198,6 +207,10 @@
 - STEP-018 production SQL verification: task `160` done/report `3386`, alerts acknowledged with no message ids, progress event `192` published as message `3649`.
 - STEP-018 worker log verification: `telegram_send_message_completed` for message `3649` in thread `7`.
 - STEP-018: `loopctl.py validate .`: pass.
+- STEP-019 production log verification: old pending unique constraint was root cause for message `3467` not saving on 2026-06-26.
+- STEP-019 production schema verification: rollback probe accepts same user pending inputs in two different topics.
+- STEP-019 Harvest cleanup verification: messages `3464`/`3465` deleted and absent from follow-up dump.
+- STEP-019 DB/message verification: task `160`, task `172`, progress `192`, messages `3361`/`3649` checked after edits.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -212,9 +225,10 @@
 - STEP-012, STEP-013, STEP-015, STEP-016 и STEP-017 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
 - STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
 - STEP-018 production data исправлен вручную; кодовый deploy не выполнялся.
+- STEP-019 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

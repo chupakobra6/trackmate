@@ -7,6 +7,49 @@
 
 ## Записи
 
+### Production Follow-up: Egor Task Save Bug And Voice Text
+
+ID источника: `S018`
+
+Приложение: `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-4a1ae09c-c9e7-4078-b721-7fade5ba8c2a.png`.
+
+Исходный ввод:
+
+```text
+вот это требование проверь тоже надо поправить багулечку исправили мы или нет
+
+удалять сообщ можно через телеграм харвест и там же можно расшифровывать гс
+```
+
+Нормализация:
+- [x] требование: проверить на production, почему у Егора 26.06 задача дня не сохранялась.
+- [x] требование: подтвердить, исправлена ли сама причина бага.
+- [x] требование: удалить показанные мусорные сообщения через Telegram Harvest.
+- [x] требование: использовать Telegram Harvest/Vosk для расшифровки связанного голосового отчета, где это помогает восстановить корректный итог в БД.
+
+Маршрутизация:
+- [x] карта источников обновляется в `S018`
+- [x] чеклист обновляется в `REQ-038`
+- [x] план и текущий шаг переводятся в `STEP-019`
+- [x] production logs/schema проверены
+- [x] Telegram messages cleaned through Harvest
+- [x] DB/visible Telegram messages updated without new posts
+- [x] handoff обновлен
+
+Продовые факты:
+- Logs 2026-06-26 around 08:49-08:55 MSK: три попытки `today:add` для Егора упали на `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"`.
+- Это тот же старый legacy constraint, который ломал topic-scoped pending; на production schema сейчас constraint отсутствует, остался `ux_pending_inputs_workspace_user_thread`.
+- Rollback probe на production успешно вставляет два pending inputs одного пользователя в разных `message_thread_id`, значит текущая схема больше не блокирует независимые топики.
+- Сообщения жалобы в общем чате `3464` и `3465` удалены через Telegram Harvest main profile; повторный dump не находит их в истории.
+- Задача Егора за 2026-06-26 восстановлена ранее как `daily_tasks.id=172`, status `partial`, task message `3467`, report `я все сделал кроме бега(устал сильно)`.
+- Voice `3386` для task `160` расшифрован через Harvest/Vosk; ASR шумный, но смысл восстановлен.
+
+Итог:
+- Product bug из скриншота уже исправлен текущей production schema и локальной migration `202606290001_drop_legacy_pending_input_unique.sql`.
+- В `daily_tasks.id=160` и `progress_events.id=192` сохранен вычитанный voice summary: вместо бега было много кардио, около 19 тысяч шагов, день закрыт хорошо.
+- Видимые сообщения `Сегодня` `3361` и `Прогресс` `3649` отредактированы без новых публикаций.
+- Backup перед правкой voice-текста: `/opt/trackmate/backups/trackmate_manual_voice_transcript_20260629T121722Z.dump`.
+
 ### Review Delta: Routine Reason Prompt As Separate Temporary Message
 
 ID источника: `S012`
