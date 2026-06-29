@@ -29,6 +29,7 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 	}
 	lines := []string{
 		messages.Text("setup.checklist.title"),
+		"",
 		status,
 		"",
 		mark(isSupergroup) + " " + messages.Text("setup.checklist.supergroup"),
@@ -88,6 +89,7 @@ func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 	person := personLabel(username, displayName)
 	lines := []string{
 		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "date", checkin.CheckinDate.Format("02.01"), "person", person),
+		"",
 		messages.Text("routine.card.subtitle"),
 		"",
 	}
@@ -138,9 +140,9 @@ func RoutineAutoClosedText(checkin postgres.RoutineCheckin, displayName string, 
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {
-	lines := []string{messages.Text("routine.leaderboard.title")}
+	lines := []string{messages.Text("routine.leaderboard.title"), ""}
 	if len(entries) == 0 {
-		return strings.Join(append(lines, "", messages.Text("routine.leaderboard.empty")), "\n")
+		return strings.Join(append(lines, messages.Text("routine.leaderboard.empty")), "\n")
 	}
 	limit := len(entries)
 	if limit > 10 {
@@ -186,6 +188,7 @@ func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string
 	person := personLabel(username, displayName)
 	lines := []string{
 		messages.Format("goals.card.title", "period", html.EscapeString(strings.ToLower(goalSet.PeriodTitle)), "person", person),
+		"",
 		messages.Format("goals.card.deadline", "date", goalSet.PeriodEndsOn.Format("02.01.2006")),
 		"",
 		renderSectionHTML(goalSet.GoalsText),
@@ -338,13 +341,13 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 	case domain.ProgressSystemAlert:
 		return formatSystemProgressAlert(payload)
 	default:
-		return messages.Text("progress.system") + "\n" + fmt.Sprint(payload)
+		return messages.Text("progress.system") + "\n\n" + fmt.Sprint(payload)
 	}
 }
 
 func formatSystemProgressAlert(payload map[string]any) string {
 	if payloadString(payload, "kind") != "edit_failed" {
-		return messages.Text("progress.system") + "\n" + fmt.Sprint(payload)
+		return messages.Text("progress.system") + "\n\n" + fmt.Sprint(payload)
 	}
 	target := payloadString(payload, "target")
 	if link := payloadString(payload, "message"); link != "" && target != "" {

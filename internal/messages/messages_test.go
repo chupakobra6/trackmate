@@ -20,3 +20,16 @@ func TestFormatReplacesPlaceholders(t *testing.T) {
 		t.Fatalf("formatted title = %q", got)
 	}
 }
+
+func TestMultilineCatalogTextsHaveHeaderGap(t *testing.T) {
+	for key, text := range All() {
+		lines := strings.Split(text, "\n")
+		if len(lines) < 2 {
+			continue
+		}
+		if strings.TrimSpace(lines[0]) == "" || strings.TrimSpace(lines[1]) == "" {
+			continue
+		}
+		t.Fatalf("%s should keep a blank line after the first line: %q", key, text)
+	}
+}

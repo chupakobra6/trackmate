@@ -96,6 +96,43 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	}
 }
 
+func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
+	checklist := FormatSetupChecklist(true, true, true, true, true, true, "")
+	if !strings.Contains(checklist, "⚙️ <b>Подготовка пространства</b>\n\n✅ Можно начинать") {
+		t.Fatalf("setup checklist should keep header gap: %s", checklist)
+	}
+
+	checkin := postgres.RoutineCheckin{
+		CheckinDate: time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC),
+		Items:       []postgres.RoutineCheckinItem{{Text: "зарядка"}},
+	}
+	routineCard := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
+	if !strings.Contains(routineCard, "🌿 <b>Рутина за 24.06</b> @igor\n\nОтметь пункты за этот день") {
+		t.Fatalf("routine card should keep header gap: %s", routineCard)
+	}
+
+	username := "igor"
+	leaderboard := FormatRoutineLeaderboard([]postgres.RoutineLeaderboardEntry{{
+		Participant: postgres.Participant{
+			Username:    &username,
+			DisplayName: "Igor",
+		},
+		RoutineItemCount: 1,
+	}})
+	if !strings.Contains(leaderboard, "🏆 <b>Таблица рутин</b>\n\n1. @igor") {
+		t.Fatalf("routine leaderboard should keep header gap: %s", leaderboard)
+	}
+
+	goalCard := FormatSeasonalGoalCard(postgres.SeasonalGoalSet{
+		PeriodTitle:  "Лето 2026",
+		PeriodEndsOn: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		GoalsText:    "1. Работа",
+	}, "Игорь", "igor", "")
+	if !strings.Contains(goalCard, "🎯 <b>Цели на лето 2026</b> · @igor\n\nДо <b>01.09.2026</b>") {
+		t.Fatalf("goals card should keep header gap: %s", goalCard)
+	}
+}
+
 func TestFormatProgressEventCustomUpdate(t *testing.T) {
 	event := postgres.ProgressEvent{
 		EventType: domain.ProgressCustomUpdate,
