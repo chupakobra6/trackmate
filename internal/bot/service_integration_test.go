@@ -654,36 +654,54 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 {
-		t.Fatalf("goals save should not send a separate full goals card, sent=%+v", fake.sent)
+	if len(fake.sent) != 2 {
+		t.Fatalf("goals save should send prompt and separate confirmation only, sent=%+v", fake.sent)
 	}
-	edit, ok := fake.findEdit(1001)
-	if !ok {
-		t.Fatalf("confirmation edit missing: %+v", fake.edits)
+	if _, ok := fake.findEdit(1001); ok {
+		t.Fatalf("goals save should not edit old prompt into confirmation: %+v", fake.edits)
 	}
-	if !strings.Contains(edit.Text, "Цели записаны") || strings.Contains(edit.Text, "получить предложение") {
-		t.Fatalf("confirmation should be concise and not echo goals: %s", edit.Text)
+	if !fake.wasDeleted(1001) {
+		t.Fatalf("goals prompt should be deleted after save: %+v", fake.deleted)
+	}
+	confirmation := fake.sent[1]
+	if confirmation.ReplyToMessageID != 0 {
+		t.Fatalf("goals confirmation should not reply with quoted input: %+v", confirmation)
+	}
+	if !confirmation.DisableNotification {
+		t.Fatalf("goals confirmation should be silent: %+v", confirmation)
+	}
+	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели</a> записаны`, "Обзор будет приходить"} {
+		if !strings.Contains(confirmation.Text, part) {
+			t.Fatalf("confirmation missing %q: %s", part, confirmation.Text)
+		}
+	}
+	if strings.Contains(confirmation.Text, "получить предложение") {
+		t.Fatalf("confirmation should not echo goals: %s", confirmation.Text)
 	}
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, 42, 14); err != nil || found {
 		t.Fatalf("pending input found=%v err=%v", found, err)
 	}
-	if !fake.wasDeleted(301) {
-		t.Fatalf("goals input message should be deleted after save: %+v", fake.deleted)
+	if fake.wasDeleted(301) {
+		t.Fatalf("goals input message should stay as source link: %+v", fake.deleted)
 	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
 	if err != nil {
 		t.Fatal(err)
 	}
 	var goalCount int
+	var sourceMessageID, sourceThreadID int64
 	if err := store.Pool().QueryRow(ctx, `
-SELECT count(*)
+SELECT count(*), coalesce(max(source_message_id), 0), coalesce(max(source_message_thread_id), 0)
 FROM seasonal_goal_sets
 WHERE workspace_group_id = $1 AND participant_id = $2
-`, workspace.ID, participant.ID).Scan(&goalCount); err != nil {
+`, workspace.ID, participant.ID).Scan(&goalCount, &sourceMessageID, &sourceThreadID); err != nil {
 		t.Fatal(err)
 	}
 	if goalCount != 1 {
 		t.Fatalf("goal sets = %d, want 1", goalCount)
+	}
+	if sourceMessageID != 301 || sourceThreadID != 14 {
+		t.Fatalf("goals source message not stored: message=%d thread=%d", sourceMessageID, sourceThreadID)
 	}
 }
 

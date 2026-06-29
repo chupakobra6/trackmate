@@ -10,30 +10,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (q *Queries) UpsertSeasonalGoalSet(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, period domain.GoalPeriod, goalsHTML string) (SeasonalGoalSet, error) {
+func (q *Queries) UpsertSeasonalGoalSet(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, period domain.GoalPeriod, goalsHTML string, sourceMessageID *int64, sourceMessageThreadID *int64) (SeasonalGoalSet, error) {
 	row := q.db.QueryRow(ctx, `
 INSERT INTO seasonal_goal_sets (
     workspace_group_id, participant_id, owner_user_id, period_key, period_title,
-    period_starts_on, period_ends_on, goals_text, created_at, updated_at
+    period_starts_on, period_ends_on, goals_text, source_message_id, source_message_thread_id, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, now(), now())
+VALUES ($1, $2, $3, $4, $5, $6::date, $7::date, $8, $9, $10, now(), now())
 ON CONFLICT (workspace_group_id, participant_id, period_key) DO UPDATE SET
     owner_user_id = EXCLUDED.owner_user_id,
     period_title = EXCLUDED.period_title,
     period_starts_on = EXCLUDED.period_starts_on,
     period_ends_on = EXCLUDED.period_ends_on,
     goals_text = EXCLUDED.goals_text,
+    source_message_id = EXCLUDED.source_message_id,
+    source_message_thread_id = EXCLUDED.source_message_thread_id,
     updated_at = now()
 RETURNING id, workspace_group_id, participant_id, owner_user_id, period_key, period_title,
-          period_starts_on, period_ends_on, goals_text, card_message_id, card_message_thread_id, created_at, updated_at
-`, workspaceID, participantID, ownerUserID, period.Key, period.Title, period.StartsOn, period.EndsOn, goalsHTML)
+          period_starts_on, period_ends_on, goals_text, card_message_id, card_message_thread_id,
+          source_message_id, source_message_thread_id, created_at, updated_at
+`, workspaceID, participantID, ownerUserID, period.Key, period.Title, period.StartsOn, period.EndsOn, goalsHTML, sourceMessageID, sourceMessageThreadID)
 	return scanSeasonalGoalSet(row)
 }
 
 func (q *Queries) GetSeasonalGoalSet(ctx context.Context, goalSetID int64) (SeasonalGoalSet, bool, error) {
 	row := q.db.QueryRow(ctx, `
 SELECT id, workspace_group_id, participant_id, owner_user_id, period_key, period_title,
-       period_starts_on, period_ends_on, goals_text, card_message_id, card_message_thread_id, created_at, updated_at
+       period_starts_on, period_ends_on, goals_text, card_message_id, card_message_thread_id,
+       source_message_id, source_message_thread_id, created_at, updated_at
 FROM seasonal_goal_sets
 WHERE id = $1
 `, goalSetID)
@@ -111,7 +115,7 @@ func (q *Queries) ListSeasonalGoalSetContexts(ctx context.Context) ([]SeasonalGo
 	rows, err := q.db.Query(ctx, `
 SELECT gs.id, gs.workspace_group_id, gs.participant_id, gs.owner_user_id, gs.period_key, gs.period_title,
        gs.period_starts_on, gs.period_ends_on, gs.goals_text, gs.card_message_id, gs.card_message_thread_id,
-       gs.created_at, gs.updated_at,
+       gs.source_message_id, gs.source_message_thread_id, gs.created_at, gs.updated_at,
        wg.id, wg.chat_id, wg.title, wg.timezone, wg.setup_status::text, wg.setup_message_id, wg.created_at, wg.updated_at,
        p.id, p.workspace_group_id, p.user_id, p.username, p.display_name, p.is_active, p.created_at, p.updated_at
 FROM seasonal_goal_sets gs
@@ -127,13 +131,13 @@ ORDER BY gs.id ASC
 	var result []SeasonalGoalSetContext
 	for rows.Next() {
 		var item SeasonalGoalSetContext
-		var goalCard, goalThread pgtype.Int4
+		var goalCard, goalThread, sourceMessage, sourceThread pgtype.Int4
 		var title, username pgtype.Text
 		var setupMessageID pgtype.Int4
 		var setupStatus string
 		if err := rows.Scan(
 			&item.GoalSet.ID, &item.GoalSet.WorkspaceGroupID, &item.GoalSet.ParticipantID, &item.GoalSet.OwnerUserID, &item.GoalSet.PeriodKey, &item.GoalSet.PeriodTitle,
-			&item.GoalSet.PeriodStartsOn, &item.GoalSet.PeriodEndsOn, &item.GoalSet.GoalsText, &goalCard, &goalThread, &item.GoalSet.CreatedAt, &item.GoalSet.UpdatedAt,
+			&item.GoalSet.PeriodStartsOn, &item.GoalSet.PeriodEndsOn, &item.GoalSet.GoalsText, &goalCard, &goalThread, &sourceMessage, &sourceThread, &item.GoalSet.CreatedAt, &item.GoalSet.UpdatedAt,
 			&item.Workspace.ID, &item.Workspace.ChatID, &title, &item.Workspace.Timezone, &setupStatus, &setupMessageID, &item.Workspace.CreatedAt, &item.Workspace.UpdatedAt,
 			&item.Participant.ID, &item.Participant.WorkspaceGroupID, &item.Participant.UserID, &username, &item.Participant.DisplayName, &item.Participant.IsActive, &item.Participant.CreatedAt, &item.Participant.UpdatedAt,
 		); err != nil {
@@ -141,6 +145,8 @@ ORDER BY gs.id ASC
 		}
 		item.GoalSet.CardMessageID = int64FromPgInt4(goalCard)
 		item.GoalSet.CardMessageThreadID = int64FromPgInt4(goalThread)
+		item.GoalSet.SourceMessageID = int64FromPgInt4(sourceMessage)
+		item.GoalSet.SourceMessageThreadID = int64FromPgInt4(sourceThread)
 		item.Workspace.Title = textFromPg(title)
 		item.Workspace.SetupStatus = domain.GroupSetupStatus(setupStatus)
 		item.Workspace.SetupMessageID = int64FromPgInt4(setupMessageID)
@@ -257,15 +263,17 @@ RETURNING gfr.id, gfr.goal_set_id, gfr.status::text, gfr.prompt_message_id, gfr.
 
 func scanSeasonalGoalSet(row pgx.Row) (SeasonalGoalSet, error) {
 	var goalSet SeasonalGoalSet
-	var cardID, cardThreadID pgtype.Int4
+	var cardID, cardThreadID, sourceID, sourceThreadID pgtype.Int4
 	if err := row.Scan(
 		&goalSet.ID, &goalSet.WorkspaceGroupID, &goalSet.ParticipantID, &goalSet.OwnerUserID, &goalSet.PeriodKey, &goalSet.PeriodTitle,
-		&goalSet.PeriodStartsOn, &goalSet.PeriodEndsOn, &goalSet.GoalsText, &cardID, &cardThreadID, &goalSet.CreatedAt, &goalSet.UpdatedAt,
+		&goalSet.PeriodStartsOn, &goalSet.PeriodEndsOn, &goalSet.GoalsText, &cardID, &cardThreadID, &sourceID, &sourceThreadID, &goalSet.CreatedAt, &goalSet.UpdatedAt,
 	); err != nil {
 		return SeasonalGoalSet{}, err
 	}
 	goalSet.CardMessageID = int64FromPgInt4(cardID)
 	goalSet.CardMessageThreadID = int64FromPgInt4(cardThreadID)
+	goalSet.SourceMessageID = int64FromPgInt4(sourceID)
+	goalSet.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 	return goalSet, nil
 }
 

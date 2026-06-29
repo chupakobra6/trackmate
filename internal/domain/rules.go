@@ -17,6 +17,7 @@ const (
 	RoutineNoticeMaxAge     = 24 * time.Hour
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
+	GoalReviewIntervalDays  = 14
 	GoalNudgePercent        = 10
 	GoalNudgeCooldown       = 72 * time.Hour
 	PersonalAlertPercent    = 30
@@ -204,7 +205,7 @@ func CurrentGoalPeriod(workspaceTimezone string, nowUTC time.Time) (GoalPeriod, 
 	return GoalPeriod{Key: key, Title: title, StartsOn: startsOn, EndsOn: endsOn}, nil
 }
 
-func GoalWeeklyReviewDue(workspaceTimezone string, nowUTC time.Time) (time.Time, bool, error) {
+func GoalWeeklyReviewDue(periodStartsOn time.Time, workspaceTimezone string, nowUTC time.Time) (time.Time, bool, error) {
 	location, err := time.LoadLocation(workspaceTimezone)
 	if err != nil {
 		return time.Time{}, false, err
@@ -215,8 +216,45 @@ func GoalWeeklyReviewDue(workspaceTimezone string, nowUTC time.Time) (time.Time,
 	}
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
+	if !goalReviewDateDue(periodStartsOn, localDate, location) {
+		return time.Time{}, false, nil
+	}
 	weekStart := localDate.AddDate(0, 0, -int((localNow.Weekday()+6)%7))
 	return weekStart, true, nil
+}
+
+func GoalReviewCountdown(periodStartsOn time.Time, periodEndsOn time.Time, workspaceTimezone string, nowUTC time.Time) (int, int, error) {
+	location, err := time.LoadLocation(workspaceTimezone)
+	if err != nil {
+		return 0, 0, err
+	}
+	localNow := nowUTC.In(location)
+	year, month, day := localNow.Date()
+	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
+	endYear, endMonth, endDay := periodEndsOn.In(location).Date()
+	endDate := time.Date(endYear, endMonth, endDay, 0, 0, 0, 0, location)
+	if !localDate.Before(endDate) {
+		return 0, 0, nil
+	}
+	daysLeft := int(endDate.Sub(localDate).Hours() / 24)
+	reviewsLeft := 0
+	for date := localDate.AddDate(0, 0, 1); date.Before(endDate); date = date.AddDate(0, 0, 1) {
+		if date.Weekday() == GoalWeeklyReviewWeekday && goalReviewDateDue(periodStartsOn, date, location) {
+			reviewsLeft++
+		}
+	}
+	return daysLeft, reviewsLeft, nil
+}
+
+func goalReviewDateDue(periodStartsOn time.Time, localDate time.Time, location *time.Location) bool {
+	startYear, startMonth, startDay := periodStartsOn.In(location).Date()
+	startDate := time.Date(startYear, startMonth, startDay, 0, 0, 0, 0, location)
+	daysSinceStart := int(localDate.Sub(startDate).Hours() / 24)
+	if daysSinceStart < GoalReviewIntervalDays-1 {
+		return false
+	}
+	reviewWeekIndex := (daysSinceStart - (GoalReviewIntervalDays - 1)) / 7
+	return reviewWeekIndex%2 == 0
 }
 
 func GoalFinalReviewDue(period GoalPeriod, workspaceTimezone string, nowUTC time.Time) (bool, error) {

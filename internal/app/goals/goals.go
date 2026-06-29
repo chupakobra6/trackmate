@@ -60,7 +60,7 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 		if !nowBeforeLocalDate(nowUTC, item.Workspace.Timezone, item.GoalSet.PeriodEndsOn) {
 			continue
 		}
-		weekStart, due, err := domain.GoalWeeklyReviewDue(item.Workspace.Timezone, nowUTC)
+		weekStart, due, err := domain.GoalWeeklyReviewDue(item.GoalSet.PeriodStartsOn, item.Workspace.Timezone, nowUTC)
 		if err != nil {
 			return err
 		}
@@ -86,10 +86,14 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 		if review.ResponseText != nil || review.PromptMessageID != nil {
 			continue
 		}
+		daysLeft, reviewsLeft, err := domain.GoalReviewCountdown(item.GoalSet.PeriodStartsOn, item.GoalSet.PeriodEndsOn, item.Workspace.Timezone, nowUTC)
+		if err != nil {
+			return err
+		}
 		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              item.Workspace.ChatID,
 			MessageThreadID:     goalsTopic.ThreadID,
-			Text:                ui.FormatGoalWeeklyReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant)),
+			Text:                ui.FormatGoalWeeklyReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant), goalSourceLink(item.Workspace.ChatID, item.GoalSet), daysLeft, reviewsLeft),
 			DisableNotification: true,
 		})
 		if err != nil {
@@ -145,7 +149,7 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              item.Workspace.ChatID,
 			MessageThreadID:     goalsTopic.ThreadID,
-			Text:                ui.FormatGoalFinalReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant)),
+			Text:                ui.FormatGoalFinalReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant), goalSourceLink(item.Workspace.ChatID, item.GoalSet)),
 			ReplyMarkup:         ui.GoalFinalStatusKeyboard(item.GoalSet.ID),
 			DisableNotification: true,
 		})
@@ -170,6 +174,17 @@ func nowBeforeLocalDate(nowUTC time.Time, timezoneName string, date time.Time) b
 	dateYear, dateMonth, dateDay := date.In(location).Date()
 	targetDate := time.Date(dateYear, dateMonth, dateDay, 0, 0, 0, 0, location)
 	return localDate.Before(targetDate)
+}
+
+func goalSourceLink(chatID int64, goalSet postgres.SeasonalGoalSet) string {
+	return postgres.MessageLink(chatID, optionalInt64(goalSet.SourceMessageID), optionalInt64(goalSet.SourceMessageThreadID))
+}
+
+func optionalInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func participantUsername(participant postgres.Participant) string {

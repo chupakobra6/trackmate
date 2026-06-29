@@ -71,7 +71,9 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 			return err
 		}
 		input := telegram.NewMessageInput(message)
-		goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, message.From.ID, period, input.TextHTML)
+		sourceMessageID := message.MessageID
+		sourceThreadID := message.MessageThreadID
+		goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, message.From.ID, period, input.TextHTML, &sourceMessageID, &sourceThreadID)
 		if err != nil {
 			return err
 		}
@@ -82,12 +84,17 @@ func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.W
 			}
 		}
 		s.deletePendingUserMessages(ctx, message.Chat.ID, claimed.Payload)
-		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, message.MessageID)
-		text := messages.Text("goals.saved")
-		if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(claimed.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
-			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
+		if promptMessageID := payloadInt64(claimed.Payload, "prompt_message_id"); promptMessageID != 0 {
+			_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, promptMessageID)
 		}
-		return nil
+		text := ui.FormatGoalsSaved(postgres.MessageLink(message.Chat.ID, sourceMessageID, sourceThreadID))
+		_, err = s.Telegram.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+			ChatID:          message.Chat.ID,
+			MessageThreadID: message.MessageThreadID,
+			Text:            text,
+			ReplyMarkup:     ui.DismissKeyboard(),
+		}))
+		return err
 	})
 }
 

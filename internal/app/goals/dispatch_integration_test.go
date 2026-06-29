@@ -34,7 +34,9 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 	}
-	if _, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе\nМетрика: 10 откликов"); err != nil {
+	sourceMessageID := int64(501)
+	sourceThreadID := int64(40)
+	if _, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе\nМетрика: 10 откликов", &sourceMessageID, &sourceThreadID); err != nil {
 		t.Fatal(err)
 	}
 
@@ -42,8 +44,14 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(40, "Недельный обзор целей") {
+	if !fake.hasSentToThread(40, "Обзор целей") {
 		t.Fatalf("weekly review was not sent to goals topic: %+v", fake.sent)
+	}
+	if fake.hasSentToThread(40, "Результат: предложение") {
+		t.Fatalf("weekly review should not echo full goals: %+v", fake.sent)
+	}
+	if !fake.hasSentToThread(40, `https://t.me/c/888000555/501?thread=40`) {
+		t.Fatalf("weekly review should link to source goals message: %+v", fake.sent)
 	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
 		t.Fatalf("weekly pending found=%v pending=%+v err=%v", found, pending, err)

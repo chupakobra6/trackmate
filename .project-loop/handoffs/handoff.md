@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-024`
+- active step: `STEP-026`
 - status: `готово`
 
 ## Завершено
@@ -168,6 +168,20 @@
   - daily worker теперь загружает participant для alert text formatter;
   - новые видимые тексты лежат в `internal/messages/messages.md`, обычные пользователи продолжают получать прежние формулировки;
   - production deploy не выполнялся.
+- Закрыт STEP-025 по S024:
+  - обзор целей теперь приходит раз в две недели по воскресеньям после 20:00, привязка идет от даты старта периода;
+  - `Цели` больше не удаляют пользовательское сообщение со списком целей при сохранении: его `source_message_id/source_message_thread_id` сохраняются для ссылок;
+  - обзор и финальный prompt целей больше не вставляют полный текст целей, а показывают ссылку `Цели: открыть список`;
+  - обзор показывает `До итога: N дней · M проверок`, где проверки считаются как будущие двухнедельные обзоры до финального пинга;
+  - вопросы обзора целей упрощены: без лишнего `сезонным`, с горизонтом `последние/следующие две недели`;
+  - future todo зафиксирован как `REQ-047`: отдельно отревьювить вопросы и случайные вставки в Today/Goals/Routine;
+  - production deploy не выполнялся.
+- Закрыт STEP-026 по S025:
+  - topic isolation оставлена как в S009: pending inputs разных топиков не сбрасывают и не блокируют друг друга;
+  - после ввода целей Trackmate удаляет старый prompt, но оставляет пользовательское сообщение как источник для ссылок;
+  - подтверждение теперь отправляется новым тихим сообщением ниже ввода, не reply и без полной вставки текста целей;
+  - слово `Цели` в подтверждении ведет на исходное сообщение пользователя;
+  - production deploy не выполнялся.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -183,6 +197,8 @@
 - `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
 - `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - STEP-024 validation: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/worker`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-025 validation: `go test ./internal/domain ./internal/ui ./internal/storage/postgres ./internal/app/goals ./internal/bot ./internal/worker`: pass; `make docker-up`: pass; `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass; `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
+- STEP-026 validation: `go test ./internal/bot ./internal/ui ./internal/messages ./internal/app/goals ./internal/storage/postgres`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
 - `telegram-bot-e2e-test-tool make doctor`: pass.
 - `telegram-bot-e2e-test-tool make test`: pass.
 - Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.
@@ -281,10 +297,10 @@
 - STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 - STEP-021 был проверкой без data/code changes.
 - STEP-022 был проверкой без data/code changes.
-- STEP-023 локально готов, но не выкачен на production.
+- STEP-023..STEP-026 локально готовы, но не выкачены на production.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023..STEP-026 и миграции STEP-014/STEP-017/STEP-025 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

@@ -171,6 +171,13 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 6, 30, 12, 1, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
+	if fake.wasDeleted(3002) {
+		t.Fatalf("fresh auto-close notice should stay for about 24h, deleted=%+v", fake.deleted)
+	}
+
+	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 7, 1, 0, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
 	if !fake.wasDeleted(3002) {
 		t.Fatalf("expired auto-close notice should be deleted, deleted=%+v", fake.deleted)
 	}

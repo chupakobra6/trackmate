@@ -143,15 +143,31 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	}
 
 	goalSet := postgres.SeasonalGoalSet{PeriodTitle: "Лето 2026", GoalsText: "1. Работа"}
-	weekly := FormatGoalWeeklyReviewPrompt(goalSet, "Игорь", "igor")
+	weekly := FormatGoalWeeklyReviewPrompt(goalSet, "Игорь", "igor", "https://t.me/c/1/301?thread=40", 65, 4)
 	for _, part := range []string{
-		"Что продвинулось по сезонным целям за эту неделю?",
-		"Что мешало двигаться?",
-		"Какой главный шаг берешь на следующую неделю?",
+		"Обзор целей",
+		`<a href="https://t.me/c/1/301?thread=40">открыть список</a>`,
+		"До итога:</b> 65 дней · 4 проверки",
+		"Что продвинулось за последние две недели?",
+		"Что мешало?",
+		"Что сделаешь в следующие две недели?",
 	} {
 		if !strings.Contains(weekly, part) {
 			t.Fatalf("weekly prompt missing %q: %s", part, weekly)
 		}
+	}
+	if strings.Contains(weekly, "1. Работа") || strings.Contains(weekly, "сезонным") {
+		t.Fatalf("weekly prompt should not echo full goals or say seasonal: %s", weekly)
+	}
+
+	finalPrompt := FormatGoalFinalReviewPrompt(goalSet, "Игорь", "igor", "https://t.me/c/1/301?thread=40")
+	if !strings.Contains(finalPrompt, `<a href="https://t.me/c/1/301?thread=40">открыть список</a>`) || strings.Contains(finalPrompt, "1. Работа") {
+		t.Fatalf("final prompt should link to goals without echoing them: %s", finalPrompt)
+	}
+
+	saved := FormatGoalsSaved("https://t.me/c/1/301?thread=40")
+	if !strings.Contains(saved, `<a href="https://t.me/c/1/301?thread=40">Цели</a> записаны`) {
+		t.Fatalf("goals saved confirmation should link the title word: %s", saved)
 	}
 
 	final := FormatGoalFinalReflectionPrompt(goalSet, domain.GoalFinalPartial)

@@ -27,7 +27,7 @@ command.
 - `internal/app/today`: daily task rules and report state transitions.
 - `internal/app/progress`: progress outbox formatting and publishing.
 - `internal/app/routine`: routine check-in dispatch and leaderboard refresh.
-- `internal/app/goals`: seasonal goal weekly/final dispatch and throttled goal
+- `internal/app/goals`: seasonal goal review/final dispatch and throttled goal
   nudges.
 - `internal/storage/postgres`: pgx storage, transactions, idempotency, DB
   claims, advisory worker lock, and E2E control state.
@@ -42,7 +42,7 @@ Trackmate owns four Telegram forum topics:
   prompts, and alerts.
 - `routine`: title `Рутины`; contains routine setup, daily check-in cards, and
   the routine leaderboard.
-- `goals`: title `Цели`; contains seasonal goal setup, weekly reviews, and final
+- `goals`: title `Цели`; contains seasonal goal setup, reviews every two weeks, and final
   period reviews.
 - `progress`: title `Прогресс`; contains published progress events.
 
@@ -132,9 +132,9 @@ into the topic. The instruction asks for a measurable format:
 The first live period is `Лето 2026`, ending on `2026-09-01`; the period helper
 then follows calendar seasons.
 
-On Sunday after 20:00 local time, the worker sends one weekly review prompt in
-`Цели` and stores the response as `goal_weekly_review`. On and after the period
-end date, the worker sends a final review prompt with buttons
+Every second Sunday after 20:00 local time, the worker sends one goals review
+prompt in `Цели` and stores the response as `goal_weekly_review`. On and after
+the period end date, the worker sends a final review prompt with buttons
 `done|partial|failed`; after the button, the user writes one final summary.
 
 Today can show a rare deterministic goal nudge when a participant already has
@@ -159,7 +159,7 @@ transient failures are requeued; permanent failures are marked failed.
 Alert acknowledgement deletes the visible alert card, marks `acknowledged_at`,
 and clears the stored Telegram message ID.
 
-The same tick also dispatches due routine check-ins, weekly goal reviews, and
+The same tick also dispatches due routine check-ins, goals reviews, and
 final goal reviews. These are idempotent through stored Telegram message IDs and
 do not pass through the Progress outbox.
 

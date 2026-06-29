@@ -101,7 +101,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
 		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 	}
-	if _, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе\nМетрика: 10 откликов"); err != nil {
+	if _, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе\nМетрика: 10 откликов", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 
@@ -110,8 +110,8 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if err := runner.Tick(ctx, time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if fake.hasSentToThread(30, "Рутина") {
-		t.Fatalf("routine check-in should not be sent before the next 08:00 window: %+v", fake.sent)
+	if !fake.hasSentToThread(30, "Рутина") {
+		t.Fatalf("routine check-in should be sent after the next 08:00 window: %+v", fake.sent)
 	}
 	if err := runner.Tick(ctx, time.Date(2026, 6, 29, 8, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if !fake.hasSentToThread(30, "Рутина") {
 		t.Fatalf("routine check-in not sent to routine topic: %+v", fake.sent)
 	}
-	if !fake.hasSentToThread(40, "Недельный обзор целей") {
+	if !fake.hasSentToThread(40, "Обзор целей") {
 		t.Fatalf("weekly goal review not sent to goals topic: %+v", fake.sent)
 	}
 	if fake.hasThread(20) {

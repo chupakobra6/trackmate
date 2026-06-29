@@ -163,20 +163,43 @@ func TestCurrentGoalPeriodReturnsSummer2026(t *testing.T) {
 	}
 }
 
-func TestGoalWeeklyReviewDueOnSundayEvening(t *testing.T) {
-	_, due, err := GoalWeeklyReviewDue("UTC", time.Date(2026, 6, 28, 19, 59, 0, 0, time.UTC))
+func TestGoalWeeklyReviewDueEveryOtherSundayEvening(t *testing.T) {
+	periodStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	_, due, err := GoalWeeklyReviewDue(periodStart, "UTC", time.Date(2026, 6, 28, 19, 59, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if due {
 		t.Fatal("review should not be due before 20:00")
 	}
-	weekStart, due, err := GoalWeeklyReviewDue("UTC", time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC))
+	_, due, err = GoalWeeklyReviewDue(periodStart, "UTC", time.Date(2026, 6, 21, 20, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if due {
+		t.Fatal("review should skip the off week")
+	}
+	weekStart, due, err := GoalWeeklyReviewDue(periodStart, "UTC", time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !due || weekStart.Format("2006-01-02") != "2026-06-22" {
 		t.Fatalf("due=%v weekStart=%s", due, weekStart.Format("2006-01-02"))
+	}
+}
+
+func TestGoalReviewCountdownCountsFutureReviewsAndDays(t *testing.T) {
+	days, reviews, err := GoalReviewCountdown(
+		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		"UTC",
+		time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if days != 65 || reviews != 4 {
+		t.Fatalf("days=%d reviews=%d", days, reviews)
 	}
 }
 
@@ -186,39 +209,35 @@ func TestGoalNudgeIsDeterministic(t *testing.T) {
 	}
 }
 
-func TestPersonalAlertTargetsOnlyEgorWithWUsername(t *testing.T) {
-	if !isPersonalAlertTarget("whysoxxx", "Егор Ковалец") {
-		t.Fatal("expected Egor with w username to be a personal alert target")
+func TestPersonalAlertTargetsOnlyExactEgorUsername(t *testing.T) {
+	if !isPersonalAlertTarget("whysoxxx") {
+		t.Fatal("expected exact Egor username to be a personal alert target")
 	}
-	for _, item := range []struct {
-		username    string
-		displayName string
-	}{
-		{username: "whysoxxx", displayName: "Игорь"},
-		{username: "igor", displayName: "Егор Ковалец"},
-		{username: "", displayName: "Егор Ковалец"},
-	} {
-		if isPersonalAlertTarget(item.username, item.displayName) {
-			t.Fatalf("unexpected personal alert target: %+v", item)
+	if !isPersonalAlertTarget("@whysoxxx") {
+		t.Fatal("expected username normalization to accept @ prefix")
+	}
+	for _, username := range []string{"w", "whysoxxx1", "igor", ""} {
+		if isPersonalAlertTarget(username) {
+			t.Fatalf("unexpected personal alert target: %s", username)
 		}
 	}
 }
 
 func TestPersonalAlertUsesStableThirtyPercentBucket(t *testing.T) {
-	if ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", "same-seed") != ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", "same-seed") {
+	if ShouldShowPersonalAlert("whysoxxx", "same-seed") != ShouldShowPersonalAlert("whysoxxx", "same-seed") {
 		t.Fatal("personal alert decision must be stable for one seed")
 	}
 	shown := 0
 	for i := 0; i < 1000; i++ {
-		if ShouldShowPersonalAlert("whysoxxx", "Егор Ковалец", fmt.Sprintf("seed-%d", i)) {
+		if ShouldShowPersonalAlert("whysoxxx", fmt.Sprintf("seed-%d", i)) {
 			shown++
 		}
 	}
 	if shown < 250 || shown > 350 {
 		t.Fatalf("unexpected personal alert share: %d/1000", shown)
 	}
-	if ShouldShowPersonalAlert("whysoxxx", "Игорь", "seed-1") {
-		t.Fatal("personal alert should not show for non-target display name")
+	if ShouldShowPersonalAlert("whysoxxx1", "seed-1") {
+		t.Fatal("personal alert should not show for non-target username")
 	}
 }
 

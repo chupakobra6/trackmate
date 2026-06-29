@@ -167,19 +167,21 @@ type RoutineLeaderboardEntry struct {
 }
 
 type SeasonalGoalSet struct {
-	ID                  int64
-	WorkspaceGroupID    int64
-	ParticipantID       int64
-	OwnerUserID         int64
-	PeriodKey           string
-	PeriodTitle         string
-	PeriodStartsOn      time.Time
-	PeriodEndsOn        time.Time
-	GoalsText           string
-	CardMessageID       *int64
-	CardMessageThreadID *int64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	ID                    int64
+	WorkspaceGroupID      int64
+	ParticipantID         int64
+	OwnerUserID           int64
+	PeriodKey             string
+	PeriodTitle           string
+	PeriodStartsOn        time.Time
+	PeriodEndsOn          time.Time
+	GoalsText             string
+	CardMessageID         *int64
+	CardMessageThreadID   *int64
+	SourceMessageID       *int64
+	SourceMessageThreadID *int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type SeasonalGoalSetContext struct {

@@ -175,6 +175,13 @@ func SeasonalGoalsPrompt() string {
 	return messages.Text("goals.prompt")
 }
 
+func FormatGoalsSaved(goalsLink string) string {
+	if strings.TrimSpace(goalsLink) == "" {
+		return messages.Text("goals.saved_no_link")
+	}
+	return messages.Format("goals.saved", "link", html.EscapeString(goalsLink))
+}
+
 func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string) string {
 	person := personLabel(username, displayName)
 	lines := []string{
@@ -186,20 +193,71 @@ func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string
 	return appendNotice(lines, notice)
 }
 
-func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
+func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string, goalsLink string, daysLeft int, reviewsLeft int) string {
 	person := personLabel(username, displayName)
-	return strings.Join([]string{
+	lines := []string{
 		messages.Text("goals.weekly.title"),
 		"",
 		messages.Format("goals.weekly.intro", "person", person),
 		"",
+	}
+	if goalsLink != "" {
+		lines = append(lines, messages.Format("goals.weekly.source", "link", html.EscapeString(goalsLink)))
+	} else {
+		lines = append(lines, messages.Text("goals.weekly.source_missing"))
+	}
+	lines = append(lines,
+		messages.Format("goals.weekly.countdown", "days", daysLabel(daysLeft), "reviews", reviewsLabel(reviewsLeft)),
+		"",
 		messages.Text("goals.weekly.q1"),
 		messages.Text("goals.weekly.q2"),
 		messages.Text("goals.weekly.q3"),
+	)
+	return strings.Join(lines, "\n")
+}
+
+func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string, goalsLink string) string {
+	person := personLabel(username, displayName)
+	lines := []string{
+		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
 		"",
-		messages.Text("goals.weekly.list_title"),
-		renderSectionHTML(goalSet.GoalsText),
-	}, "\n")
+		messages.Format("goals.final.ask_status", "person", person),
+	}
+	if goalsLink != "" {
+		lines = append(lines, "", messages.Format("goals.weekly.source", "link", html.EscapeString(goalsLink)))
+	} else {
+		lines = append(lines, "", messages.Text("goals.weekly.source_missing"))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func daysLabel(days int) string {
+	if days < 0 {
+		days = 0
+	}
+	return fmt.Sprintf("%d %s", days, russianPlural(days, messages.Text("goals.days.one"), messages.Text("goals.days.few"), messages.Text("goals.days.many")))
+}
+
+func reviewsLabel(reviews int) string {
+	if reviews < 0 {
+		reviews = 0
+	}
+	return fmt.Sprintf("%d %s", reviews, russianPlural(reviews, messages.Text("goals.reviews.one"), messages.Text("goals.reviews.few"), messages.Text("goals.reviews.many")))
+}
+
+func russianPlural(count int, one string, few string, many string) string {
+	mod100 := count % 100
+	if mod100 >= 11 && mod100 <= 14 {
+		return many
+	}
+	switch count % 10 {
+	case 1:
+		return one
+	case 2, 3, 4:
+		return few
+	default:
+		return many
+	}
 }
 
 func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
@@ -208,17 +266,6 @@ func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
 		lines = append(lines, "", renderSectionHTML(*review.ResponseText))
 	}
 	return strings.Join(lines, "\n")
-}
-
-func FormatGoalFinalReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string) string {
-	person := personLabel(username, displayName)
-	return strings.Join([]string{
-		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
-		"",
-		messages.Format("goals.final.ask_status", "person", person),
-		"",
-		renderSectionHTML(goalSet.GoalsText),
-	}, "\n")
 }
 
 func FormatGoalFinalReflectionPrompt(goalSet postgres.SeasonalGoalSet, status domain.GoalFinalStatus) string {

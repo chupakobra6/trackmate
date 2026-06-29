@@ -9,7 +9,7 @@ Raw user input is stored in the ChatGPT conversation attachment, not committed h
 Trackmate should add two product topics:
 
 - Routines: daily check-ins for repeated habits, with streaks and leaderboard inside the Routines topic.
-- Goals: seasonal goals, weekly reviews, and final review at the end of the period.
+- Goals: seasonal goals, reviews every two weeks, and final review at the end of the period.
 
 Today remains the daily focus topic. Progress remains only for closed daily tasks and auto-failed daily tasks.
 
@@ -30,7 +30,7 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 13. Store goals as raw text in MVP; do not over-parse.
 14. Keep Goals setup confirmation concise; do not echo the full goals text as a separate card.
 15. Scope unfinished input by topic: Routines, Goals, and Today drafts do not block or cancel each other.
-16. Weekly goals review asks one combined progress answer.
+16. Goals review every two weeks asks one combined progress answer.
 17. Final seasonal review asks completed, partial, or failed plus a short summary.
 18. Add rare Today reminders that connect daily tasks with seasonal goals.
 19. Clean up unfinished input after 24 hours silently, deleting the stored bot prompt and known process messages.
@@ -42,7 +42,7 @@ Today remains the daily focus topic. Progress remains only for closed daily task
 ## Non-goals for MVP
 
 - No complex per-goal parser.
-- No per-item weekly goals polling.
+- No per-item goals polling.
 - No routine leaderboard in Progress.
 - No aggressive Telegram spam.
 - No production migration without backup and manual approval.
