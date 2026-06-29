@@ -191,7 +191,7 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 	checkin := postgres.RoutineCheckin{CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC)}
 
 	reminder := RoutineReminderText(checkin, "Игорь", "igor", 42)
-	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", `<a href="tg://user?id=42">Игорь</a>`, "Отметь до полуночи"} {
+	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", `<a href="tg://user?id=42">Игорь</a>`, "\n\nОтметь до полуночи"} {
 		if !strings.Contains(reminder, part) {
 			t.Fatalf("routine reminder missing %q: %s", part, reminder)
 		}
@@ -201,7 +201,7 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 	}
 
 	autoClosed := RoutineAutoClosedText(checkin, "Игорь", "igor", 42)
-	for _, part := range []string{"⚠️ <b>Рутина за 28.06 закрыта</b>", "Неотмеченные пункты стали невыполненными"} {
+	for _, part := range []string{"⚠️ <b>Рутина за 28.06 закрыта</b>", "\n\nНеотмеченные пункты стали невыполненными"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("routine auto-close notice missing %q: %s", part, autoClosed)
 		}
@@ -214,7 +214,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
 	}
 	reminder := RoutineReminderText(reminderCheckin, "Егор Ковалец", "whysoxxx", 77)
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, где рутина, бро?", "не будь нищим по дисциплине"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где рутина, бро?", "не будь нищим"} {
 		if !strings.Contains(reminder, part) {
 			t.Fatalf("personal routine reminder missing %q: %s", part, reminder)
 		}
@@ -225,7 +225,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
 	}
 	autoClosed := RoutineAutoClosedText(autoClosedCheckin, "Егор Ковалец", "whysoxxx", 77)
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, рутина ушла в минус", "Не будь нищим по дисциплине"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, рутина ушла в минус", "Не будь нищим"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("personal routine auto-close missing %q: %s", part, autoClosed)
 		}
@@ -234,7 +234,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 
 func TestPersonalDailyAlertCopyForEgor(t *testing.T) {
 	alert := AlertText(domain.AlertDayClosedPendingReport, "Егор Ковалец", "whysoxxx", 77, "daily-alert:3:day_closed_pending_report")
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "Егор, где дела, бро?", "Закрой итог"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где дела, бро?", "Закрой итог, не будь нищим"} {
 		if !strings.Contains(alert, part) {
 			t.Fatalf("personal daily alert missing %q: %s", part, alert)
 		}
