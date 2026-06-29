@@ -21,6 +21,33 @@ func TestFormatReplacesPlaceholders(t *testing.T) {
 	}
 }
 
+func TestParseCatalogIgnoresEditorialComments(t *testing.T) {
+	values, err := parseCatalog("## greeting\n<!-- Видит пользователь при тесте. -->\nПривет\n")
+	if err != nil {
+		t.Fatalf("parse catalog with comments: %v", err)
+	}
+	if got := values["greeting"]; got != "Привет" {
+		t.Fatalf("comment leaked into message: %q", got)
+	}
+}
+
+func TestCatalogEntriesHaveEditorialComments(t *testing.T) {
+	raw, err := catalogFS.ReadFile("messages.md")
+	if err != nil {
+		t.Fatalf("read catalog: %v", err)
+	}
+	lines := strings.Split(string(raw), "\n")
+	for i, line := range lines {
+		if !strings.HasPrefix(line, "## ") {
+			continue
+		}
+		key := strings.TrimSpace(strings.TrimPrefix(line, "## "))
+		if i+1 >= len(lines) || !isEditorialComment(lines[i+1]) {
+			t.Fatalf("%s should have an editorial comment after the key", key)
+		}
+	}
+}
+
 func TestMultilineCatalogTextsHaveHeaderGap(t *testing.T) {
 	for key, text := range All() {
 		lines := strings.Split(text, "\n")

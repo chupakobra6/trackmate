@@ -94,6 +94,9 @@ func parseCatalog(raw string) (map[string]string, error) {
 			}
 			continue
 		}
+		if isEditorialComment(line) {
+			continue
+		}
 		if currentKey == "" {
 			continue
 		}
@@ -107,4 +110,9 @@ func parseCatalog(raw string) (map[string]string, error) {
 		return nil, fmt.Errorf("message catalog is empty")
 	}
 	return result, nil
+}
+
+func isEditorialComment(line string) bool {
+	trimmed := strings.TrimSpace(line)
+	return strings.HasPrefix(trimmed, "<!--") && strings.HasSuffix(trimmed, "-->")
 }
