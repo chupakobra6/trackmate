@@ -390,7 +390,7 @@
 выполнил
 
 ## progress.daily.action.partial
-частично выполнил
+частично
 
 ## progress.daily.action.failed
 не выполнил
@@ -402,7 +402,7 @@
 ✅ <b>{{person}} {{action}} задачу дня</b>
 
 ## progress.daily.closed.partial
-🔸 <b>{{person}} {{action}} задачу дня</b>
+🔸 <b>{{person}} закрыл задачу дня — {{action}}</b>
 
 ## progress.daily.closed.failed
 ❌ <b>{{person}} {{action}} задачу дня</b>
