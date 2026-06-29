@@ -4,22 +4,22 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-020`
+- id: `STEP-021`
 - status: `готово`
-- objective: Дочистить production topic `Сегодня` после broken flow и опубликовать пропущенные progress итоги.
-- requirement IDs: `REQ-039`
+- objective: Проверить, работает ли production `Сегодня` после скрина 28.06 и почему у Игоря нет задачи 29.06.
+- requirement IDs: `REQ-040`
 - owned paths: `.project-loop/`
-- validation: prod backup: pass; worker publish log/db: pass; Harvest Today/Progress dumps: pass; service health: pass
-- done criteria: Today topic has no duplicate prompt/service-noise messages in the checked range; missed manual-restored progress events are visible in `Прогресс`; no Today pending inputs remain; progress outbox has no pending/publishing/failed events.
+- validation: prod services/logs/db: pass; Harvest Today/Chat/all dumps: pass; no data edit needed
+- done criteria: current production health is known; screenshot messages are matched to exact production logs; current Today topic is clean; Igor's 29.06 morning messages are classified correctly; no unrelated data is changed.
 
 ## Фокус Ревью
 - Это production data-fix, не кодовый deploy.
 - Не трогать routine local fixes и не выкатывать локальную пачку.
-- Новые Telegram posts допустимы только через штатный progress worker для уже существующих missed outbox events.
+- Если текущая проверка показывает, что сообщения уже удалены/засчитаны, не делать лишних Telegram/DB правок.
 
 ## Примечания
-- Backup перед cleanup: `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`.
-- `progress_events.id=193` и `194` были `published` без `published_message_id`; их вернули в `pending`, worker опубликовал messages `3653` и `3654`.
-- Через Harvest удалены old service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`.
-- Финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`.
-- Ретроактивно вставить bot-card на старое место вместо raw message `3467` невозможно; raw source message оставлен как source link для восстановленной задачи.
+- Скрин соответствует 2026-06-28 22:25 MSK: `today:add` Егора падал на старый `uq_pending_inputs_workspace_group_id`, отправлял prompts `3556`/`3558`, затем шли messages `3557`/`3559`/`3560`.
+- В актуальном Harvest dump prompts `3556`/`3558` и messages `3557`/`3559`/`3560` уже отсутствуют.
+- Отчет Игоря `3542` за 2026-06-27 уже засчитан: task `169`, progress message `3543`.
+- На 2026-06-29 в `Сегодня` нет задачи Игоря; его сообщения `3642`/`3643`/`3647`/`3648` были в общем `Чате`, а не в топике `Сегодня`, и не являются текстом задачи дня.
+- Production сейчас работает: task `171` Ярика создан 2026-06-29, card `3652`; `api`, `worker`, `postgres` healthy; progress outbox чистый.

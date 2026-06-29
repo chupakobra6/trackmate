@@ -34,6 +34,7 @@
 | S017 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-ae9fb7f7-38dc-49e9-9f94-2e7767bd7cb8.png` | принято | Production correction: verify Egor voice report `3386`/task `160`, fix missing DB representation so the done task has a `daily_task.closed` progress event. |
 | S018 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-4a1ae09c-c9e7-4078-b721-7fade5ba8c2a.png` | принято | Production follow-up: verify whether the "task does not save" bug is fixed, delete the chat complaint messages with Telegram Harvest, and use Harvest/Vosk transcription for the related voice report. |
 | S019 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-f38928f4-d47d-4ede-83b3-922ce6f3a1dd.png` | принято | Production cleanup: Today topic around the broken 26.06 flow has duplicate prompts/service noise and restored tasks that were not visible in `Прогресс`; clean the topic and make the missed results count. |
+| S020 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-71043fd1-bde0-4ea5-a6f7-6c421e4103d0.png` | принято | Production verification: old 28.06 Today prompt bug shown in screenshot, concern that Trackmate did not count Igor's morning task and might not be working. |
 
 ## Конфликты
 | Источники | Решение | Дата |
@@ -46,3 +47,4 @@
 | S013 vs S017 | S013 исправил саму daily task `160`, но без нового progress event; S017 добавляет недостающий `daily_task.closed` event и публикацию в `Прогресс`, чтобы БД и видимая история совпали с фактическим итогом. | 2026-06-29 |
 | S013/S017 vs S018 | S018 не меняет продуктовый код: он подтверждает, что root cause уже снят на production schema, чистит показанные chat messages и улучшает сохраненный текст voice report `3386` через Harvest/Vosk. | 2026-06-29 |
 | S018 vs S019 | S018 подтвердил schema fix и voice text; S019 доводит видимую историю до консистентности: два manual-restored progress events были `published` без `published_message_id`, поэтому их переоткрыли в outbox и дали worker-у опубликовать. | 2026-06-29 |
+| S019 vs S020 | S020 не требует новых data edits: сообщения со скрина уже отсутствуют в актуальном dump, отчет Игоря `3542` уже засчитан, а сообщения Игоря утром 29.06 были в общем `Чате`, не в `Сегодня`. | 2026-06-29 |

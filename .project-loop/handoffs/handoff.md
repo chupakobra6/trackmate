@@ -7,7 +7,7 @@
 - Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
 
 ## Текущий Шаг
-- active step: `STEP-020`
+- active step: `STEP-021`
 - status: `готово`
 
 ## Завершено
@@ -138,6 +138,14 @@
   - через Telegram Harvest удалены service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`;
   - финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`; в `Сегодня` нет pending inputs;
   - progress outbox clean: pending/publishing/failed = 0; локальный код и production deploy не трогались.
+- Закрыт STEP-021 по S020:
+  - скрин с prompts `Напиши главную задачу` соответствует 2026-06-28 22:25 MSK; logs показали старый `today:add` failure на `uq_pending_inputs_workspace_group_id`;
+  - актуальный Harvest dump `Сегодня`/all-chat больше не содержит prompts `3556`/`3558` и messages `3557`/`3559`/`3560`;
+  - перед этим Егор написал message `3555` в `Чат`: `сегодня я отсыпался, поэтому без задач`, поэтому задача за 2026-06-28 не восстанавливалась;
+  - отчет Игоря `3542` уже засчитан: task `169`, status `partial`, progress message `3543`;
+  - 2026-06-29 утром сообщения Игоря `3642`/`3643`/`3647`/`3648` были в topic `Чат`, не в `Сегодня`, и не являются задачей дня;
+  - production сейчас работает: свежий `today:add` Ярика создал task `171` и card `3652`; `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0;
+  - новых DB/Telegram правок и deploy не выполнялось.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -223,6 +231,9 @@
 - STEP-020 worker/db verification: events `193`/`194` published as messages `3653`/`3654`.
 - STEP-020 Harvest verification: Today final dump has no `Напиши главную задачу` or `Итог сохранен`; Progress final dump includes `3653` and `3654`.
 - STEP-020 service health: `api`, `worker`, `postgres` healthy; progress outbox pending/publishing/failed = 0; Today pending input count = 0.
+- STEP-021 production logs: 2026-06-28 19:25 UTC shows old constraint failure for messages `3556`/`3558`; 2026-06-29 logs show no current Today failure.
+- STEP-021 Harvest dumps: current `Сегодня` has no screenshot prompts; `Чат` contains Igor's morning discussion messages, not Today task input.
+- STEP-021 SQL verification: task `169`/progress `3543` exists for Igor's report; no Igor task exists for 2026-06-29; task `171`/card `3652` proves current Today flow works.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -239,6 +250,7 @@
 - STEP-018 production data исправлен вручную; кодовый deploy не выполнялся.
 - STEP-019 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
 - STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
+- STEP-021 был проверкой без data/code changes.
 
 ## Следующее Действие
 - Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграции STEP-014/STEP-017 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
