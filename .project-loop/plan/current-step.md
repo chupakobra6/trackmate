@@ -4,20 +4,21 @@
 Обновлено: 2026-06-29
 
 ## Активный Шаг
-- id: `STEP-017`
+- id: `STEP-018`
 - status: `готово`
-- objective: Поправить routine reminder/autoclose alerts: лаконичный текст, кнопка `Понял`, удаление при закрытии и TTL около суток.
-- requirement IDs: `REQ-034,REQ-035,REQ-036`
-- owned paths: `.project-loop/`, `internal/messages/`, `internal/domain/`, `internal/storage/postgres/`, `internal/app/routine/`, `internal/bot/`, `internal/worker/`, `internal/ui/`, `migrations/`
-- validation: `go test ./internal/storage/postgres ./internal/app/routine ./internal/ui ./internal/domain`: pass; `go test ./internal/bot ./internal/worker ./internal/messages`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate .`: pass
-- done criteria: routine reminder text is short and clear; reminder has `Понял` and disappears on routine close or cleanup TTL; auto-close sends a short temporary notice; cleanup removes reminder/auto-close notices after about 24h; tests pass.
+- objective: Исправить production DB/Progress для кейса Егора: task `160` должен иметь закрывающий `daily_task.closed` event.
+- requirement IDs: `REQ-037`
+- owned paths: `.project-loop/`
+- validation: production SQL verification: pass; worker log message `3649`: pass; `loopctl.py validate .`: pass
+- done criteria: task `160` is `done` with report `3386`; there is exactly one `daily_task.closed` progress event for task `160`; event is published in `Прогресс`; old auto-fail event is absent; backup path recorded.
 
 ## Фокус Ревью
-- Сохранить `Рутины` как чистый topic: постоянная таблица плюс временные рабочие/alert сообщения.
-- Не возвращать старую тяжелую формулировку reminder: без `еще не закрыта` и `будут засчитаны`.
-- Не деплоить production до отдельной команды.
+- Это production data-fix, не кодовый deploy.
+- Не трогать routine local fixes и не выкатывать локальную пачку.
+- Не создавать дублирующих progress events для task `160`.
 
 ## Примечания
-- S015 заменяет часть S014: нумерация снова принимается, confirmation настройки рутины не остается.
-- S016 заменяет часть S015: auto-close notice возвращен, но как временный dismissable alert с TTL.
-- Production не трогался в STEP-017.
+- S017 дополняет S013: предыдущий ручной fix восстановил task/report, но не создал `daily_task.closed` event.
+- Backup перед правкой: `/opt/trackmate/backups/trackmate_manual_progress_fix_20260629T111509Z.dump`.
+- Попытка отредактировать старое message `3404` не прошла: Bot API вернул `message to edit not found`.
+- Новый progress event `192` опубликован worker-ом в message `3649`.

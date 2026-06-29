@@ -113,6 +113,14 @@
   - добавлена additive migration `202606290002_routine_notice_ttl.sql` с nullable-полями `auto_close_notice_message_id` и `auto_close_notice_sent_at`;
   - worker теперь чистит expired routine reminder и auto-close notice messages после `RunCheckinTransitions`;
   - production deploy не выполнялся.
+- Закрыт STEP-018 по S017:
+  - production-БД проверена по task `160`/message `3386`: task уже был `done`, `report_status=done`, `report_text=Голосовое сообщение`, `failed_at=NULL`;
+  - missing piece: для `daily_task_id=160` не было `progress_events.daily_task.closed`, поэтому история `Прогресс` была неполной;
+  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_progress_fix_20260629T111509Z.dump`;
+  - попытка отредактировать старое message `3404` в корректный done-progress не прошла: Bot API вернул `Bad Request: message to edit not found`;
+  - создан `progress_events.id=192` с `event_type=daily_task.closed`, `status=done`, `report_html=Голосовое сообщение`, `created_at=2026-06-24 19:35:27.83718+00`;
+  - worker штатно опубликовал event в `Прогресс`: Telegram message `3649`, `publish_status=published`;
+  - локальный код и production deploy не трогались.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -187,6 +195,9 @@
 - STEP-017: `make lint`: pass.
 - STEP-017: `git diff --check`: pass.
 - STEP-017: `loopctl.py validate .`: pass.
+- STEP-018 production SQL verification: task `160` done/report `3386`, alerts acknowledged with no message ids, progress event `192` published as message `3649`.
+- STEP-018 worker log verification: `telegram_send_message_completed` for message `3649` in thread `7`.
+- STEP-018: `loopctl.py validate .`: pass.
 
 ## Агенты
 - Subagents отсутствуют.
@@ -200,6 +211,7 @@
 ## Риски И Блокеры
 - STEP-012, STEP-013, STEP-015, STEP-016 и STEP-017 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
 - STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
+- STEP-018 production data исправлен вручную; кодовый deploy не выполнялся.
 
 ## Следующее Действие
 - Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017 и миграцию STEP-014 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.

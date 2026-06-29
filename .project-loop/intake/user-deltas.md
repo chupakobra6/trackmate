@@ -454,6 +454,42 @@ ID источника: `S005`
 - E2E-шаблоны обновлены под новые видимые тексты;
 - проверки: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`, `make test`, `make lint`.
 
+### Production Progress Correction Delta
+
+ID источника: `S017`
+
+Исходный ввод:
+
+```text
+вот это надо проверить сделали мы или нет и исправить и поправить чтобы в бд правильное отображение было
+```
+
+Скриншот:
+`/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-ae9fb7f7-38dc-49e9-9f94-2e7767bd7cb8.png`
+
+Нормализация:
+- [x] требование: проверить production-БД по кейсу Егора с голосовым итогом `3386`.
+- [x] требование: если отображение в БД неполное, исправить production-данные точечно.
+- [x] ограничение: не выкатывать локальную пачку routine fixes вместе с этим production data-fix.
+
+Итог:
+- [x] `daily_tasks.id=160` уже был в состоянии `done`, `report_status=done`, `report_message_id=3386`, `failed_at=NULL`.
+- [x] связанного `progress_events.daily_task.closed` для `daily_task_id=160` не было.
+- [x] перед правкой сделан backup: `/opt/trackmate/backups/trackmate_manual_progress_fix_20260629T111509Z.dump`.
+- [x] попытка переиспользовать старое message `3404` через Bot API не прошла: `message to edit not found`.
+- [x] создан штатный `progress_events.id=192` с `event_type=daily_task.closed`, `status=done`, `report_html=Голосовое сообщение`.
+- [x] worker опубликовал event в `Прогресс`: Telegram message `3649`.
+
+Маршрутизация:
+- [x] карта источников обновляется в `S017`
+- [x] чеклист обновляется в `REQ-037`
+- [x] план и текущий шаг переводятся в `STEP-018`
+- [x] production данные исправлены
+- [x] handoff обновлен
+
+Конфликты:
+- S017 дополняет S013/STEP-014: предыдущая правка восстановила саму задачу, но не создала закрывающий progress event.
+
 ### Routine Reminder Alert Delta
 
 ID источника: `S016`
