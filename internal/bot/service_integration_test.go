@@ -743,7 +743,7 @@ func TestConfigureGoalsDoesNotTouchUnfinishedRoutineDraft(t *testing.T) {
 	if err != nil || !found || goalsPending.Kind != domain.PendingSeasonalGoals || goalsPending.Payload["thread_id"] != float64(14) {
 		t.Fatalf("unexpected goals pending found=%v pending=%+v err=%v", found, goalsPending, err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли сезонные цели") {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли цели на сезон") {
 		t.Fatalf("expected one goals prompt, got %+v", fake.sent)
 	}
 }
@@ -802,7 +802,7 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if !confirmation.DisableNotification {
 		t.Fatalf("goals confirmation should be silent: %+v", confirmation)
 	}
-	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели</a> записаны`, "Обзор будет приходить"} {
+	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели</a> записаны`, "Вопросы будут приходить"} {
 		if !strings.Contains(confirmation.Text, part) {
 			t.Fatalf("confirmation missing %q: %s", part, confirmation.Text)
 		}
@@ -961,7 +961,7 @@ func TestGoalWeeklyReviewSendsFallbackWhenPromptEditFails(t *testing.T) {
 	if responseText == nil || !strings.Contains(*responseText, "обновил резюме") {
 		t.Fatalf("weekly review was not saved: %v", responseText)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Обзор целей сохранен") || !fake.sent[0].DisableNotification {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Ответы по целям сохранены") || !fake.sent[0].DisableNotification {
 		t.Fatalf("expected silent fallback confirmation, got %+v", fake.sent)
 	}
 }

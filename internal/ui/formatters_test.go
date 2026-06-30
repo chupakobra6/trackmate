@@ -275,7 +275,7 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	goalSet := postgres.SeasonalGoalSet{PeriodTitle: "Лето 2026", GoalsText: "1. Работа"}
 	weekly := FormatGoalWeeklyReviewPrompt(goalSet, "Игорь", "igor", "https://t.me/c/1/301?thread=40", 65, 4)
 	for _, part := range []string{
-		"Обзор целей",
+		"Вопросы по целям",
 		`<a href="https://t.me/c/1/301?thread=40">открыть список</a>`,
 		"До итога:</b> 65 дней · 4 проверки",
 		"Что продвинулось за последние две недели?",
