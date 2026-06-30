@@ -44,7 +44,7 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(40, "Обзор целей") {
+	if !fake.hasSentToThread(40, "Вопросы по целям") {
 		t.Fatalf("weekly review was not sent to goals topic: %+v", fake.sent)
 	}
 	if fake.hasSentToThread(40, "Результат: предложение") {

@@ -346,7 +346,7 @@ func TestEditedReportMessageQueuesProgressAlertWhenPublishedEditFails(t *testing
 	if err := appprogress.PublishPending(ctx, store, fake); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.hasSentToThread(11, "Не смог обновить сообщение") || !fake.hasSentToThread(11, "сообщение в Прогрессе") || !fake.hasSentToThread(11, "Bad Request: message to edit not found") {
+	if !fake.hasSentToThread(11, "Не удалось обновить сообщение") || !fake.hasSentToThread(11, "сообщение в Прогрессе") || !fake.hasSentToThread(11, "Bad Request: message to edit not found") {
 		t.Fatalf("progress alert was not published clearly: %+v", fake.sent)
 	}
 }
@@ -377,7 +377,7 @@ func TestRoutinePlanSaveDeletesSetupMessagesWithoutConfirmation(t *testing.T) {
 	}}); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли рутину") {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли список рутин") {
 		t.Fatalf("expected routine setup prompt, got %+v", fake.sent)
 	}
 
@@ -802,7 +802,7 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if !confirmation.DisableNotification {
 		t.Fatalf("goals confirmation should be silent: %+v", confirmation)
 	}
-	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели</a> записаны`, "Вопросы будут приходить"} {
+	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели на сезон</a> сохранены`, "Вопросы по целям будут приходить"} {
 		if !strings.Contains(confirmation.Text, part) {
 			t.Fatalf("confirmation missing %q: %s", part, confirmation.Text)
 		}

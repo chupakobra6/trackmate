@@ -119,7 +119,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if !fake.hasSentToThread(30, "Рутина") {
 		t.Fatalf("routine check-in not sent to routine topic: %+v", fake.sent)
 	}
-	if !fake.hasSentToThread(40, "Обзор целей") {
+	if !fake.hasSentToThread(40, "Вопросы по целям") {
 		t.Fatalf("weekly goal review not sent to goals topic: %+v", fake.sent)
 	}
 	if fake.hasThread(20) {

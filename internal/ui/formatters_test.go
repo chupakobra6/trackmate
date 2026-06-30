@@ -37,7 +37,7 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 	if strings.Contains(got, `<a href="https://t.me/c/1/301?thread=10">Готово</a>`) {
 		t.Fatalf("formatted task event should not link report text: %s", got)
 	}
-	if strings.Contains(got, "<b>Задача:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Результат:</b>\n\n<blockquote>") {
+	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") || strings.Contains(got, "<b>Результат:</b>\n\n<blockquote>") {
 		t.Fatalf("formatted task event has extra blank line around blockquote: %s", got)
 	}
 	if strings.Contains(got, "https://example.com/task") {
@@ -94,17 +94,17 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 		Status:      domain.DailyTaskActive,
 	}
 	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
-	for _, part := range []string{`🎯 <b>Задача дня</b> <a href="tg://user?id=42">Игорь</a>`, "<b>Задача:</b>", "Подготовить результат по задаче"} {
+	for _, part := range []string{`🎯 <b>Задача дня</b> <a href="tg://user?id=42">Игорь</a>`, "<b>План:</b>", "Подготовить результат по задаче"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("daily task card missing %q: %s", part, got)
 		}
 	}
-	for _, forbidden := range []string{"<b>Состояние:</b>", "<b>Статус:</b>", "<b>План:</b>"} {
+	for _, forbidden := range []string{"<b>Состояние:</b>", "<b>Статус:</b>", "<b>Задача:</b>"} {
 		if strings.Contains(got, forbidden) {
 			t.Fatalf("daily task card should not contain %q: %s", forbidden, got)
 		}
 	}
-	if strings.Contains(got, "<b>Задача:</b>\n\n<blockquote>") {
+	if strings.Contains(got, "<b>План:</b>\n\n<blockquote>") {
 		t.Fatalf("daily task card has extra blank line before plan blockquote: %s", got)
 	}
 	if strings.Contains(got, "https://example.com/task") {
@@ -255,13 +255,13 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	if !strings.Contains(TodayControlText, "Здесь у каждого одна главная задача дня") {
 		t.Fatalf("today control text should keep old topic style: %s", TodayControlText)
 	}
-	if !strings.Contains(RoutineControlText, "Здесь живет одна ежедневная рутина") {
+	if !strings.Contains(RoutineControlText, "Здесь живут повторяющиеся действия") {
 		t.Fatalf("routine control text should keep old topic style: %s", RoutineControlText)
 	}
-	if !strings.Contains(ProgressIntroText, "Здесь собирается все важное") {
+	if !strings.Contains(ProgressIntroText, "Здесь собирается всё важное") {
 		t.Fatalf("progress intro should keep old topic style: %s", ProgressIntroText)
 	}
-	if !strings.Contains(GoalsControlText, "долгосрочные цели, которых мы хотим достичь за сезон") {
+	if !strings.Contains(GoalsControlText, "Здесь живут цели на сезон") {
 		t.Fatalf("goals control should explain long-term seasonal goals: %s", GoalsControlText)
 	}
 	for name, text := range map[string]string{
@@ -282,9 +282,9 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 		"Вопросы по целям",
 		`<a href="https://t.me/c/1/301?thread=40">открыть список</a>`,
 		"До итога:</b> 65 дней · 4 проверки",
-		"Что продвинулось за последние две недели?",
-		"Что мешало?",
-		"Что сделаешь в следующие две недели?",
+		"Что сделано по целям за эти две недели?",
+		"Что мешало двигаться по плану?",
+		"Какой главный шаг планируешь на следующие две недели?",
 	} {
 		if !strings.Contains(weekly, part) {
 			t.Fatalf("weekly prompt missing %q: %s", part, weekly)
@@ -300,7 +300,7 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	}
 
 	saved := FormatGoalsSaved("https://t.me/c/1/301?thread=40")
-	if !strings.Contains(saved, `<a href="https://t.me/c/1/301?thread=40">Цели</a> записаны`) {
+	if !strings.Contains(saved, `<a href="https://t.me/c/1/301?thread=40">Цели на сезон</a> сохранены`) {
 		t.Fatalf("goals saved confirmation should link the title word: %s", saved)
 	}
 
@@ -322,7 +322,7 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 
 func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
 	prompt := RoutinePlanPrompt()
-	for _, part := range []string{"- зарядка", "- работа", "- английский перед сном", "- йога"} {
+	for _, part := range []string{"- зарядка", "- чтение", "- английский", "- режим"} {
 		if !strings.Contains(prompt, part) {
 			t.Fatalf("routine prompt missing dash example %q: %s", part, prompt)
 		}
