@@ -33,7 +33,9 @@
 - Product-owned Telegram E2E scenarios live in `e2e/telegram/`; rendered scenarios stay under ignored `tmp/`.
 - Topic-visible E2E prompts should be root messages in the forum topic, not nested replies to bot cards, unless the scenario explicitly tests reply behavior.
 - User-visible Telegram copy lives in `internal/messages/messages.md`; Go code should use `internal/messages` and `internal/ui` instead of embedding Russian message text directly.
+- Change user-visible Telegram copy only when the user explicitly asks for copy changes. After changing visible copy, report exact before/after message text for review.
 - When public Telegram behavior changes, update the matching product docs and E2E scenario comments or expectations in the same pass: timing, topic flow, parser rules, notification level, visible messages, and Progress links.
+- During local development, after committing code that affects the running bot, rebuild/restart the local Docker stack before manual Telegram checks. Deploy to production only after an explicit user request.
 
 ## Code change policy
 - Keep diffs small and local.
@@ -48,6 +50,7 @@
 - For full Telegram E2E closure, record the run id and verify scenario logs,
   `pending_inputs=0`, unpublished progress events `0`, healthy Docker services,
   and recent `api`/`worker` logs.
+- Telegram E2E must verify the final chat state, not just successful steps: check full card/message appearance where practical, click dismiss/ack buttons such as `👀 Понял`, and confirm no extra visible messages remain after the workflow.
 - Do not claim success without checking command output.
 
 ## Safety
