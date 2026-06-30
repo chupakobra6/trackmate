@@ -322,15 +322,12 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 
 func TestRoutinePromptUsesDashExampleOnly(t *testing.T) {
 	prompt := RoutinePlanPrompt()
-	for _, part := range []string{"- зарядка", "- чтение", "- английский", "- режим"} {
+	for _, part := range []string{"— зарядка", "— чтение перед сном", "— спорт"} {
 		if !strings.Contains(prompt, part) {
 			t.Fatalf("routine prompt missing dash example %q: %s", part, prompt)
 		}
 	}
-	if !strings.Contains(prompt, "Нумерацию тоже пойму") {
-		t.Fatalf("routine prompt should mention numbered input support: %s", prompt)
-	}
-	for _, forbidden := range []string{"Можно использовать маркеры", "Максимум 9"} {
+	for _, forbidden := range []string{"Нумерацию", "Можно использовать маркеры", "Максимум 9"} {
 		if strings.Contains(prompt, forbidden) {
 			t.Fatalf("routine prompt should not mention %q: %s", forbidden, prompt)
 		}
@@ -341,7 +338,7 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 	checkin := postgres.RoutineCheckin{CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC)}
 
 	reminder := RoutineReminderText(checkin, "Игорь", "igor", 42)
-	for _, part := range []string{"🔔 <b>Рутина за 28.06</b>", `<a href="tg://user?id=42">Игорь</a>`, "\n\nОтметь до полуночи"} {
+	for _, part := range []string{"🔔", `<a href="tg://user?id=42">Игорь</a>, пора отметить рутину за 28.06`, "\n\nЖду ответы до полуночи"} {
 		if !strings.Contains(reminder, part) {
 			t.Fatalf("routine reminder missing %q: %s", part, reminder)
 		}
@@ -351,7 +348,7 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 	}
 
 	autoClosed := RoutineAutoClosedText(checkin, "Игорь", "igor", 42)
-	for _, part := range []string{"⚠️ <b>Рутина за 28.06 закрыта</b>", "\n\nНеотмеченные пункты стали невыполненными"} {
+	for _, part := range []string{"⏰ <b>Рутина за 28.06 закрыта</b>", "\n\nВсё, что не отмечено, записано как невыполненное"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("routine auto-close notice missing %q: %s", part, autoClosed)
 		}
