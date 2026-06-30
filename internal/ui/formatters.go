@@ -45,7 +45,7 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 
 func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
 	lines := []string{
-		dailyTaskCardTitle(task.Status, displayName, username),
+		dailyTaskCardTitle(task.Status, displayName, username, task.OwnerUserID),
 		"",
 		messages.Text("daily.card.plan"),
 		renderTaskSectionHTML(task.Text),
@@ -325,7 +325,7 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			renderTaskSectionHTML(payloadString(payload, "task_html")),
 			"",
 			messages.Text("daily.card.report"),
-			renderSectionHTML(linkedReportHTML(payload)),
+			renderSectionHTML(payloadString(payload, "report_html")),
 		}, "\n")
 	case domain.ProgressDailyTaskAutoFail:
 		task := payloadLink(payload, "task_link", messages.Text("progress.daily.task_link"))
@@ -427,8 +427,8 @@ func dailyTaskCardEmoji(status domain.DailyTaskStatus) string {
 	}
 }
 
-func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, username string) string {
-	person := userLinkLabel(displayName, username, 0)
+func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, username string, userID int64) string {
+	person := userLinkLabel(displayName, username, userID)
 	switch status {
 	case domain.DailyTaskDone:
 		return messages.Format("daily.card.closed.done", "person", person)
@@ -437,7 +437,7 @@ func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, usern
 	case domain.DailyTaskFailed:
 		return messages.Format("daily.card.closed.failed", "person", person)
 	default:
-		return messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(status), "person", personLabel(username, displayName))
+		return messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(status), "person", person)
 	}
 }
 
@@ -578,15 +578,6 @@ func renderInlineHTML(value string) string {
 		return value
 	}
 	return html.EscapeString(value)
-}
-
-func linkedReportHTML(payload map[string]any) string {
-	report := payloadString(payload, "report_html")
-	reportLink := payloadString(payload, "report_link")
-	if report == "" || reportLink == "" || strings.Contains(report, "<") || strings.Contains(report, ">") {
-		return report
-	}
-	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(reportLink), report)
 }
 
 func payloadString(payload map[string]any, key string) string {
