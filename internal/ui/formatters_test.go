@@ -261,7 +261,7 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	if !strings.Contains(ProgressIntroText, "Здесь собирается всё важное") {
 		t.Fatalf("progress intro should keep old topic style: %s", ProgressIntroText)
 	}
-	if !strings.Contains(GoalsControlText, "Здесь живут цели на сезон") {
+	if !strings.Contains(GoalsControlText, "Здесь у каждого свои цели на сезон") {
 		t.Fatalf("goals control should explain long-term seasonal goals: %s", GoalsControlText)
 	}
 	for name, text := range map[string]string{
