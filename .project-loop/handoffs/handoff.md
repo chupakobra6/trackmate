@@ -199,6 +199,20 @@
   - E2E reset чистит `goal_nudge_cooldowns`, чтобы deterministic goal-nudge не подавлялся старым cooldown;
   - сценарий `09-progress-topic-event` проверяет видимый текст в `Прогресс`, а не ждет новое изменение после уже опубликованного события;
   - production deploy не выполнялся.
+- Закрыта production operation по deploy текущего head:
+  - локальный `main` запушен в `origin`, VPS `/opt/trackmate` обновлен `9a58215 -> 21e771d`;
+  - перед deploy снят backup `/opt/trackmate/backups/trackmate_20260630T203342Z.dump`;
+  - `git pull --ff-only`, `docker compose up -d --build`, migrations applied;
+  - `api`, `worker`, `postgres` healthy, `migrate` exited `0`;
+  - schema verification: `topickey=goals,progress,routine,today`, `pending_inputs=0`, material tables absent.
+- Закрыта production operation S028:
+  - перед DB-правкой снят backup `/opt/trackmate/backups/trackmate_20260630T204857Z.dump`;
+  - existing topic messages отредактированы через Bot API без новых posts: `Сегодня` control `8`, `Прогресс` intro `10`, `Рутины` control/table `3284`/`3285`, `Цели` control `3287`, old Goals confirmations `3331`/`3690`;
+  - legacy goal card `3327` и old weekly prompt `3552` уже отсутствовали в Telegram (`message to edit not found`);
+  - production goal sets теперь используют source messages: Игорь `3332`, Ярослав `3691`; `card_message_id` очищен;
+  - основная группа: `routine_plans=0`, `routine_checkins=0`, `pending_inputs=0`;
+  - Harvest dumps after edit: `/tmp/trackmate-haru-today-after.jsonl`, `/tmp/trackmate-haru-progress-after.jsonl`, `/tmp/trackmate-haru-routine-after.jsonl`, `/tmp/trackmate-haru-goals-after.jsonl`;
+  - `api`, `worker`, `postgres` healthy, recent logs без `error|panic|failed|duplicate|constraint`.
 
 ## Измененные Файлы
 - `.project-loop/`
@@ -309,17 +323,12 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- STEP-012, STEP-013, STEP-015, STEP-016 и STEP-017 локально готовы, но не выкачены на production по прямой инструкции Игоря; включить в будущую пачку исправлений.
-- STEP-014 production data/schema исправлены вручную; локальная миграция добавлена, но кодовый deploy не выполнялся.
-- STEP-018 production data исправлен вручную; кодовый deploy не выполнялся.
-- STEP-019 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
-- STEP-020 production data/message cleanup выполнен вручную; кодовый deploy не выполнялся.
-- STEP-021 был проверкой без data/code changes.
-- STEP-022 был проверкой без data/code changes.
-- STEP-023..STEP-026 локально готовы, но не выкачены на production.
+- Production сейчас на commit `21e771d`; STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023..STEP-026 выкачены.
+- Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
+- User-visible text changes require explicit user request and before/after preview.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту или отдельную команду на deploy. Текущие локальные fixes STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023..STEP-026 и миграции STEP-014/STEP-017/STEP-025 можно будет выкатить позже вместе с пачкой исправлений после отдельной команды.
+- Ждать следующий скриншот/дельту. Production уже обновлен до `21e771d`; routine setup в основной группе пустой, поэтому в следующем пользовательском апдейт-сообщении нужно попросить участников заново настроить рутины.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`

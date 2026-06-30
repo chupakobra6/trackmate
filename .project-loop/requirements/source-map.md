@@ -1,7 +1,7 @@
 # Карта Источников
 
 Проект: trackmate
-Обновлено: 2026-06-29
+Обновлено: 2026-06-30
 
 ## Приоритет Источников
 1. Текущая прямая инструкция Игоря.
@@ -42,6 +42,7 @@
 | S025 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-31ed9087-3e6c-46c6-9c3f-68fc0b4511f1.png` | принято | Product delta: topic inputs should stay isolated; for goals saving, keep the user's goals message as the source, delete the old prompt, and send a new concise confirmation after the user's message with the word `Цели` linked to that source message. |
 | S026 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md` | отложено | Validation request: run full live E2E for all old and new scenarios on the test Telegram bot, inspect chat history/messages and verify recent fixes specifically before any production deploy. |
 | S027 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md` | принято | Production operation: reset routine plans and routine statistics in the main group, clean known routine-topic bot noise, and remember that the next update message must ask users to configure routines again. |
+| S028 | user | 2026-06-30 | `.project-loop/intake/user-deltas.md` | принято | Production operation: after deploying the current head, verify and edit existing pinned/control topic messages to match the new style, keep routines empty, and adapt existing Goals messages to the source-link flow without deleting visible history. |
 
 ## Конфликты
 | Источники | Решение | Дата |
