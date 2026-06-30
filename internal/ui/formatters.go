@@ -44,12 +44,11 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 }
 
 func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
-	person := personLabel(username, displayName)
 	lines := []string{
-		messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(task.Status), "person", person),
+		dailyTaskCardTitle(task.Status, displayName, username),
 		"",
 		messages.Text("daily.card.plan"),
-		renderSectionHTML(task.Text),
+		renderTaskSectionHTML(task.Text),
 	}
 	if task.ReportText != nil && *task.ReportText != "" {
 		lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*task.ReportText))
@@ -425,6 +424,20 @@ func dailyTaskCardEmoji(status domain.DailyTaskStatus) string {
 		return "🏁"
 	default:
 		return "🎯"
+	}
+}
+
+func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, username string) string {
+	person := userLinkLabel(displayName, username, 0)
+	switch status {
+	case domain.DailyTaskDone:
+		return messages.Format("daily.card.closed.done", "person", person)
+	case domain.DailyTaskPartial:
+		return messages.Format("daily.card.closed.partial", "person", person)
+	case domain.DailyTaskFailed:
+		return messages.Format("daily.card.closed.failed", "person", person)
+	default:
+		return messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(status), "person", personLabel(username, displayName))
 	}
 }
 

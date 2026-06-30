@@ -131,7 +131,7 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
 - `02-today-create-task.jsonl.tmpl`: создание задачи дня.
 - `03-today-block-second-task.jsonl.tmpl`: запрет второй задачи.
 - `04-report-done.jsonl.tmpl`: итог `✅ Выполнена`.
-- `05-report-partial.jsonl.tmpl`: итог `🔸 Выполнена частично`.
+- `05-report-partial.jsonl.tmpl`: итог `🔸 Частично`.
 - `06-report-failed.jsonl.tmpl`: итог `❌ Не выполнена`.
 - `07-wrong-topic-pending-ignored.jsonl.tmpl`: daily pending input не закрывается
   сообщением из другой темы.

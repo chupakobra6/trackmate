@@ -66,7 +66,7 @@ func TestDailyReportSaveDeletesPromptWithoutConfirmation(t *testing.T) {
 		t.Fatalf("daily result save confirmation should not be sent: %+v", fake.sent)
 	}
 	edit, ok := fake.findEdit(100)
-	if !ok || !containsAll(edit.Text, "✅ <b>Задача дня</b> @igor", "<b>Результат:</b>", "Результат записан") {
+	if !ok || !containsAll(edit.Text, "✅ <b>Игорь выполнил задачу дня</b>", "<b>Результат:</b>", "Результат записан") {
 		t.Fatalf("daily card edit mismatch: found=%v edit=%+v", ok, edit)
 	}
 	if containsAll(edit.Text, "<b>Состояние:</b>") || containsAll(edit.Text, "<b>Статус:</b>") {

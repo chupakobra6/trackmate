@@ -61,9 +61,32 @@ func TestFormatProgressEventDailyTaskAutoFailedDoesNotLinkTaskText(t *testing.T)
 	}
 }
 
+func TestFormatProgressEventDailyTaskPartialUsesActionPhrase(t *testing.T) {
+	event := postgres.ProgressEvent{
+		EventType: domain.ProgressDailyTaskClosed,
+		Payload: map[string]any{
+			"user_id":      float64(42),
+			"display_name": "Игорь",
+			"username":     "igor",
+			"status":       "partial",
+			"task_html":    "Разобрать задачу",
+			"task_link":    "https://t.me/c/1/300?thread=10",
+			"report_html":  "Сделал половину",
+			"report_link":  "https://t.me/c/1/301?thread=10",
+		},
+	}
+	got := FormatProgressEvent(event)
+	if !strings.Contains(got, `частично выполнил</a> <a href="https://t.me/c/1/300?thread=10">задачу дня</a>`) {
+		t.Fatalf("formatted partial task event should use action phrase: %s", got)
+	}
+	if strings.Contains(got, "закрыл задачу дня") {
+		t.Fatalf("formatted partial task event should not use old wording: %s", got)
+	}
+}
+
 func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	task := postgres.DailyTask{
-		Text:   "Подготовить результат по задаче",
+		Text:   `<a href="https://example.com/task">Подготовить результат по задаче</a>`,
 		Status: domain.DailyTaskActive,
 	}
 	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
@@ -80,19 +103,42 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	if strings.Contains(got, "<b>Задача:</b>\n\n<blockquote>") {
 		t.Fatalf("daily task card has extra blank line before plan blockquote: %s", got)
 	}
+	if strings.Contains(got, "https://example.com/task") {
+		t.Fatalf("daily task card should not link task text: %s", got)
+	}
 
 	done := task
 	done.Status = domain.DailyTaskDone
 	report := "Результат готов"
 	done.ReportText = &report
 	closed := FormatDailyTaskCard(done, "Игорь", "igor", "")
-	for _, part := range []string{"✅ <b>Задача дня</b> @igor", "<b>Результат:</b>", "Результат готов"} {
+	for _, part := range []string{"✅ <b>Игорь выполнил задачу дня</b>", "<b>Результат:</b>", "Результат готов"} {
 		if !strings.Contains(closed, part) {
 			t.Fatalf("closed daily task card missing %q: %s", part, closed)
 		}
 	}
+	if strings.Contains(closed, "@igor") {
+		t.Fatalf("closed daily task card should use display name instead of username mention: %s", closed)
+	}
+	if strings.Contains(closed, "https://example.com/task") {
+		t.Fatalf("closed daily task card should not link task text: %s", closed)
+	}
 	if strings.Contains(closed, "<b>Состояние:</b>") || strings.Contains(closed, "<b>Статус:</b>") {
 		t.Fatalf("closed daily task card should encode status in title only: %s", closed)
+	}
+
+	partial := task
+	partial.Status = domain.DailyTaskPartial
+	partial.ReportText = &report
+	if got := FormatDailyTaskCard(partial, "Игорь", "igor", ""); !strings.Contains(got, "🔸 <b>Игорь частично выполнил задачу дня</b>") {
+		t.Fatalf("partial daily task card title mismatch: %s", got)
+	}
+
+	failed := task
+	failed.Status = domain.DailyTaskFailed
+	failed.ReportText = &report
+	if got := FormatDailyTaskCard(failed, "Игорь", "igor", ""); !strings.Contains(got, "❌ <b>Игорь не выполнил задачу дня</b>") {
+		t.Fatalf("failed daily task card title mismatch: %s", got)
 	}
 }
 
