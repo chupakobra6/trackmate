@@ -25,7 +25,7 @@ func TestFormatProgressEventDailyTaskClosed(t *testing.T) {
 	}
 	got := FormatProgressEvent(event)
 	for _, part := range []string{
-		`<a href="tg://user?id=42">Igor</a>`,
+		`<a href="tg://user?id=42">Игорь</a>`,
 		`<a href="https://t.me/c/1/301?thread=10">выполнил</a> <a href="https://t.me/c/1/300?thread=10">задачу дня</a>`,
 		"Написать движок на Go",
 		"<blockquote>Готово</blockquote>",
@@ -94,7 +94,7 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 		Status:      domain.DailyTaskActive,
 	}
 	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
-	for _, part := range []string{`🎯 <b>Задача дня</b> <a href="tg://user?id=42">Игорь</a>`, "<b>План:</b>", "Подготовить результат по задаче"} {
+	for _, part := range []string{`🎯 <b>Задача дня</b> <a href="tg://user?id=42">Игоря</a>`, "<b>План:</b>", "Подготовить результат по задаче"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("daily task card missing %q: %s", part, got)
 		}
@@ -109,6 +109,9 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	}
 	if strings.Contains(got, "https://example.com/task") {
 		t.Fatalf("daily task card should not link task text: %s", got)
+	}
+	if got := FormatDailyTaskCard(task, "Ярослав Севастьянов", "Superssuperior", ""); !strings.Contains(got, `🎯 <b>Задача дня</b> <a href="tg://user?id=42">Ярослава</a>`) {
+		t.Fatalf("daily task card should use short genitive first name: %s", got)
 	}
 
 	done := task
@@ -129,6 +132,9 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	}
 	if strings.Contains(closed, "<b>Состояние:</b>") || strings.Contains(closed, "<b>Статус:</b>") {
 		t.Fatalf("closed daily task card should encode status in title only: %s", closed)
+	}
+	if got := FormatDailyTaskCard(done, "Ковалец Егор", "whysoxxx", ""); !strings.Contains(got, `✅ <b><a href="tg://user?id=42">Егор</a> выполнил задачу дня</b>`) {
+		t.Fatalf("closed daily task card should use short nominative first name: %s", got)
 	}
 
 	partial := task
@@ -157,7 +163,7 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		Items:       []postgres.RoutineCheckinItem{{Text: "зарядка"}},
 	}
 	routineCard := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	if !strings.Contains(routineCard, "🌿 <b>Рутина за 24.06</b> @igor\n\nОтметь пункты за этот день") {
+	if !strings.Contains(routineCard, "🌿 <b>Рутина за 24.06</b> Игорь\n\nОтметь пункты за этот день") {
 		t.Fatalf("routine card should keep header gap: %s", routineCard)
 	}
 
@@ -169,7 +175,7 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		},
 		RoutineItemCount: 1,
 	}})
-	if !strings.Contains(leaderboard, "🏆 <b>Таблица рутин</b>\n\n1. @igor") {
+	if !strings.Contains(leaderboard, "🏆 <b>Таблица рутин</b>\n\n1. Игорь") {
 		t.Fatalf("routine leaderboard should keep header gap: %s", leaderboard)
 	}
 
@@ -178,7 +184,7 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		PeriodEndsOn: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		GoalsText:    "1. Работа",
 	}, "Игорь", "igor", "")
-	if !strings.Contains(goalCard, "🎯 <b>Цели на лето 2026</b> · @igor\n\nДо <b>01.09.2026</b>") {
+	if !strings.Contains(goalCard, "🎯 <b>Цели на лето 2026</b> · Игорь\n\nДо <b>01.09.2026</b>") {
 		t.Fatalf("goals card should keep header gap: %s", goalCard)
 	}
 }
@@ -231,7 +237,7 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 		},
 	}
 	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> @igor", "Отметь пункты за этот день", "— зарядка", "— английский"} {
+	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> Игорь", "Отметь пункты за этот день", "— зарядка", "— английский"} {
 		if !strings.Contains(card, part) {
 			t.Fatalf("routine card missing %q: %s", part, card)
 		}
@@ -361,7 +367,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
 	}
 	reminder := RoutineReminderText(reminderCheckin, "Егор Ковалец", "whysoxxx", 77)
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где рутина, бро?", "не будь нищим"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор</a>`, "\n\nЕгор, где рутина, бро?", "не будь нищим"} {
 		if !strings.Contains(reminder, part) {
 			t.Fatalf("personal routine reminder missing %q: %s", part, reminder)
 		}
@@ -372,7 +378,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
 	}
 	autoClosed := RoutineAutoClosedText(autoClosedCheckin, "Егор Ковалец", "whysoxxx", 77)
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, рутина ушла в минус", "Не будь нищим"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор</a>`, "\n\nЕгор, рутина ушла в минус", "Не будь нищим"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("personal routine auto-close missing %q: %s", part, autoClosed)
 		}
@@ -381,7 +387,7 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 
 func TestPersonalDailyAlertCopyForEgor(t *testing.T) {
 	alert := AlertText(domain.AlertDayClosedPendingReport, "Егор Ковалец", "whysoxxx", 77, "daily-alert:3:day_closed_pending_report")
-	for _, part := range []string{`<a href="tg://user?id=77">Егор Ковалец</a>`, "\n\nЕгор, где дела, бро?", "Запиши результат, не будь нищим"} {
+	for _, part := range []string{`<a href="tg://user?id=77">Егор</a>`, "\n\nЕгор, где дела, бро?", "Запиши результат, не будь нищим"} {
 		if !strings.Contains(alert, part) {
 			t.Fatalf("personal daily alert missing %q: %s", part, alert)
 		}

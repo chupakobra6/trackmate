@@ -22,6 +22,34 @@ var (
 	anchorTagPattern   = regexp.MustCompile(`(?i)</?a(?:\s+[^>]*)?>`)
 )
 
+type participantNameCase string
+
+const (
+	participantNameNominative participantNameCase = "nominative"
+	participantNameGenitive   participantNameCase = "genitive"
+)
+
+type participantNameForms struct {
+	Nominative string
+	Genitive   string
+}
+
+var participantNamesByUsername = map[string]participantNameForms{
+	"pheik13":         {Nominative: "Игорь", Genitive: "Игоря"},
+	"whysoxxx":        {Nominative: "Егор", Genitive: "Егора"},
+	"superssuperior":  {Nominative: "Ярослав", Genitive: "Ярослава"},
+	"superssuperiorr": {Nominative: "Ярослав", Genitive: "Ярослава"},
+}
+
+var participantNamesByToken = map[string]participantNameForms{
+	"игорь":    {Nominative: "Игорь", Genitive: "Игоря"},
+	"егор":     {Nominative: "Егор", Genitive: "Егора"},
+	"ярослав":  {Nominative: "Ярослав", Genitive: "Ярослава"},
+	"igor":     {Nominative: "Игорь", Genitive: "Игоря"},
+	"egor":     {Nominative: "Егор", Genitive: "Егора"},
+	"yaroslav": {Nominative: "Ярослав", Genitive: "Ярослава"},
+}
+
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
 	status := messages.Text("setup.checklist.pending")
 	if ready {
@@ -437,6 +465,7 @@ func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, usern
 	case domain.DailyTaskFailed:
 		return messages.Format("daily.card.closed.failed", "person", person)
 	default:
+		person := userLinkLabelCase(displayName, username, userID, participantNameGenitive)
 		return messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(status), "person", person)
 	}
 }
@@ -508,10 +537,7 @@ func dailyTaskClosedAction(status string, reportLink string) string {
 }
 
 func personLabel(username string, displayName string) string {
-	if username != "" {
-		return "@" + html.EscapeString(username)
-	}
-	return html.EscapeString(displayName)
+	return html.EscapeString(participantDisplayName(displayName, username, participantNameNominative))
 }
 
 func participantLabel(participant postgres.Participant) string {
@@ -534,18 +560,58 @@ func profileLinkLabel(payload map[string]any) string {
 }
 
 func userLinkLabel(displayName string, username string, userID int64) string {
-	label := displayName
-	if strings.TrimSpace(label) == "" {
-		label = username
-	}
-	if strings.TrimSpace(label) == "" {
-		label = messages.Text("participant.fallback_name")
-	}
+	return userLinkLabelCase(displayName, username, userID, participantNameNominative)
+}
+
+func userLinkLabelCase(displayName string, username string, userID int64, nameCase participantNameCase) string {
+	label := participantDisplayName(displayName, username, nameCase)
 	escaped := html.EscapeString(label)
 	if userID == 0 {
 		return escaped
 	}
 	return fmt.Sprintf(`<a href="tg://user?id=%d">%s</a>`, userID, escaped)
+}
+
+func participantDisplayName(displayName string, username string, nameCase participantNameCase) string {
+	if forms, ok := participantNameFormsFor(displayName, username); ok {
+		return participantNameByCase(forms, nameCase)
+	}
+	if first := firstDisplayToken(displayName); first != "" {
+		return first
+	}
+	if strings.TrimSpace(username) != "" {
+		return strings.TrimSpace(username)
+	}
+	return messages.Text("participant.fallback_name")
+}
+
+func participantNameFormsFor(displayName string, username string) (participantNameForms, bool) {
+	normalizedUsername := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(username, "@")))
+	if forms, ok := participantNamesByUsername[normalizedUsername]; ok {
+		return forms, true
+	}
+	for _, token := range strings.Fields(displayName) {
+		key := strings.ToLower(strings.Trim(token, ".,:;!?()[]{}<>«»\"'"))
+		if forms, ok := participantNamesByToken[key]; ok {
+			return forms, true
+		}
+	}
+	return participantNameForms{}, false
+}
+
+func participantNameByCase(forms participantNameForms, nameCase participantNameCase) string {
+	if nameCase == participantNameGenitive && forms.Genitive != "" {
+		return forms.Genitive
+	}
+	return forms.Nominative
+}
+
+func firstDisplayToken(displayName string) string {
+	fields := strings.Fields(displayName)
+	if len(fields) == 0 {
+		return ""
+	}
+	return fields[0]
 }
 
 func payloadLink(payload map[string]any, key string, label string) string {
