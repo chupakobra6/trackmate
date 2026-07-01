@@ -104,12 +104,33 @@ func RoutinePlanPrompt() string {
 	return messages.Text("routine.plan.prompt")
 }
 
+func FormatRoutinePlanSaved(routineLink string) string {
+	if strings.TrimSpace(routineLink) == "" {
+		return messages.Text("routine.plan.saved_no_link")
+	}
+	return messages.Format("routine.plan.saved", "link", html.EscapeString(routineLink))
+}
+
 func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
 	return formatRoutineCheckinCard(checkin, displayName, username, notice)
 }
 
 func FormatRoutineCheckinStatusCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
 	return formatRoutineCheckinCard(checkin, displayName, username, notice)
+}
+
+func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
+	if routineCheckinAllDone(checkin) {
+		lines := []string{
+			messages.Format(
+				"routine.card.completed_all",
+				"date", checkin.CheckinDate.Format("02.01"),
+				"person", personLabel(username, displayName),
+			),
+		}
+		return appendNotice(lines, notice)
+	}
+	return FormatRoutineCheckinStatusCard(checkin, displayName, username, notice)
 }
 
 func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
@@ -334,6 +355,18 @@ func NextRoutineItemIndex(checkin postgres.RoutineCheckin) int {
 		}
 	}
 	return -1
+}
+
+func routineCheckinAllDone(checkin postgres.RoutineCheckin) bool {
+	if len(checkin.Items) == 0 {
+		return false
+	}
+	for _, item := range checkin.Items {
+		if item.Status == nil || *item.Status != domain.RoutineItemDone {
+			return false
+		}
+	}
+	return true
 }
 
 func FormatProgressEvent(event postgres.ProgressEvent) string {

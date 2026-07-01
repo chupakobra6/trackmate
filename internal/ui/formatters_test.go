@@ -255,6 +255,27 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 			t.Fatalf("routine reason prompt missing %q: %s", part, reason)
 		}
 	}
+
+	doneStatus := domain.RoutineItemDone
+	finished := postgres.RoutineCheckin{
+		CheckinDate: time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC),
+		Items: []postgres.RoutineCheckinItem{
+			{Text: "зарядка", Status: &doneStatus},
+			{Text: "английский", Status: &doneStatus},
+		},
+	}
+	finishedCard := FormatRoutineCheckinFinishedCard(finished, "Игорь", "igor", "")
+	if !strings.Contains(finishedCard, "ROUTINE_ALL_DONE") || strings.Contains(finishedCard, "зарядка") || strings.Contains(finishedCard, "английский") {
+		t.Fatalf("all-done routine final card should stay short until copy is approved: %s", finishedCard)
+	}
+
+	partialStatus := domain.RoutineItemPartial
+	mixed := finished
+	mixed.Items[1].Status = &partialStatus
+	mixedCard := FormatRoutineCheckinFinishedCard(mixed, "Игорь", "igor", "")
+	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "ROUTINE_ALL_DONE") {
+		t.Fatalf("mixed routine final card should keep item details: %s", mixedCard)
+	}
 }
 
 func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
@@ -308,6 +329,10 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 	saved := FormatGoalsSaved("https://t.me/c/1/301?thread=40")
 	if !strings.Contains(saved, `<a href="https://t.me/c/1/301?thread=40">Цели на сезон</a> сохранены`) {
 		t.Fatalf("goals saved confirmation should link the title word: %s", saved)
+	}
+	routineSaved := FormatRoutinePlanSaved("https://t.me/c/1/301?thread=13")
+	if !strings.Contains(routineSaved, `<a href="https://t.me/c/1/301?thread=13">[ROUTINE_PLAN_SAVED_TITLE]</a>`) {
+		t.Fatalf("routine saved confirmation should link the placeholder title: %s", routineSaved)
 	}
 
 	final := FormatGoalFinalReflectionPrompt(goalSet, domain.GoalFinalPartial)

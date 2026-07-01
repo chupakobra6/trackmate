@@ -351,7 +351,7 @@ func TestEditedReportMessageQueuesProgressAlertWhenPublishedEditFails(t *testing
 	}
 }
 
-func TestRoutinePlanSaveDeletesSetupMessagesWithoutConfirmation(t *testing.T) {
+func TestRoutinePlanSaveKeepsUserListAndSendsDismissibleConfirmation(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	fake := newFakeTelegram()
 	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
@@ -392,14 +392,24 @@ func TestRoutinePlanSaveDeletesSetupMessagesWithoutConfirmation(t *testing.T) {
 	if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
 		t.Fatal(err)
 	}
-	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) {
-		t.Fatalf("routine setup prompt and input should be deleted, deleted=%+v", fake.deleted)
+	if !fake.wasDeleted(1001) {
+		t.Fatalf("routine setup prompt should be deleted, deleted=%+v", fake.deleted)
+	}
+	if fake.wasDeleted(301) {
+		t.Fatalf("routine list message should remain as an artifact, deleted=%+v", fake.deleted)
 	}
 	if len(fake.edits) != 0 {
 		t.Fatalf("routine save should not leave confirmation edits: %+v", fake.edits)
 	}
-	if len(fake.sent) != 1 {
-		t.Fatalf("routine save should not send confirmation messages, sent=%+v", fake.sent)
+	if len(fake.sent) != 2 {
+		t.Fatalf("routine save should send setup prompt and confirmation, sent=%+v", fake.sent)
+	}
+	confirmation := fake.sent[1]
+	if !strings.Contains(confirmation.Text, "ROUTINE_PLAN_SAVED_TITLE") ||
+		!strings.Contains(confirmation.Text, `https://t.me/c/1234567890/301?thread=13`) ||
+		confirmation.ReplyMarkup == nil ||
+		!confirmation.DisableNotification {
+		t.Fatalf("routine save confirmation should be silent, dismissible, and linked: %+v", confirmation)
 	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
 	if err != nil {
@@ -582,8 +592,15 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if updated.CompletedAt == nil || updated.ReflectionText != nil {
 		t.Fatalf("routine not completed: %+v", updated)
 	}
-	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) || !fake.wasDeleted(100) {
+	if !fake.wasDeleted(1001) || !fake.wasDeleted(301) {
 		t.Fatalf("routine reason prompt and answer should be deleted, deleted=%+v", fake.deleted)
+	}
+	if fake.wasDeleted(100) {
+		t.Fatalf("completed routine card should remain as an artifact, deleted=%+v", fake.deleted)
+	}
+	finalEdit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(finalEdit.Text, "🔸 йога") || !strings.Contains(finalEdit.Text, "Сорвался график") {
+		t.Fatalf("completed routine card should keep mixed result details: found=%v edit=%+v", ok, finalEdit)
 	}
 	tableEdit, ok := fake.findEdit(900)
 	if !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
@@ -595,6 +612,66 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	}
 	if progressCount != 0 {
 		t.Fatalf("routine flow must not publish progress events, got %d", progressCount)
+	}
+}
+
+func TestRoutineCheckinAllDoneLeavesShortFinalCard(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 13, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	routineTableMessageID := int64(900)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &routineTableMessageID, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetRoutineCheckinCardMessageID(ctx, checkin.ID, 100, 13); err != nil {
+		t.Fatal(err)
+	}
+	cardMessage := &telegram.Message{
+		MessageID:       100,
+		MessageThreadID: 13,
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+	}
+	for index := range []int{0, 1} {
+		if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+			ID:      fmt.Sprintf("routine-done-%d", index),
+			From:    telegram.User{ID: participant.UserID, Username: "igor", FirstName: "Игорь"},
+			Data:    fmt.Sprintf("routine:item:%d:%d:done", checkin.ID, index),
+			Message: cardMessage,
+		}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if fake.wasDeleted(100) {
+		t.Fatalf("completed routine card should not be deleted, deleted=%+v", fake.deleted)
+	}
+	finalEdit, ok := fake.findEdit(100)
+	if !ok || !strings.Contains(finalEdit.Text, "ROUTINE_ALL_DONE") || strings.Contains(finalEdit.Text, "зарядка") || strings.Contains(finalEdit.Text, "йога") {
+		t.Fatalf("all-done routine should use short placeholder card: found=%v edit=%+v", ok, finalEdit)
+	}
+	if finalEdit.ReplyMarkup == nil || len(finalEdit.ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("final routine card should not keep action buttons: %+v", finalEdit.ReplyMarkup)
 	}
 }
 
