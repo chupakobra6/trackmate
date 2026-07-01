@@ -405,7 +405,8 @@ func TestRoutinePlanSaveKeepsUserListAndSendsDismissibleConfirmation(t *testing.
 		t.Fatalf("routine save should send setup prompt and confirmation, sent=%+v", fake.sent)
 	}
 	confirmation := fake.sent[1]
-	if !strings.Contains(confirmation.Text, "ROUTINE_PLAN_SAVED_TITLE") ||
+	if !strings.Contains(confirmation.Text, "Список сохранён") ||
+		!strings.Contains(confirmation.Text, "Каждый день буду присылать его сюда.") ||
 		!strings.Contains(confirmation.Text, `https://t.me/c/1234567890/301?thread=13`) ||
 		confirmation.ReplyMarkup == nil ||
 		!confirmation.DisableNotification {
@@ -667,8 +668,8 @@ func TestRoutineCheckinAllDoneLeavesShortFinalCard(t *testing.T) {
 		t.Fatalf("completed routine card should not be deleted, deleted=%+v", fake.deleted)
 	}
 	finalEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(finalEdit.Text, "ROUTINE_ALL_DONE") || strings.Contains(finalEdit.Text, "зарядка") || strings.Contains(finalEdit.Text, "йога") {
-		t.Fatalf("all-done routine should use short placeholder card: found=%v edit=%+v", ok, finalEdit)
+	if !ok || !strings.Contains(finalEdit.Text, "Игорь выполнил всю рутину за 24.06") || strings.Contains(finalEdit.Text, "зарядка") || strings.Contains(finalEdit.Text, "йога") {
+		t.Fatalf("all-done routine should use short final card: found=%v edit=%+v", ok, finalEdit)
 	}
 	if finalEdit.ReplyMarkup == nil || len(finalEdit.ReplyMarkup.InlineKeyboard) != 0 {
 		t.Fatalf("final routine card should not keep action buttons: %+v", finalEdit.ReplyMarkup)

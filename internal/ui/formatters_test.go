@@ -265,15 +265,15 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 		},
 	}
 	finishedCard := FormatRoutineCheckinFinishedCard(finished, "Игорь", "igor", "")
-	if !strings.Contains(finishedCard, "ROUTINE_ALL_DONE") || strings.Contains(finishedCard, "зарядка") || strings.Contains(finishedCard, "английский") {
-		t.Fatalf("all-done routine final card should stay short until copy is approved: %s", finishedCard)
+	if !strings.Contains(finishedCard, "Игорь выполнил всю рутину за 24.06") || strings.Contains(finishedCard, "зарядка") || strings.Contains(finishedCard, "английский") {
+		t.Fatalf("all-done routine final card should stay short: %s", finishedCard)
 	}
 
 	partialStatus := domain.RoutineItemPartial
 	mixed := finished
 	mixed.Items[1].Status = &partialStatus
 	mixedCard := FormatRoutineCheckinFinishedCard(mixed, "Игорь", "igor", "")
-	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "ROUTINE_ALL_DONE") {
+	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "выполнил всю рутину") {
 		t.Fatalf("mixed routine final card should keep item details: %s", mixedCard)
 	}
 }
@@ -331,8 +331,9 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 		t.Fatalf("goals saved confirmation should link the title word: %s", saved)
 	}
 	routineSaved := FormatRoutinePlanSaved("https://t.me/c/1/301?thread=13")
-	if !strings.Contains(routineSaved, `<a href="https://t.me/c/1/301?thread=13">[ROUTINE_PLAN_SAVED_TITLE]</a>`) {
-		t.Fatalf("routine saved confirmation should link the placeholder title: %s", routineSaved)
+	if !strings.Contains(routineSaved, `<a href="https://t.me/c/1/301?thread=13">Список сохранён</a>`) ||
+		!strings.Contains(routineSaved, "Каждый день буду присылать его сюда.") {
+		t.Fatalf("routine saved confirmation should link the title: %s", routineSaved)
 	}
 
 	final := FormatGoalFinalReflectionPrompt(goalSet, domain.GoalFinalPartial)
