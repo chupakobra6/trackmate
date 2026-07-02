@@ -46,7 +46,7 @@ func DispatchDueCheckins(ctx context.Context, store *postgres.Store, tg telegram
 		message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
 			ChatID:          item.Workspace.ChatID,
 			MessageThreadID: routineTopic.ThreadID,
-			Text:            ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), ""),
+			Text:            ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), routineSourceLink(item.Workspace.ChatID, checkin), ""),
 			ReplyMarkup:     ui.RoutineItemKeyboard(checkin.ID, nextIndex),
 		}))
 		if err != nil {
@@ -205,6 +205,17 @@ func participantUsername(participant postgres.Participant) string {
 		return ""
 	}
 	return *participant.Username
+}
+
+func routineSourceLink(chatID int64, checkin postgres.RoutineCheckin) string {
+	return postgres.MessageLink(chatID, optionalInt64(checkin.SourceMessageID), optionalInt64(checkin.SourceMessageThreadID))
+}
+
+func optionalInt64(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any) {

@@ -101,13 +101,15 @@ type ProgressEvent struct {
 }
 
 type RoutinePlan struct {
-	ID               int64
-	WorkspaceGroupID int64
-	ParticipantID    int64
-	OwnerUserID      int64
-	Items            []string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	ID                    int64
+	WorkspaceGroupID      int64
+	ParticipantID         int64
+	OwnerUserID           int64
+	Items                 []string
+	SourceMessageID       *int64
+	SourceMessageThreadID *int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
 }
 
 type RoutineCheckin struct {
@@ -116,6 +118,8 @@ type RoutineCheckin struct {
 	ParticipantID            int64
 	OwnerUserID              int64
 	CheckinDate              time.Time
+	SourceMessageID          *int64
+	SourceMessageThreadID    *int64
 	CardMessageID            *int64
 	CardMessageThreadID      *int64
 	ReminderMessageID        *int64

@@ -5,6 +5,7 @@ import (
 	"html"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/messages"
@@ -20,6 +21,7 @@ var (
 	SetupRepairedText  = messages.Text("setup.repaired")
 	routineHeaderEmoji = messages.Text("routine.header_emoji")
 	anchorTagPattern   = regexp.MustCompile(`(?i)</?a(?:\s+[^>]*)?>`)
+	routineWordPattern = regexp.MustCompile(`(^|[^\pL])(Рутина|рутина|Рутину|рутину)([^\pL]|$)`)
 )
 
 type participantNameCase string
@@ -48,6 +50,31 @@ var participantNamesByToken = map[string]participantNameForms{
 	"igor":     {Nominative: "Игорь", Genitive: "Игоря"},
 	"egor":     {Nominative: "Егор", Genitive: "Егора"},
 	"yaroslav": {Nominative: "Ярослав", Genitive: "Ярослава"},
+}
+
+var routineWeekdays = map[time.Weekday]string{
+	time.Monday:    "понедельник",
+	time.Tuesday:   "вторник",
+	time.Wednesday: "среду",
+	time.Thursday:  "четверг",
+	time.Friday:    "пятницу",
+	time.Saturday:  "субботу",
+	time.Sunday:    "воскресенье",
+}
+
+var routineMonths = map[time.Month]string{
+	time.January:   "января",
+	time.February:  "февраля",
+	time.March:     "марта",
+	time.April:     "апреля",
+	time.May:       "мая",
+	time.June:      "июня",
+	time.July:      "июля",
+	time.August:    "августа",
+	time.September: "сентября",
+	time.October:   "октября",
+	time.November:  "ноября",
+	time.December:  "декабря",
 }
 
 func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin bool, canManageTopics bool, canReadMessages bool, notice string) string {
@@ -111,38 +138,42 @@ func FormatRoutinePlanSaved(routineLink string) string {
 	return messages.Format("routine.plan.saved", "link", html.EscapeString(routineLink))
 }
 
-func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
-	return formatRoutineCheckinCard(checkin, displayName, username, notice)
+func FormatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
+	return formatRoutineCheckinCard(checkin, displayName, username, routineLink, notice)
 }
 
-func FormatRoutineCheckinStatusCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
-	return formatRoutineCheckinCard(checkin, displayName, username, notice)
+func FormatRoutineCheckinStatusCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
+	return formatRoutineCheckinCard(checkin, displayName, username, routineLink, notice)
 }
 
-func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
+func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
 	if routineCheckinAllDone(checkin) {
 		lines := []string{
 			messages.Format(
 				"routine.card.completed_all",
-				"date", checkin.CheckinDate.Format("02.01"),
+				"emoji", routineHeaderEmoji,
+				"date", routineDateLabel(checkin.CheckinDate),
 				"person", personLabel(username, displayName),
+				"routine", routineLinkedWord("рутину", routineLink),
 			),
 		}
 		return appendNotice(lines, notice)
 	}
-	return FormatRoutineCheckinStatusCard(checkin, displayName, username, notice)
+	return FormatRoutineCheckinStatusCard(checkin, displayName, username, routineLink, notice)
 }
 
-func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, notice string) string {
-	person := personLabel(username, displayName)
+func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
+	person := html.EscapeString(participantDisplayName(displayName, username, participantNameGenitive))
 	lines := []string{
-		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "date", checkin.CheckinDate.Format("02.01"), "person", person),
-		"",
-		messages.Text("routine.card.subtitle"),
-		"",
+		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "routine", routineLinkedWord("Рутина", routineLink), "date", routineDateLabel(checkin.CheckinDate), "person", person),
+	}
+	if NextRoutineItemIndex(checkin) >= 0 {
+		lines = append(lines, "", messages.Text("routine.card.subtitle"), "")
+	} else {
+		lines = append(lines, "")
 	}
 	for _, item := range checkin.Items {
-		lines = append(lines, routineItemLine(item))
+		lines = append(lines, routineItemLine(item, routineLink))
 		if item.ReasonText != nil && *item.ReasonText != "" {
 			lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
 		}
@@ -369,6 +400,18 @@ func routineCheckinAllDone(checkin postgres.RoutineCheckin) bool {
 	return true
 }
 
+func routineDateLabel(date time.Time) string {
+	weekday := routineWeekdays[date.Weekday()]
+	if weekday == "" {
+		weekday = strings.ToLower(date.Weekday().String())
+	}
+	month := routineMonths[date.Month()]
+	if month == "" {
+		month = strings.ToLower(date.Month().String())
+	}
+	return fmt.Sprintf("%s, %d %s", weekday, date.Day(), month)
+}
+
 func FormatProgressEvent(event postgres.ProgressEvent) string {
 	payload := event.Payload
 	person := profileLinkLabel(payload)
@@ -503,7 +546,7 @@ func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, usern
 	}
 }
 
-func routineItemLine(item postgres.RoutineCheckinItem) string {
+func routineItemLine(item postgres.RoutineCheckinItem, routineLink string) string {
 	marker := "—"
 	if item.Status != nil {
 		switch *item.Status {
@@ -515,7 +558,36 @@ func routineItemLine(item postgres.RoutineCheckinItem) string {
 			marker = "❌"
 		}
 	}
-	return marker + " " + html.EscapeString(item.Text)
+	return marker + " " + linkRoutineWords(item.Text, routineLink)
+}
+
+func routineLinkedWord(word string, routineLink string) string {
+	if strings.TrimSpace(routineLink) == "" {
+		return html.EscapeString(word)
+	}
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(routineLink), html.EscapeString(word))
+}
+
+func linkRoutineWords(text string, routineLink string) string {
+	escaped := html.EscapeString(text)
+	if strings.TrimSpace(routineLink) == "" {
+		return escaped
+	}
+	matches := routineWordPattern.FindAllStringSubmatchIndex(escaped, -1)
+	if len(matches) == 0 {
+		return escaped
+	}
+	var builder strings.Builder
+	last := 0
+	for _, match := range matches {
+		wordStart := match[4]
+		wordEnd := match[5]
+		builder.WriteString(escaped[last:wordStart])
+		builder.WriteString(routineLinkedWord(escaped[wordStart:wordEnd], routineLink))
+		last = wordEnd
+	}
+	builder.WriteString(escaped[last:])
+	return builder.String()
 }
 
 func goalFinalStatusLabel(status domain.GoalFinalStatus) string {

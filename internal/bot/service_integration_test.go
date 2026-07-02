@@ -429,6 +429,9 @@ func TestRoutinePlanSaveKeepsUserListAndSendsDismissibleConfirmation(t *testing.
 			t.Fatalf("routine items = %v want %v", plan.Items, want)
 		}
 	}
+	if plan.SourceMessageID == nil || *plan.SourceMessageID != 301 || plan.SourceMessageThreadID == nil || *plan.SourceMessageThreadID != 13 {
+		t.Fatalf("routine source message was not stored: %+v", plan)
+	}
 }
 
 func TestRoutinePlanChangeSnapshotsPreviousRoutineBeforeSavingNewList(t *testing.T) {
@@ -446,7 +449,7 @@ func TestRoutinePlanChangeSnapshotsPreviousRoutineBeforeSavingNewList(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	oldPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"старая зарядка", "старый сон"})
+	oldPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"старая зарядка", "старый сон"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,6 +494,9 @@ func TestRoutinePlanChangeSnapshotsPreviousRoutineBeforeSavingNewList(t *testing
 	if fmt.Sprint(newPlan.Items) != "[новая работа новый спорт]" {
 		t.Fatalf("new routine was not saved: %v", newPlan.Items)
 	}
+	if newPlan.SourceMessageID == nil || *newPlan.SourceMessageID != 301 || newPlan.SourceMessageThreadID == nil || *newPlan.SourceMessageThreadID != 13 {
+		t.Fatalf("new routine should keep source message: %+v", newPlan)
+	}
 }
 
 func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
@@ -515,7 +521,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -638,7 +644,7 @@ func TestRoutineCheckinAllDoneLeavesShortFinalCard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -668,7 +674,7 @@ func TestRoutineCheckinAllDoneLeavesShortFinalCard(t *testing.T) {
 		t.Fatalf("completed routine card should not be deleted, deleted=%+v", fake.deleted)
 	}
 	finalEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(finalEdit.Text, "Игорь выполнил всю рутину за 24.06") || strings.Contains(finalEdit.Text, "зарядка") || strings.Contains(finalEdit.Text, "йога") {
+	if !ok || !strings.Contains(finalEdit.Text, "🌿 <b>Игорь выполнил всю рутину за среду, 24 июня!</b>") || strings.Contains(finalEdit.Text, "зарядка") || strings.Contains(finalEdit.Text, "йога") {
 		t.Fatalf("all-done routine should use short final card: found=%v edit=%+v", ok, finalEdit)
 	}
 	if finalEdit.ReplyMarkup == nil || len(finalEdit.ReplyMarkup.InlineKeyboard) != 0 {
@@ -691,7 +697,7 @@ func TestRoutineReasonRollbackKeepsPendingWhenReasonNotAccepted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, owner.ID, owner.UserID, []string{"зарядка"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, owner.ID, owner.UserID, []string{"зарядка"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

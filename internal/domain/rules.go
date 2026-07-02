@@ -127,6 +127,25 @@ func RoutinePreviousCheckinDate(planCreatedAt time.Time, workspaceTimezone strin
 	return checkinDate, true
 }
 
+func RoutinePlanChangeSnapshotDate(planCreatedAt time.Time, workspaceTimezone string, nowUTC time.Time) (time.Time, bool) {
+	location, err := time.LoadLocation(workspaceTimezone)
+	if err != nil {
+		return time.Time{}, false
+	}
+	localNow := nowUTC.In(location)
+	year, month, day := localNow.Date()
+	activeDate := time.Date(year, month, day, 0, 0, 0, 0, location)
+	if localNow.Hour() < RoutineCheckinHour {
+		activeDate = activeDate.AddDate(0, 0, -1)
+	}
+	createdYear, createdMonth, createdDay := planCreatedAt.In(location).Date()
+	createdDate := time.Date(createdYear, createdMonth, createdDay, 0, 0, 0, 0, location)
+	if activeDate.Before(createdDate) {
+		return time.Time{}, false
+	}
+	return activeDate, true
+}
+
 func RoutineReminderDue(checkinDate time.Time, workspaceTimezone string, reminderSentAt *time.Time, completedAt *time.Time, nowUTC time.Time) (bool, error) {
 	if reminderSentAt != nil || completedAt != nil {
 		return false, nil

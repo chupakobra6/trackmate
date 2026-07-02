@@ -12,26 +12,28 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-func (q *Queries) UpsertRoutinePlan(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, items []string) (RoutinePlan, error) {
+func (q *Queries) UpsertRoutinePlan(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, items []string, sourceMessageID int64, sourceMessageThreadID int64) (RoutinePlan, error) {
 	encoded, err := json.Marshal(items)
 	if err != nil {
 		return RoutinePlan{}, err
 	}
 	row := q.db.QueryRow(ctx, `
-INSERT INTO routine_plans (workspace_group_id, participant_id, owner_user_id, items, created_at, updated_at)
-VALUES ($1, $2, $3, $4::jsonb, now(), now())
+INSERT INTO routine_plans (workspace_group_id, participant_id, owner_user_id, items, source_message_id, source_message_thread_id, created_at, updated_at)
+VALUES ($1, $2, $3, $4::jsonb, NULLIF($5, 0), NULLIF($6, 0), now(), now())
 ON CONFLICT (workspace_group_id, participant_id) DO UPDATE SET
     owner_user_id = EXCLUDED.owner_user_id,
     items = EXCLUDED.items,
+    source_message_id = EXCLUDED.source_message_id,
+    source_message_thread_id = EXCLUDED.source_message_thread_id,
     updated_at = now()
-RETURNING id, workspace_group_id, participant_id, owner_user_id, items, created_at, updated_at
-`, workspaceID, participantID, ownerUserID, encoded)
+RETURNING id, workspace_group_id, participant_id, owner_user_id, items, source_message_id, source_message_thread_id, created_at, updated_at
+`, workspaceID, participantID, ownerUserID, encoded, sourceMessageID, sourceMessageThreadID)
 	return scanRoutinePlan(row)
 }
 
 func (q *Queries) GetRoutinePlan(ctx context.Context, workspaceID int64, participantID int64) (RoutinePlan, bool, error) {
 	row := q.db.QueryRow(ctx, `
-SELECT id, workspace_group_id, participant_id, owner_user_id, items, created_at, updated_at
+SELECT id, workspace_group_id, participant_id, owner_user_id, items, source_message_id, source_message_thread_id, created_at, updated_at
 FROM routine_plans
 WHERE workspace_group_id = $1 AND participant_id = $2
 `, workspaceID, participantID)
@@ -44,7 +46,7 @@ WHERE workspace_group_id = $1 AND participant_id = $2
 
 func (q *Queries) ListRoutinePlanContexts(ctx context.Context) ([]RoutinePlanContext, error) {
 	rows, err := q.db.Query(ctx, `
-SELECT rp.id, rp.workspace_group_id, rp.participant_id, rp.owner_user_id, rp.items, rp.created_at, rp.updated_at,
+SELECT rp.id, rp.workspace_group_id, rp.participant_id, rp.owner_user_id, rp.items, rp.source_message_id, rp.source_message_thread_id, rp.created_at, rp.updated_at,
        wg.id, wg.chat_id, wg.title, wg.timezone, wg.setup_status::text, wg.setup_message_id, wg.created_at, wg.updated_at,
        p.id, p.workspace_group_id, p.user_id, p.username, p.display_name, p.is_active, p.created_at, p.updated_at
 FROM routine_plans rp
@@ -61,17 +63,19 @@ ORDER BY rp.id ASC
 	for rows.Next() {
 		var item RoutinePlanContext
 		var title, username pgtype.Text
-		var setupMessageID pgtype.Int4
+		var setupMessageID, sourceID, sourceThreadID pgtype.Int4
 		var setupStatus string
 		var rawItems []byte
 		if err := rows.Scan(
-			&item.Plan.ID, &item.Plan.WorkspaceGroupID, &item.Plan.ParticipantID, &item.Plan.OwnerUserID, &rawItems, &item.Plan.CreatedAt, &item.Plan.UpdatedAt,
+			&item.Plan.ID, &item.Plan.WorkspaceGroupID, &item.Plan.ParticipantID, &item.Plan.OwnerUserID, &rawItems, &sourceID, &sourceThreadID, &item.Plan.CreatedAt, &item.Plan.UpdatedAt,
 			&item.Workspace.ID, &item.Workspace.ChatID, &title, &item.Workspace.Timezone, &setupStatus, &setupMessageID, &item.Workspace.CreatedAt, &item.Workspace.UpdatedAt,
 			&item.Participant.ID, &item.Participant.WorkspaceGroupID, &item.Participant.UserID, &username, &item.Participant.DisplayName, &item.Participant.IsActive, &item.Participant.CreatedAt, &item.Participant.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
 		item.Plan.Items = decodeStringSlice(rawItems)
+		item.Plan.SourceMessageID = int64FromPgInt4(sourceID)
+		item.Plan.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 		item.Workspace.Title = textFromPg(title)
 		item.Workspace.SetupStatus = domain.GroupSetupStatus(setupStatus)
 		item.Workspace.SetupMessageID = int64FromPgInt4(setupMessageID)
@@ -84,7 +88,7 @@ ORDER BY rp.id ASC
 func (q *Queries) ListOpenRoutineCheckinContexts(ctx context.Context) ([]RoutineCheckinContext, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT rc.id, rc.workspace_group_id, rc.participant_id, rc.owner_user_id, rc.checkin_date,
-       rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
+       rc.source_message_id, rc.source_message_thread_id, rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
        rc.created_at, rc.updated_at, rc.reminder_sent_at, rc.auto_close_notice_sent_at, rc.completed_at, rc.auto_failed_at,
        wg.id, wg.chat_id, wg.title, wg.timezone, wg.setup_status::text, wg.setup_message_id, wg.created_at, wg.updated_at,
        p.id, p.workspace_group_id, p.user_id, p.username, p.display_name, p.is_active, p.created_at, p.updated_at
@@ -102,7 +106,7 @@ ORDER BY rc.checkin_date ASC, rc.id ASC
 	var result []RoutineCheckinContext
 	for rows.Next() {
 		var item RoutineCheckinContext
-		var cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
+		var sourceID, sourceThreadID, cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
 		var reflection pgtype.Text
 		var reminderSentAt, autoNoticeSentAt, completedAt, autoFailedAt pgtype.Timestamptz
 		var title, username pgtype.Text
@@ -110,12 +114,14 @@ ORDER BY rc.checkin_date ASC, rc.id ASC
 		var setupMessageID pgtype.Int4
 		if err := rows.Scan(
 			&item.Checkin.ID, &item.Checkin.WorkspaceGroupID, &item.Checkin.ParticipantID, &item.Checkin.OwnerUserID, &item.Checkin.CheckinDate,
-			&cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &item.Checkin.CreatedAt, &item.Checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
+			&sourceID, &sourceThreadID, &cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &item.Checkin.CreatedAt, &item.Checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
 			&item.Workspace.ID, &item.Workspace.ChatID, &title, &item.Workspace.Timezone, &setupStatus, &setupMessageID, &item.Workspace.CreatedAt, &item.Workspace.UpdatedAt,
 			&item.Participant.ID, &item.Participant.WorkspaceGroupID, &item.Participant.UserID, &username, &item.Participant.DisplayName, &item.Participant.IsActive, &item.Participant.CreatedAt, &item.Participant.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		item.Checkin.SourceMessageID = int64FromPgInt4(sourceID)
+		item.Checkin.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 		item.Checkin.CardMessageID = int64FromPgInt4(cardID)
 		item.Checkin.CardMessageThreadID = int64FromPgInt4(cardThreadID)
 		item.Checkin.ReminderMessageID = int64FromPgInt4(reminderID)
@@ -141,16 +147,25 @@ ORDER BY rc.checkin_date ASC, rc.id ASC
 func (q *Queries) GetOrCreateRoutineCheckin(ctx context.Context, plan RoutinePlan, checkinDate time.Time) (RoutineCheckin, error) {
 	row := q.db.QueryRow(ctx, `
 INSERT INTO routine_checkins (
-    workspace_group_id, participant_id, owner_user_id, checkin_date, created_at, updated_at
+    workspace_group_id, participant_id, owner_user_id, checkin_date, source_message_id, source_message_thread_id, created_at, updated_at
 )
-VALUES ($1, $2, $3, $4::date, now(), now())
-ON CONFLICT (workspace_group_id, participant_id, checkin_date) DO UPDATE SET
-    updated_at = routine_checkins.updated_at
+VALUES ($1, $2, $3, $4::date, NULLIF($5, 0), NULLIF($6, 0), now(), now())
+ON CONFLICT (workspace_group_id, participant_id, checkin_date) DO NOTHING
 RETURNING id, workspace_group_id, participant_id, owner_user_id, checkin_date,
-          card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
+          source_message_id, source_message_thread_id, card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
           created_at, updated_at, reminder_sent_at, auto_close_notice_sent_at, completed_at, auto_failed_at
-`, plan.WorkspaceGroupID, plan.ParticipantID, plan.OwnerUserID, checkinDate)
+`, plan.WorkspaceGroupID, plan.ParticipantID, plan.OwnerUserID, checkinDate, optionalInt64(plan.SourceMessageID), optionalInt64(plan.SourceMessageThreadID))
 	checkin, err := scanRoutineCheckin(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		existing, found, findErr := q.GetRoutineCheckinForDate(ctx, plan.WorkspaceGroupID, plan.ParticipantID, checkinDate)
+		if findErr != nil {
+			return RoutineCheckin{}, findErr
+		}
+		if !found {
+			return RoutineCheckin{}, pgx.ErrNoRows
+		}
+		return existing, nil
+	}
 	if err != nil {
 		return RoutineCheckin{}, err
 	}
@@ -170,7 +185,7 @@ ON CONFLICT (routine_checkin_id, item_index) DO NOTHING
 func (q *Queries) GetRoutineCheckin(ctx context.Context, checkinID int64) (RoutineCheckin, bool, error) {
 	row := q.db.QueryRow(ctx, `
 SELECT id, workspace_group_id, participant_id, owner_user_id, checkin_date,
-       card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
+       source_message_id, source_message_thread_id, card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
        created_at, updated_at, reminder_sent_at, auto_close_notice_sent_at, completed_at, auto_failed_at
 FROM routine_checkins
 WHERE id = $1
@@ -193,7 +208,7 @@ WHERE id = $1
 func (q *Queries) GetRoutineCheckinForDate(ctx context.Context, workspaceID int64, participantID int64, checkinDate time.Time) (RoutineCheckin, bool, error) {
 	row := q.db.QueryRow(ctx, `
 SELECT id, workspace_group_id, participant_id, owner_user_id, checkin_date,
-       card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
+       source_message_id, source_message_thread_id, card_message_id, card_message_thread_id, reminder_message_id, auto_close_notice_message_id, reflection_text,
        created_at, updated_at, reminder_sent_at, auto_close_notice_sent_at, completed_at, auto_failed_at
 FROM routine_checkins
 WHERE workspace_group_id = $1 AND participant_id = $2 AND checkin_date = $3::date
@@ -291,7 +306,7 @@ WHERE id = $1
 func (q *Queries) ListExpiredRoutineNoticeContexts(ctx context.Context, cutoffUTC time.Time) ([]RoutineNoticeContext, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT rc.id, rc.workspace_group_id, rc.participant_id, rc.owner_user_id, rc.checkin_date,
-       rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
+       rc.source_message_id, rc.source_message_thread_id, rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
        rc.created_at, rc.updated_at, rc.reminder_sent_at, rc.auto_close_notice_sent_at, rc.completed_at, rc.auto_failed_at,
        wg.id, wg.chat_id, wg.title, wg.timezone, wg.setup_status::text, wg.setup_message_id, wg.created_at, wg.updated_at
 FROM routine_checkins rc
@@ -307,19 +322,21 @@ ORDER BY rc.id ASC
 	var result []RoutineNoticeContext
 	for rows.Next() {
 		var item RoutineNoticeContext
-		var cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
+		var sourceID, sourceThreadID, cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
 		var reflection, title pgtype.Text
 		var reminderSentAt, autoNoticeSentAt, completedAt, autoFailedAt pgtype.Timestamptz
 		var setupStatus string
 		var setupMessageID pgtype.Int4
 		if err := rows.Scan(
 			&item.Checkin.ID, &item.Checkin.WorkspaceGroupID, &item.Checkin.ParticipantID, &item.Checkin.OwnerUserID, &item.Checkin.CheckinDate,
-			&cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection,
+			&sourceID, &sourceThreadID, &cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection,
 			&item.Checkin.CreatedAt, &item.Checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
 			&item.Workspace.ID, &item.Workspace.ChatID, &title, &item.Workspace.Timezone, &setupStatus, &setupMessageID, &item.Workspace.CreatedAt, &item.Workspace.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		item.Checkin.SourceMessageID = int64FromPgInt4(sourceID)
+		item.Checkin.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 		item.Checkin.CardMessageID = int64FromPgInt4(cardID)
 		item.Checkin.CardMessageThreadID = int64FromPgInt4(cardThreadID)
 		item.Checkin.ReminderMessageID = int64FromPgInt4(reminderID)
@@ -416,7 +433,7 @@ WHERE id = $1 AND owner_user_id = $2
 func (q *Queries) GetRoutineLeaderboard(ctx context.Context, workspaceID int64, nowUTC time.Time) ([]RoutineLeaderboardEntry, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT rc.id, rc.workspace_group_id, rc.participant_id, rc.owner_user_id, rc.checkin_date,
-       rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
+       rc.source_message_id, rc.source_message_thread_id, rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
        rc.created_at, rc.updated_at, rc.reminder_sent_at, rc.auto_close_notice_sent_at, rc.completed_at, rc.auto_failed_at,
        p.id, p.workspace_group_id, p.user_id, p.username, p.display_name, p.is_active, p.created_at, p.updated_at
 FROM routine_checkins rc
@@ -441,17 +458,19 @@ ORDER BY p.id ASC, rc.checkin_date ASC
 	for rows.Next() {
 		var checkin RoutineCheckin
 		var participant Participant
-		var cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
+		var sourceID, sourceThreadID, cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
 		var reflection pgtype.Text
 		var reminderSentAt, autoNoticeSentAt, completedAt, autoFailedAt pgtype.Timestamptz
 		var username pgtype.Text
 		if err := rows.Scan(
 			&checkin.ID, &checkin.WorkspaceGroupID, &checkin.ParticipantID, &checkin.OwnerUserID, &checkin.CheckinDate,
-			&cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &checkin.CreatedAt, &checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
+			&sourceID, &sourceThreadID, &cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &checkin.CreatedAt, &checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
 			&participant.ID, &participant.WorkspaceGroupID, &participant.UserID, &username, &participant.DisplayName, &participant.IsActive, &participant.CreatedAt, &participant.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
+		checkin.SourceMessageID = int64FromPgInt4(sourceID)
+		checkin.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 		checkin.CardMessageID = int64FromPgInt4(cardID)
 		checkin.CardMessageThreadID = int64FromPgInt4(cardThreadID)
 		checkin.ReminderMessageID = int64FromPgInt4(reminderID)
@@ -608,24 +627,29 @@ func routineCheckinScore(checkin RoutineCheckin) float64 {
 func scanRoutinePlan(row pgx.Row) (RoutinePlan, error) {
 	var plan RoutinePlan
 	var raw []byte
-	if err := row.Scan(&plan.ID, &plan.WorkspaceGroupID, &plan.ParticipantID, &plan.OwnerUserID, &raw, &plan.CreatedAt, &plan.UpdatedAt); err != nil {
+	var sourceID, sourceThreadID pgtype.Int4
+	if err := row.Scan(&plan.ID, &plan.WorkspaceGroupID, &plan.ParticipantID, &plan.OwnerUserID, &raw, &sourceID, &sourceThreadID, &plan.CreatedAt, &plan.UpdatedAt); err != nil {
 		return RoutinePlan{}, err
 	}
 	plan.Items = decodeStringSlice(raw)
+	plan.SourceMessageID = int64FromPgInt4(sourceID)
+	plan.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 	return plan, nil
 }
 
 func scanRoutineCheckin(row pgx.Row) (RoutineCheckin, error) {
 	var checkin RoutineCheckin
-	var cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
+	var sourceID, sourceThreadID, cardID, cardThreadID, reminderID, autoNoticeID pgtype.Int4
 	var reflection pgtype.Text
 	var reminderSentAt, autoNoticeSentAt, completedAt, autoFailedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&checkin.ID, &checkin.WorkspaceGroupID, &checkin.ParticipantID, &checkin.OwnerUserID, &checkin.CheckinDate,
-		&cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &checkin.CreatedAt, &checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
+		&sourceID, &sourceThreadID, &cardID, &cardThreadID, &reminderID, &autoNoticeID, &reflection, &checkin.CreatedAt, &checkin.UpdatedAt, &reminderSentAt, &autoNoticeSentAt, &completedAt, &autoFailedAt,
 	); err != nil {
 		return RoutineCheckin{}, err
 	}
+	checkin.SourceMessageID = int64FromPgInt4(sourceID)
+	checkin.SourceMessageThreadID = int64FromPgInt4(sourceThreadID)
 	checkin.CardMessageID = int64FromPgInt4(cardID)
 	checkin.CardMessageThreadID = int64FromPgInt4(cardThreadID)
 	checkin.ReminderMessageID = int64FromPgInt4(reminderID)

@@ -38,6 +38,9 @@ Telegram refused to edit an old message.
 21. Keep Progress silent: daily result messages do not notify the group.
 22. Use pings only for missed/forgotten actions such as routine reminders and missed daily task alerts.
 23. Link Progress person labels to the participant profile and link daily result actions/media labels to the source report message.
+24. Treat every routine check-in as a snapshot of the routine list that created it. Changing the routine during an active day first snapshots the active day with the old list, then uses the new list for future cards.
+25. Keep the user's routine setup message as the source artifact. Routine cards and all-done summaries link the word `Рутина`/`рутину` back to that message.
+26. In completed routine cards with all items marked, remove the helper line that asks users to mark points; it only belongs to open cards.
 
 ## Non-goals for MVP
 

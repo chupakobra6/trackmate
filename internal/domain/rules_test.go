@@ -121,6 +121,24 @@ func TestRoutineCheckinDueSkipsDaysBeforePlanExists(t *testing.T) {
 	}
 }
 
+func TestRoutinePlanChangeSnapshotDateUsesActiveRoutineDay(t *testing.T) {
+	created := time.Date(2026, 6, 30, 21, 35, 0, 0, time.UTC) // 1 July, 00:35 MSK.
+	date, ok := RoutinePlanChangeSnapshotDate(created, "Europe/Moscow", time.Date(2026, 7, 1, 13, 3, 0, 0, time.UTC))
+	if !ok || date.Format("2006-01-02") != "2026-07-01" {
+		t.Fatalf("daytime routine edit should snapshot active local day, ok=%v date=%s", ok, date.Format("2006-01-02"))
+	}
+
+	date, ok = RoutinePlanChangeSnapshotDate(created, "Europe/Moscow", time.Date(2026, 7, 2, 4, 59, 0, 0, time.UTC))
+	if !ok || date.Format("2006-01-02") != "2026-07-01" {
+		t.Fatalf("early morning routine edit should snapshot previous local day, ok=%v date=%s", ok, date.Format("2006-01-02"))
+	}
+
+	_, ok = RoutinePlanChangeSnapshotDate(time.Date(2026, 7, 1, 22, 0, 0, 0, time.UTC), "Europe/Moscow", time.Date(2026, 7, 1, 23, 0, 0, 0, time.UTC))
+	if ok {
+		t.Fatal("routine edit should not snapshot a day before the plan existed")
+	}
+}
+
 func TestRoutineReminderAndAutoFailDue(t *testing.T) {
 	checkinDate := time.Date(2026, 6, 23, 0, 0, 0, 0, time.UTC)
 	reminder, err := RoutineReminderDue(checkinDate, "UTC", nil, nil, time.Date(2026, 6, 24, 19, 59, 0, 0, time.UTC))

@@ -32,7 +32,7 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +45,7 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, now); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || fake.sent[0].MessageThreadID != 30 || !strings.Contains(fake.sent[0].Text, "Рутина за 28.06") || !fake.sent[0].DisableNotification {
+	if len(fake.sent) != 1 || fake.sent[0].MessageThreadID != 30 || !strings.Contains(fake.sent[0].Text, "Рутина Игоря за воскресенье, 28 июня") || !fake.sent[0].DisableNotification {
 		t.Fatalf("unexpected routine dispatch: %+v", fake.sent)
 	}
 	checkin, found, err := q.GetRoutineCheckinForDate(ctx, workspace.ID, participant.ID, time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC))
@@ -85,7 +85,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestCleanupExpiredNoticesDeletesOldRoutineReminder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

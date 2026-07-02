@@ -162,8 +162,8 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		CheckinDate: time.Date(2026, 6, 24, 0, 0, 0, 0, time.UTC),
 		Items:       []postgres.RoutineCheckinItem{{Text: "зарядка"}},
 	}
-	routineCard := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	if !strings.Contains(routineCard, "🌿 <b>Рутина за 24.06</b> Игорь\n\nОтметь пункты за этот день") {
+	routineCard := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "", "")
+	if !strings.Contains(routineCard, "🌿 <b>Рутина Игоря за среду, 24 июня</b>\n\nОтметь пункты за этот день") {
 		t.Fatalf("routine card should keep header gap: %s", routineCard)
 	}
 
@@ -236,8 +236,8 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 			{Text: "английский"},
 		},
 	}
-	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "")
-	for _, part := range []string{"🌿 <b>Рутина за 24.06</b> Игорь", "Отметь пункты за этот день", "— зарядка", "— английский"} {
+	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "https://t.me/c/1/301?thread=13", "")
+	for _, part := range []string{`🌿 <b><a href="https://t.me/c/1/301?thread=13">Рутина</a> Игоря за среду, 24 июня</b>`, "Отметь пункты за этот день", "— зарядка", "— английский"} {
 		if !strings.Contains(card, part) {
 			t.Fatalf("routine card missing %q: %s", part, card)
 		}
@@ -245,7 +245,7 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 	if strings.Contains(card, "1/2:") || strings.Contains(card, "зарядка?") {
 		t.Fatalf("routine card should not ask item inside the main card: %s", card)
 	}
-	statusOnly := FormatRoutineCheckinStatusCard(checkin, "Игорь", "igor", "")
+	statusOnly := FormatRoutineCheckinStatusCard(checkin, "Игорь", "igor", "", "")
 	if strings.Contains(statusOnly, "<b>1/2:</b> зарядка?") {
 		t.Fatalf("routine status card should not ask the next item: %s", statusOnly)
 	}
@@ -264,16 +264,16 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 			{Text: "английский", Status: &doneStatus},
 		},
 	}
-	finishedCard := FormatRoutineCheckinFinishedCard(finished, "Игорь", "igor", "")
-	if !strings.Contains(finishedCard, "Игорь выполнил всю рутину за 24.06") || strings.Contains(finishedCard, "зарядка") || strings.Contains(finishedCard, "английский") {
+	finishedCard := FormatRoutineCheckinFinishedCard(finished, "Игорь", "igor", "https://t.me/c/1/301?thread=13", "")
+	if !strings.Contains(finishedCard, `🌿 <b>Игорь выполнил всю <a href="https://t.me/c/1/301?thread=13">рутину</a> за среду, 24 июня!</b>`) || strings.Contains(finishedCard, "зарядка") || strings.Contains(finishedCard, "английский") {
 		t.Fatalf("all-done routine final card should stay short: %s", finishedCard)
 	}
 
 	partialStatus := domain.RoutineItemPartial
 	mixed := finished
 	mixed.Items[1].Status = &partialStatus
-	mixedCard := FormatRoutineCheckinFinishedCard(mixed, "Игорь", "igor", "")
-	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "выполнил всю рутину") {
+	mixedCard := FormatRoutineCheckinFinishedCard(mixed, "Игорь", "igor", "", "")
+	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "Отметь пункты за этот день") || strings.Contains(mixedCard, "выполнил всю рутину") {
 		t.Fatalf("mixed routine final card should keep item details: %s", mixedCard)
 	}
 }

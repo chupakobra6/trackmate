@@ -119,7 +119,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 		t.Fatalf("second progress claim ok=%v err=%v", ok, err)
 	}
 
-	routinePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"})
+	routinePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога"}, 501, 13)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,8 +127,25 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if checkin.SourceMessageID == nil || *checkin.SourceMessageID != 501 || checkin.SourceMessageThreadID == nil || *checkin.SourceMessageThreadID != 13 {
+		t.Fatalf("routine checkin source message was not stored: %+v", checkin)
+	}
 	if len(checkin.Items) != 2 {
 		t.Fatalf("routine items = %d, want 2", len(checkin.Items))
+	}
+	updatedRoutinePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "йога", "новый пункт"}, 502, 13)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sameCheckin, err := q.GetOrCreateRoutineCheckin(ctx, updatedRoutinePlan, time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sameCheckin.Items) != 2 {
+		t.Fatalf("existing routine checkin should keep original snapshot, got %v", sameCheckin.Items)
+	}
+	if sameCheckin.SourceMessageID == nil || *sameCheckin.SourceMessageID != 501 {
+		t.Fatalf("existing routine checkin should keep original source message: %+v", sameCheckin)
 	}
 	if _, ok, err := q.SetRoutineCheckinItemStatus(ctx, checkin.ID, participant.UserID, 0, domain.RoutineItemDone, nil); err != nil || !ok {
 		t.Fatalf("routine item status ok=%v err=%v", ok, err)
@@ -253,11 +270,11 @@ func TestRoutineLeaderboardRanksCompletionRateBeforeStreak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	streakPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, streakParticipant.ID, streakParticipant.UserID, []string{"одно действие"})
+	streakPlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, streakParticipant.ID, streakParticipant.UserID, []string{"одно действие"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ratePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, rateParticipant.ID, rateParticipant.UserID, []string{"зарядка", "работа", "английский", "йога"})
+	ratePlan, err := q.UpsertRoutinePlan(ctx, workspace.ID, rateParticipant.ID, rateParticipant.UserID, []string{"зарядка", "работа", "английский", "йога"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

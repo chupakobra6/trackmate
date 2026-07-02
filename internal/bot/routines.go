@@ -78,13 +78,13 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 			if err != nil {
 				return err
 			}
-			if checkinDate, ok := domain.RoutinePreviousCheckinDate(existing.CreatedAt, workspace.Timezone, now); ok {
+			if checkinDate, ok := domain.RoutinePlanChangeSnapshotDate(existing.CreatedAt, workspace.Timezone, now); ok {
 				if _, err := q.GetOrCreateRoutineCheckin(ctx, existing, checkinDate); err != nil {
 					return err
 				}
 			}
 		}
-		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items); err != nil {
+		if _, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, message.From.ID, items, message.MessageID, message.MessageThreadID); err != nil {
 			return err
 		}
 		s.deletePendingUserMessages(ctx, message.Chat.ID, claimed.Payload)
@@ -144,7 +144,7 @@ func (s *Service) handleRoutineItem(ctx context.Context, callback telegram.Callb
 			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 				ChatID:      callback.Message.Chat.ID,
 				MessageID:   callback.Message.MessageID,
-				Text:        ui.FormatRoutineCheckinStatusCard(updated, telegram.DisplayName(callback.From), callback.From.Username, ""),
+				Text:        ui.FormatRoutineCheckinStatusCard(updated, telegram.DisplayName(callback.From), callback.From.Username, routineSourceLink(callback.Message.Chat.ID, updated), ""),
 				ReplyMarkup: ui.EmptyKeyboard(),
 			})
 			prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
@@ -209,7 +209,7 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 		return s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 			ChatID:      chatID,
 			MessageID:   messageID,
-			Text:        ui.FormatRoutineCheckinCard(checkin, telegram.DisplayName(user), user.Username, ""),
+			Text:        ui.FormatRoutineCheckinCard(checkin, telegram.DisplayName(user), user.Username, routineSourceLink(chatID, checkin), ""),
 			ReplyMarkup: ui.RoutineItemKeyboard(checkin.ID, nextIndex),
 		})
 	}
@@ -226,7 +226,7 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 	_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
 		ChatID:      chatID,
 		MessageID:   messageID,
-		Text:        ui.FormatRoutineCheckinFinishedCard(completed, telegram.DisplayName(user), user.Username, ""),
+		Text:        ui.FormatRoutineCheckinFinishedCard(completed, telegram.DisplayName(user), user.Username, routineSourceLink(chatID, completed), ""),
 		ReplyMarkup: ui.EmptyKeyboard(),
 	})
 	now, err := q.CurrentNow(ctx, time.Now().UTC())
@@ -234,4 +234,8 @@ func (s *Service) advanceRoutineCheckin(ctx context.Context, q *postgres.Queries
 		return err
 	}
 	return approutine.RefreshLeaderboard(ctx, q, s.Telegram, workspace, chatID, now)
+}
+
+func routineSourceLink(chatID int64, checkin postgres.RoutineCheckin) string {
+	return postgres.MessageLink(chatID, optionalInt64(checkin.SourceMessageID), optionalInt64(checkin.SourceMessageThreadID))
 }

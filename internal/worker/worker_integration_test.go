@@ -88,7 +88,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "английский"})
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка", "английский"}, 0, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
