@@ -21,7 +21,6 @@ var (
 	SetupRepairedText  = messages.Text("setup.repaired")
 	routineHeaderEmoji = messages.Text("routine.header_emoji")
 	anchorTagPattern   = regexp.MustCompile(`(?i)</?a(?:\s+[^>]*)?>`)
-	routineWordPattern = regexp.MustCompile(`(^|[^\pL])(Рутина|рутина|Рутину|рутину)([^\pL]|$)`)
 )
 
 type participantNameCase string
@@ -165,7 +164,7 @@ func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayNa
 func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
 	person := html.EscapeString(participantDisplayName(displayName, username, participantNameGenitive))
 	lines := []string{
-		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "routine", routineLinkedWord("Рутина", routineLink), "date", routineDateLabel(checkin.CheckinDate), "person", person),
+		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "routine", html.EscapeString("Рутина"), "date", routineDateLabel(checkin.CheckinDate), "person", person),
 	}
 	if NextRoutineItemIndex(checkin) >= 0 {
 		lines = append(lines, "", messages.Text("routine.card.subtitle"), "")
@@ -173,7 +172,7 @@ func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName strin
 		lines = append(lines, "")
 	}
 	for _, item := range checkin.Items {
-		lines = append(lines, routineItemLine(item, routineLink))
+		lines = append(lines, routineItemLine(item))
 		if item.ReasonText != nil && *item.ReasonText != "" {
 			lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
 		}
@@ -232,9 +231,10 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 		lines = append(lines, messages.Format(
 			"routine.leaderboard.entry",
 			"rank", fmt.Sprint(i+1),
+			"badge", routineLeaderboardBadge(i),
 			"participant", participantLabel(entry.Participant),
 			"rate", fmt.Sprintf("%.0f", entry.CompletionRate),
-			"streak", fmt.Sprint(entry.CurrentStreak),
+			"streak_days", routineDaysLabel(entry.CurrentStreak),
 			"items", routineItemsCountLabel(entry.RoutineItemCount),
 		))
 	}
@@ -247,7 +247,7 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 	lines = append(lines, "", messages.Text("routine.leaderboard.best_title"), messages.Format(
 		"routine.leaderboard.best_entry",
 		"participant", participantLabel(best.Participant),
-		"streak", fmt.Sprint(best.MaxStreak),
+		"streak_days", routineDaysLabel(best.MaxStreak),
 	))
 	return strings.Join(lines, "\n")
 }
@@ -546,7 +546,7 @@ func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, usern
 	}
 }
 
-func routineItemLine(item postgres.RoutineCheckinItem, routineLink string) string {
+func routineItemLine(item postgres.RoutineCheckinItem) string {
 	marker := "—"
 	if item.Status != nil {
 		switch *item.Status {
@@ -558,7 +558,7 @@ func routineItemLine(item postgres.RoutineCheckinItem, routineLink string) strin
 			marker = "❌"
 		}
 	}
-	return marker + " " + linkRoutineWords(item.Text, routineLink)
+	return marker + " " + html.EscapeString(item.Text)
 }
 
 func routineLinkedWord(word string, routineLink string) string {
@@ -568,26 +568,11 @@ func routineLinkedWord(word string, routineLink string) string {
 	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(routineLink), html.EscapeString(word))
 }
 
-func linkRoutineWords(text string, routineLink string) string {
-	escaped := html.EscapeString(text)
-	if strings.TrimSpace(routineLink) == "" {
-		return escaped
+func routineLeaderboardBadge(index int) string {
+	if index == 0 {
+		return "✨ "
 	}
-	matches := routineWordPattern.FindAllStringSubmatchIndex(escaped, -1)
-	if len(matches) == 0 {
-		return escaped
-	}
-	var builder strings.Builder
-	last := 0
-	for _, match := range matches {
-		wordStart := match[4]
-		wordEnd := match[5]
-		builder.WriteString(escaped[last:wordStart])
-		builder.WriteString(routineLinkedWord(escaped[wordStart:wordEnd], routineLink))
-		last = wordEnd
-	}
-	builder.WriteString(escaped[last:])
-	return builder.String()
+	return ""
 }
 
 func goalFinalStatusLabel(status domain.GoalFinalStatus) string {
@@ -612,6 +597,10 @@ func routineItemsCountLabel(count int) string {
 	default:
 		return messages.Format("routine.items_count.many", "count", fmt.Sprint(count))
 	}
+}
+
+func routineDaysLabel(count int) string {
+	return fmt.Sprintf("%d %s", count, russianPlural(count, "день", "дня", "дней"))
 }
 
 func dailyTaskClosedTitle(status string, person string, action string) string {

@@ -175,7 +175,7 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		},
 		RoutineItemCount: 1,
 	}})
-	if !strings.Contains(leaderboard, "🏆 <b>Таблица рутин</b>\n\n1. Игорь") {
+	if !strings.Contains(leaderboard, "🏆 <b>Лидерборд</b>\n\n1. ✨ Игорь") {
 		t.Fatalf("routine leaderboard should keep header gap: %s", leaderboard)
 	}
 
@@ -221,7 +221,7 @@ func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 		MaxStreak:        9,
 		RoutineItemCount: 4,
 	}})
-	for _, part := range []string{"Таблица рутин", "92% за 7 дней", "серия 5 дней", "4 пункта", "Лучшая серия сезона"} {
+	for _, part := range []string{"Лидерборд", "92% выполнения за 7 дней", "серия из 5 дней", "4 пункта", "Лучшая серия сезона:", "Игорь — 9 дней"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("routine table missing %q: %s", part, got)
 		}
@@ -237,10 +237,13 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 		},
 	}
 	card := FormatRoutineCheckinCard(checkin, "Игорь", "igor", "https://t.me/c/1/301?thread=13", "")
-	for _, part := range []string{`🌿 <b><a href="https://t.me/c/1/301?thread=13">Рутина</a> Игоря за среду, 24 июня</b>`, "Отметь пункты за этот день", "— зарядка", "— английский"} {
+	for _, part := range []string{`🌿 <b>Рутина Игоря за среду, 24 июня</b>`, "Отметь пункты за этот день", "— зарядка", "— английский"} {
 		if !strings.Contains(card, part) {
 			t.Fatalf("routine card missing %q: %s", part, card)
 		}
+	}
+	if strings.Contains(card, `<a href="https://t.me/c/1/301?thread=13">Рутина</a>`) {
+		t.Fatalf("routine details card should not link title word: %s", card)
 	}
 	if strings.Contains(card, "1/2:") || strings.Contains(card, "зарядка?") {
 		t.Fatalf("routine card should not ask item inside the main card: %s", card)

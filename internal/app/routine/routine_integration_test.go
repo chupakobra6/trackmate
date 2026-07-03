@@ -60,7 +60,7 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 		t.Fatal(err)
 	}
 	edit, ok := fake.findEdit(introID)
-	if !ok || !strings.Contains(edit.Text, "Таблица рутин") {
+	if !ok || !strings.Contains(edit.Text, "Лидерборд") {
 		t.Fatalf("routine table intro was not edited: found=%v edit=%+v", ok, edit)
 	}
 }
@@ -164,7 +164,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err != nil || !found || closedWithNotice.AutoCloseNoticeMessageID == nil || *closedWithNotice.AutoCloseNoticeMessageID != 3002 || closedWithNotice.AutoCloseNoticeSentAt == nil {
 		t.Fatalf("auto-close notice was not stored found=%v checkin=%+v err=%v", found, closedWithNotice, err)
 	}
-	if tableEdit, ok := fake.findEdit(introID); !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
+	if tableEdit, ok := fake.findEdit(introID); !ok || !strings.Contains(tableEdit.Text, "Лидерборд") {
 		t.Fatalf("routine table refresh missing: found=%v edit=%+v", ok, tableEdit)
 	}
 

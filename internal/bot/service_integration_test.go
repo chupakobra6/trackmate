@@ -610,7 +610,7 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 		t.Fatalf("completed routine card should keep mixed result details: found=%v edit=%+v", ok, finalEdit)
 	}
 	tableEdit, ok := fake.findEdit(900)
-	if !ok || !strings.Contains(tableEdit.Text, "Таблица рутин") {
+	if !ok || !strings.Contains(tableEdit.Text, "Лидерборд") {
 		t.Fatalf("routine table edit missing: found=%v edit=%+v", ok, tableEdit)
 	}
 	var progressCount int
