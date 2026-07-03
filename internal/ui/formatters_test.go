@@ -217,11 +217,11 @@ func TestFormatRoutineLeaderboardShowsRateSeriesAndItemCount(t *testing.T) {
 			DisplayName: "Igor",
 		},
 		CompletionRate:   92,
-		CurrentStreak:    5,
-		MaxStreak:        9,
+		CurrentStreak:    2,
+		MaxStreak:        2,
 		RoutineItemCount: 4,
 	}})
-	for _, part := range []string{"Лидерборд", "92% выполнения за 7 дней", "серия из 5 дней", "4 пункта", "Лучшая серия сезона:", "Игорь — 9 дней"} {
+	for _, part := range []string{"Лидерборд", "92% выполнения за 7 дней", "серия из 2 дней", "4 пункта", "Лучшая серия сезона:", "Игорь — 2 дня"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("routine table missing %q: %s", part, got)
 		}

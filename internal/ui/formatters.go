@@ -234,7 +234,7 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 			"badge", routineLeaderboardBadge(i),
 			"participant", participantLabel(entry.Participant),
 			"rate", fmt.Sprintf("%.0f", entry.CompletionRate),
-			"streak_days", routineDaysLabel(entry.CurrentStreak),
+			"streak_days", routineSeriesDaysLabel(entry.CurrentStreak),
 			"items", routineItemsCountLabel(entry.RoutineItemCount),
 		))
 	}
@@ -601,6 +601,13 @@ func routineItemsCountLabel(count int) string {
 
 func routineDaysLabel(count int) string {
 	return fmt.Sprintf("%d %s", count, russianPlural(count, "день", "дня", "дней"))
+}
+
+func routineSeriesDaysLabel(count int) string {
+	if count%10 == 1 && count%100 != 11 {
+		return fmt.Sprintf("%d дня", count)
+	}
+	return fmt.Sprintf("%d дней", count)
 }
 
 func dailyTaskClosedTitle(status string, person string, action string) string {
