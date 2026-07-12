@@ -5,11 +5,11 @@
 
 ## Активный Шаг
 - id: `STEP-029`
-- status: `в работе`
+- status: `готово`
 - objective: Исправить production bug кнопки `Понял` у routine reminder и развернуть проверенное исправление.
 - requirement IDs: `REQ-052`
 - owned paths: `internal/telegram/`, `internal/bot/`, `.project-loop/`
-- validation: production callback/DB check: pass; focused tests: pass; `make test`: pass; `make lint`: pass; deploy и post-deploy smoke-check ожидаются
+- validation: production callback/DB check: pass; focused tests: pass; `make test`: pass; `make lint`: pass; local Docker healthy; production `2a25305`, services healthy, migrations applied, `pending_inputs=0`
 - done criteria: ошибка удаления не маскируется; при запрете удаления клавиатура снимается; production обновлен и healthy.
 
 ## Фокус Ревью

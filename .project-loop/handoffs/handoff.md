@@ -335,3 +335,14 @@
 - `requirements/checklist.md`
 - `plan/delivery-plan.md`
 - `plan/current-step.md`
+
+### STEP-029: исправление кнопки `Понял`
+
+- Production callback `update_id=270887046` для reminder message `4479` дошел как `notice:dismiss`; потерянного update не было.
+- Рутина Игоря за `2026-07-09` корректно завершена, данные не повреждены; `pending_inputs=0`.
+- Root cause: Telegram error `message can't be deleted` ошибочно считался отсутствующим сообщением, а handler игнорировал delete errors.
+- Теперь delete error логируется; если удалить сообщение нельзя, Trackmate снимает inline-клавиатуру через `editMessageReplyMarkup`.
+- Пользовательские тексты не менялись.
+- Проверки: focused tests, `make test`, `make lint`, Project Loop validation, local Docker health.
+- Production backup: `/opt/trackmate/backups/trackmate_20260712T115219Z.dump`.
+- Production deploy: commit `2a25305`; `api`, `worker`, `postgres` healthy; migrations applied; `pending_inputs=0`.
