@@ -134,6 +134,10 @@ WHERE t.typname = 'topickey';
 SELECT enumlabel
 FROM pg_enum e
 JOIN pg_type t ON t.oid = e.enumtypid
+WHERE t.typname = 'dailyentrykind';
+SELECT enumlabel
+FROM pg_enum e
+JOIN pg_type t ON t.oid = e.enumtypid
 WHERE t.typname = 'progresseventtype';
 ```
 
@@ -141,8 +145,10 @@ Expected:
 
 - material tables return `NULL`;
 - `topickey` contains `today`, `progress`, `routine`, `goals`;
+- `dailyentrykind` contains `task`, `summary`;
 - `progresseventtype` contains `daily_task.closed`, `daily_task.auto_failed`,
-  `system_alert`, `custom_update`.
+  `daily_summary.closed`, `daily_summary.auto_failed`, `system_alert`,
+  `custom_update`.
 
 ## Manual Production Data Fixes
 

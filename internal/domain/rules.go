@@ -15,6 +15,7 @@ const (
 	RoutineReminderHour     = 20
 	RoutineAutoFailHour     = 0
 	RoutineNoticeMaxAge     = 24 * time.Hour
+	DailySummaryStartHour   = 20
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
 	GoalReviewIntervalDays  = 14
@@ -341,6 +342,16 @@ func NextDailyTaskTransition(taskDate time.Time, workspaceTimezone string, curre
 		return DailyTaskTransition{NewStatus: DailyTaskFailed, ShouldEmitAutoFail: true}, nil
 	}
 	return DailyTaskTransition{}, nil
+}
+
+func IsDailySummaryTime(workspaceTimezone string, nowUTC time.Time) (bool, error) {
+	location, err := time.LoadLocation(workspaceTimezone)
+	if err != nil {
+		return false, err
+	}
+	localNow := nowUTC.In(location)
+	cutoff := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), DailySummaryStartHour, 0, 0, 0, location)
+	return !localNow.Before(cutoff), nil
 }
 
 func LocalTaskDate(timezoneName string, nowUTC time.Time) (time.Time, error) {

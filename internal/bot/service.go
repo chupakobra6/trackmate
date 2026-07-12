@@ -312,10 +312,14 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		if err != nil {
 			return err
 		}
-		if _, found, err := q.GetTaskForDate(ctx, workspace.ID, participant.ID, taskDate); err != nil {
+		if existing, found, err := q.GetTaskForDate(ctx, workspace.ID, participant.ID, taskDate); err != nil {
 			return err
 		} else if found {
-			answer.Text = messages.Text("callback.today.exists")
+			if existing.Kind.IsSummary() {
+				answer.Text = messages.Text("callback.today.summary_exists")
+			} else {
+				answer.Text = messages.Text("callback.today.exists")
+			}
 			return nil
 		}
 		if _, found, err := q.GetOpenTask(ctx, workspace.ID, participant.ID); err != nil {
@@ -329,6 +333,31 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 		} else if found {
 			answer.Text = pendingBusyText(pending.Kind)
 			return nil
+		}
+		isSummary, err := domain.IsDailySummaryTime(workspace.Timezone, now)
+		if err != nil {
+			return err
+		}
+		if isSummary {
+			summary, created, err := q.CreateDailySummary(ctx, workspace.ID, participant.ID, user.ID, taskDate)
+			if err != nil {
+				return err
+			}
+			if !created {
+				answer.Text = messages.Text("callback.today.summary_exists")
+				return nil
+			}
+			card, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
+				ChatID:              callback.Message.Chat.ID,
+				MessageThreadID:     callback.Message.MessageThreadID,
+				Text:                ui.FormatDailyTaskCard(summary, telegram.DisplayName(user), user.Username, ""),
+				ReplyMarkup:         ui.DailySummaryStatusKeyboard(summary.ID),
+				DisableNotification: true,
+			})
+			if err != nil {
+				return err
+			}
+			return q.SetDailyTaskCardMessageID(ctx, summary.ID, card.MessageID)
 		}
 		nudge, err := s.goalNudge(ctx, q, workspace, participant, "task_text:"+taskDate.Format("2006-01-02"), "")
 		if err != nil {
@@ -366,6 +395,8 @@ func (s *Service) handlePendingInputMessage(ctx context.Context, message telegra
 		return s.consumeDailyTaskText(ctx, workspace, message)
 	case domain.PendingDailyTaskReport:
 		return s.consumeDailyTaskReport(ctx, workspace, message)
+	case domain.PendingDailySummaryReport:
+		return s.consumeDailySummaryReport(ctx, workspace, message)
 	case domain.PendingRoutinePlan:
 		return s.consumeRoutinePlan(ctx, workspace, message, pending)
 	case domain.PendingRoutineReason:
@@ -435,8 +466,16 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 }
 
 func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.consumeDailyReport(ctx, workspace, message, domain.PendingDailyTaskReport)
+}
+
+func (s *Service) consumeDailySummaryReport(ctx context.Context, workspace postgres.Workspace, message telegram.Message) error {
+	return s.consumeDailyReport(ctx, workspace, message, domain.PendingDailySummaryReport)
+}
+
+func (s *Service) consumeDailyReport(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pendingKind domain.PendingInputKind) error {
 	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, domain.PendingDailyTaskReport)
+		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pendingKind)
 		if err != nil || !ok {
 			return err
 		}
@@ -447,12 +486,21 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 		if err != nil {
 			return err
 		}
+		task, found, getErr := q.GetTask(ctx, taskID)
+		if getErr != nil {
+			return getErr
+		}
+		isSummary := pendingKind == domain.PendingDailySummaryReport
+		if found {
+			isSummary = task.Kind.IsSummary()
+		}
+		promptMessageID := payloadInt64(pending.Payload, "prompt_message_id")
+		isTodayCardPrompt := found && promptMessageID != 0 && promptMessageID == optionalInt64(task.TodayCardMessageID)
 		if !submitted {
-			text := messages.Text("task.report.rejected")
-			if task, found, err := q.GetTask(ctx, taskID); err == nil && found && !task.Status.IsOpen() {
-				text = messages.Text("task.report.rejected_closed")
-			}
-			if !s.editMessageSafe(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"), text, ui.DismissKeyboard()) {
+			text := dailyReportRejectedText(isSummary, found && !task.Status.IsOpen())
+			if !isTodayCardPrompt && !s.editMessageSafe(ctx, message.Chat.ID, promptMessageID, text, ui.DismissKeyboard()) {
+				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
+			} else if isTodayCardPrompt {
 				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
 			}
 			return nil
@@ -460,18 +508,20 @@ func (s *Service) consumeDailyTaskReport(ctx context.Context, workspace postgres
 		if err := s.dismissTaskAlerts(ctx, q, message.Chat.ID, taskID); err != nil {
 			return err
 		}
-		task, found, err := q.GetTask(ctx, taskID)
-		if err != nil {
-			return err
-		}
 		if found {
-			_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			request := telegram.EditMessageTextRequest{
 				ChatID:    message.Chat.ID,
 				MessageID: optionalInt64(task.TodayCardMessageID),
 				Text:      ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
-			})
+			}
+			if task.Kind.IsSummary() {
+				request.ReplyMarkup = ui.EmptyKeyboard()
+			}
+			_ = s.Telegram.EditMessageText(ctx, request)
 		}
-		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, payloadInt64(pending.Payload, "prompt_message_id"))
+		if !isTodayCardPrompt {
+			_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, promptMessageID)
+		}
 		return nil
 	})
 }
@@ -508,7 +558,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			ChatID:              callback.Message.Chat.ID,
 			MessageThreadID:     callback.Message.MessageThreadID,
 			Text:                messages.Text("task.status.prompt"),
-			ReplyMarkup:         ui.DailyTaskStatusKeyboard(taskID),
+			ReplyMarkup:         dailyEntryStatusKeyboard(task),
 			DisableNotification: true,
 		})
 		return err
@@ -539,28 +589,45 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			answer.Text = messages.Text("callback.task.closed")
 			return nil
 		}
+		pendingKind := domain.PendingDailyTaskReport
+		if task.Kind.IsSummary() {
+			pendingKind = domain.PendingDailySummaryReport
+		}
 		if previous, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
 			return err
-		} else if found && previous.Kind == domain.PendingDailyTaskReport {
-			_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, payloadInt64(previous.Payload, "prompt_message_id"))
 		} else if found {
-			answer.Text = pendingBusyText(previous.Kind)
-			return nil
+			if previous.Kind != pendingKind {
+				answer.Text = pendingBusyText(previous.Kind)
+				return nil
+			}
+			if !task.Kind.IsSummary() || payloadInt64(previous.Payload, "prompt_message_id") != callback.Message.MessageID {
+				_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, payloadInt64(previous.Payload, "prompt_message_id"))
+			}
 		}
-		participant, _, err := q.GetParticipantByID(ctx, task.ParticipantID)
-		if err != nil {
-			return err
+		prompt := ""
+		if task.Kind.IsSummary() {
+			prompt = ui.DailySummaryReportPrompt()
+		} else {
+			participant, _, err := q.GetParticipantByID(ctx, task.ParticipantID)
+			if err != nil {
+				return err
+			}
+			nudge, err := s.goalNudge(ctx, q, workspace, participant, fmt.Sprintf("task_status:%d:%s", task.ID, status), string(status))
+			if err != nil {
+				return err
+			}
+			prompt = ui.DailyTaskReportPrompt(nudge)
 		}
-		nudge, err := s.goalNudge(ctx, q, workspace, participant, fmt.Sprintf("task_status:%d:%s", task.ID, status), string(status))
-		if err != nil {
-			return err
-		}
-		_ = s.Telegram.EditMessageText(ctx, telegram.EditMessageTextRequest{
+		request := telegram.EditMessageTextRequest{
 			ChatID:    callback.Message.Chat.ID,
 			MessageID: callback.Message.MessageID,
-			Text:      ui.DailyTaskReportPrompt(nudge),
-		})
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingDailyTaskReport, map[string]any{
+			Text:      prompt,
+		}
+		if task.Kind.IsSummary() {
+			request.ReplyMarkup = ui.EmptyKeyboard()
+		}
+		_ = s.Telegram.EditMessageText(ctx, request)
+		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, pendingKind, map[string]any{
 			"task_id":           taskID,
 			"status":            string(status),
 			"prompt_message_id": callback.Message.MessageID,
@@ -727,9 +794,19 @@ func truncateProgressAlertError(text string) string {
 
 func dailyTaskCardKeyboard(task postgres.DailyTask) *telegram.InlineKeyboardMarkup {
 	if task.Status.IsOpen() {
+		if task.Kind.IsSummary() {
+			return ui.DailySummaryStatusKeyboard(task.ID)
+		}
 		return ui.DailyTaskKeyboard(task.ID)
 	}
 	return nil
+}
+
+func dailyEntryStatusKeyboard(task postgres.DailyTask) *telegram.InlineKeyboardMarkup {
+	if task.Kind.IsSummary() {
+		return ui.DailySummaryStatusKeyboard(task.ID)
+	}
+	return ui.DailyTaskStatusKeyboard(task.ID)
 }
 
 func isCommand(text string, command string) bool {
@@ -848,6 +925,8 @@ func pendingBusyText(kind domain.PendingInputKind) string {
 		return messages.Text("pending.daily_task_text")
 	case domain.PendingDailyTaskReport:
 		return messages.Text("pending.daily_task_report")
+	case domain.PendingDailySummaryReport:
+		return messages.Text("pending.daily_summary_report")
 	case domain.PendingRoutinePlan:
 		return messages.Text("pending.routine_plan")
 	case domain.PendingRoutineReason:
@@ -861,6 +940,19 @@ func pendingBusyText(kind domain.PendingInputKind) string {
 	default:
 		return messages.Text("pending.default")
 	}
+}
+
+func dailyReportRejectedText(isSummary bool, isClosed bool) string {
+	if isSummary {
+		if isClosed {
+			return messages.Text("summary.report.rejected_closed")
+		}
+		return messages.Text("summary.report.rejected")
+	}
+	if isClosed {
+		return messages.Text("task.report.rejected_closed")
+	}
+	return messages.Text("task.report.rejected")
 }
 
 func optionalInt64(value *int64) int64 {

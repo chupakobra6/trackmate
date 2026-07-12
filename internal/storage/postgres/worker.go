@@ -77,13 +77,19 @@ func (q *Queries) CreateAutoFailProgressEvent(ctx context.Context, task DailyTas
 		}
 	}
 	payload := map[string]any{
-		"task_html":    task.Text,
 		"user_id":      userID,
 		"display_name": displayName,
 		"username":     username,
-		"task_link":    MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), todayThreadID),
 	}
-	_, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, domain.ProgressDailyTaskAutoFail, payload, &task.ParticipantID, &task.ID)
+	eventType := domain.ProgressDailyTaskAutoFail
+	if task.Kind.IsSummary() {
+		eventType = domain.ProgressDailySummaryAutoFail
+		payload["summary_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), todayThreadID)
+	} else {
+		payload["task_html"] = task.Text
+		payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), todayThreadID)
+	}
+	_, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, eventType, payload, &task.ParticipantID, &task.ID)
 	return err
 }
 

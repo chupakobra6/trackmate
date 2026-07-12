@@ -15,13 +15,14 @@ import (
 
 func (q *Queries) GetOpenTask(ctx context.Context, workspaceID int64, participantID int64) (DailyTask, bool, error) {
 	row := q.db.QueryRow(ctx, `
-SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
 FROM daily_tasks
 WHERE workspace_group_id = $1
   AND participant_id = $2
+  AND entry_kind = 'task'::dailyentrykind
   AND status IN ('active', 'awaiting_report')
 ORDER BY id DESC
 LIMIT 1
@@ -35,7 +36,7 @@ LIMIT 1
 
 func (q *Queries) GetTaskForDate(ctx context.Context, workspaceID int64, participantID int64, taskDate time.Time) (DailyTask, bool, error) {
 	row := q.db.QueryRow(ctx, `
-SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
@@ -50,18 +51,26 @@ WHERE workspace_group_id = $1 AND participant_id = $2 AND task_date = $3::date
 }
 
 func (q *Queries) CreateDailyTask(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, taskDate time.Time, text string, messageID int64, threadID int64) (DailyTask, bool, error) {
+	return q.createDailyEntry(ctx, workspaceID, participantID, ownerUserID, taskDate, domain.DailyEntryTask, text, messageID, threadID)
+}
+
+func (q *Queries) CreateDailySummary(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, taskDate time.Time) (DailyTask, bool, error) {
+	return q.createDailyEntry(ctx, workspaceID, participantID, ownerUserID, taskDate, domain.DailyEntrySummary, "", 0, 0)
+}
+
+func (q *Queries) createDailyEntry(ctx context.Context, workspaceID int64, participantID int64, ownerUserID int64, taskDate time.Time, kind domain.DailyEntryKind, text string, messageID int64, threadID int64) (DailyTask, bool, error) {
 	row := q.db.QueryRow(ctx, `
 INSERT INTO daily_tasks (
-    workspace_group_id, participant_id, owner_user_id, task_date, text, status,
+    workspace_group_id, participant_id, owner_user_id, task_date, entry_kind, text, status,
     task_message_id, task_message_thread_id, created_at
 )
-VALUES ($1, $2, $3, $4::date, $5, 'active', $6, $7, now())
+VALUES ($1, $2, $3, $4::date, $5::dailyentrykind, $6, 'active', NULLIF($7, 0), NULLIF($8, 0), now())
 ON CONFLICT (workspace_group_id, participant_id, task_date) DO NOTHING
-RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
-`, workspaceID, participantID, ownerUserID, taskDate, text, messageID, threadID)
+`, workspaceID, participantID, ownerUserID, taskDate, string(kind), text, messageID, threadID)
 	task, err := scanDailyTask(row)
 	if err == nil {
 		return task, true, nil
@@ -84,7 +93,7 @@ WHERE id = $1
 
 func (q *Queries) GetTask(ctx context.Context, taskID int64) (DailyTask, bool, error) {
 	row := q.db.QueryRow(ctx, `
-SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
@@ -100,7 +109,7 @@ WHERE id = $1
 
 func (q *Queries) ListTasksForTransition(ctx context.Context) ([]DailyTask, error) {
 	rows, err := q.db.Query(ctx, `
-SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+SELECT id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
@@ -179,17 +188,26 @@ WHERE id = $1 AND owner_user_id = $4 AND status IN ('active', 'awaiting_report')
 		"user_id":      participantUserID,
 		"display_name": displayName,
 		"username":     username,
-		"task_html":    task.Text,
+	}
+	eventType := domain.ProgressDailyTaskClosed
+	if task.Kind.IsSummary() {
+		eventType = domain.ProgressDailySummaryClosed
+	} else {
+		payload["task_html"] = task.Text
 	}
 	if workspace.ID != 0 {
 		var threadID int64
 		if hasToday {
 			threadID = todayBinding.ThreadID
 		}
-		payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		if task.Kind.IsSummary() {
+			payload["summary_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		} else {
+			payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		}
 		payload["report_link"] = MessageLink(workspace.ChatID, messageID, threadID)
 	}
-	if _, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, domain.ProgressDailyTaskClosed, payload, &task.ParticipantID, &task.ID); err != nil {
+	if _, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, eventType, payload, &task.ParticipantID, &task.ID); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -203,7 +221,8 @@ WHERE workspace_group_id = $1
   AND owner_user_id = $2
   AND task_message_id = $3
   AND task_message_thread_id = $4
-RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+  AND entry_kind = 'task'::dailyentrykind
+RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
@@ -231,7 +250,7 @@ WHERE workspace_group_id = $1
   AND report_message_id = $3
   AND report_message_thread_id = $4
   AND report_text IS NOT NULL
-RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text, status::text,
+RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, entry_kind::text, text, status::text,
        report_text, report_status::text, today_card_message_id, created_at, reported_at,
        awaiting_report_at, failed_at, task_message_id, task_message_thread_id,
        report_message_id, report_message_thread_id
@@ -251,7 +270,7 @@ RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, text
 }
 
 func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyTask) ([]ProgressEvent, error) {
-	taskLink := ""
+	cardLink := ""
 	reportLink := ""
 	workspace, found, err := q.GetWorkspaceByID(ctx, task.WorkspaceGroupID)
 	if err != nil {
@@ -266,7 +285,7 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 		if hasToday {
 			threadID = todayBinding.ThreadID
 		}
-		taskLink = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+		cardLink = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
 		reportLink = MessageLink(workspace.ChatID, optionalInt64(task.ReportMessageID), threadID)
 	}
 	reportHTML := ""
@@ -280,13 +299,22 @@ SET payload = CASE
         payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_task.auto_failed'::progresseventtype THEN
         payload::jsonb || jsonb_build_object('task_html', $2::text, 'task_link', $4::text)
+    WHEN event_type = 'daily_summary.closed'::progresseventtype THEN
+        payload::jsonb || jsonb_build_object('report_html', $3::text, 'summary_link', $4::text, 'report_link', $5::text)
+    WHEN event_type = 'daily_summary.auto_failed'::progresseventtype THEN
+        payload::jsonb || jsonb_build_object('summary_link', $4::text)
     ELSE payload
 END
 WHERE daily_task_id = $1
-  AND event_type IN ('daily_task.closed'::progresseventtype, 'daily_task.auto_failed'::progresseventtype)
+  AND event_type IN (
+      'daily_task.closed'::progresseventtype,
+      'daily_task.auto_failed'::progresseventtype,
+      'daily_summary.closed'::progresseventtype,
+      'daily_summary.auto_failed'::progresseventtype
+  )
 RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::text,
           publish_status::text, payload, published_message_id, created_at, published_at
-`, task.ID, task.Text, reportHTML, taskLink, reportLink)
+`, task.ID, task.Text, reportHTML, cardLink, reportLink)
 	if err != nil {
 		return nil, err
 	}
@@ -497,17 +525,18 @@ RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, cre
 
 func scanDailyTask(row pgx.Row) (DailyTask, error) {
 	var task DailyTask
-	var status string
+	var kind, status string
 	var reportText, reportStatus pgtype.Text
 	var card, taskMessageID, taskThreadID, reportMessageID, reportThreadID pgtype.Int4
 	var reportedAt, awaitingAt, failedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&task.ID, &task.WorkspaceGroupID, &task.ParticipantID, &task.OwnerUserID, &task.TaskDate,
-		&task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
+		&kind, &task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
 		&taskMessageID, &taskThreadID, &reportMessageID, &reportThreadID,
 	); err != nil {
 		return DailyTask{}, err
 	}
+	task.Kind = domain.DailyEntryKind(kind)
 	task.Status = domain.DailyTaskStatus(status)
 	task.ReportText = textFromPg(reportText)
 	task.ReportStatus = statusFromPg(reportStatus)
@@ -524,17 +553,18 @@ func scanDailyTask(row pgx.Row) (DailyTask, error) {
 
 func scanDailyTaskRows(rows pgx.Rows) (DailyTask, error) {
 	var task DailyTask
-	var status string
+	var kind, status string
 	var reportText, reportStatus pgtype.Text
 	var card, taskMessageID, taskThreadID, reportMessageID, reportThreadID pgtype.Int4
 	var reportedAt, awaitingAt, failedAt pgtype.Timestamptz
 	if err := rows.Scan(
 		&task.ID, &task.WorkspaceGroupID, &task.ParticipantID, &task.OwnerUserID, &task.TaskDate,
-		&task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
+		&kind, &task.Text, &status, &reportText, &reportStatus, &card, &task.CreatedAt, &reportedAt, &awaitingAt, &failedAt,
 		&taskMessageID, &taskThreadID, &reportMessageID, &reportThreadID,
 	); err != nil {
 		return DailyTask{}, err
 	}
+	task.Kind = domain.DailyEntryKind(kind)
 	task.Status = domain.DailyTaskStatus(status)
 	task.ReportText = textFromPg(reportText)
 	task.ReportStatus = statusFromPg(reportStatus)

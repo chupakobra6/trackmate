@@ -1,97 +1,50 @@
-# Черновой План Prod-Миграции
+# План Production-Миграции
 
-Проект: trackmate  
-Статус: draft for review, production deploy requires explicit approval.
+Проект: Trackmate
+Статус: одобрено пользователем для S030.
 
 ## Что Меняется В БД
 
-Миграции:
+Миграция: `migrations/202607120001_add_daily_summaries.sql`.
 
-- `migrations/202606230001_add_routines_and_goals.sql`;
-- `migrations/202606230002_add_goal_nudge_cooldowns.sql`.
+- создается enum `dailyentrykind`: `task`, `summary`;
+- в `daily_tasks` добавляется обязательная `entry_kind` с default `task`,
+  поэтому существующая история остается историей обычных задач;
+- создается индекс `ix_daily_tasks_entry_kind`;
+- в `progresseventtype` добавляются `daily_summary.closed` и
+  `daily_summary.auto_failed`.
 
-Операции:
+Миграция additive: она не удаляет, не переписывает и не переоценивает текущие
+задачи, итоги, участников, напоминания или события прогресса.
 
-- additive enum labels для `topickey`: `routine`, `goals`;
-- новые enum types: `routineitemstatus`, `goalfinalstatus`;
-- новые таблицы:
-  - `routine_plans`;
-  - `routine_checkins`;
-  - `routine_checkin_items`;
-  - `seasonal_goal_sets`;
-  - `seasonal_goal_weekly_reviews`;
-  - `seasonal_goal_final_reviews`;
-  - `goal_nudge_cooldowns`;
-- новые индексы на foreign keys, owners, dates, statuses.
+## Риск И Откат
 
-Текущие таблицы `daily_tasks`, `daily_task_alerts`, `progress_events`, `participants`, `workspace_groups`, `pending_inputs` не удаляются и не переписываются.
+До появления первого production-итога дня старый бинарник совместим со схемой:
+он игнорирует новую колонку и не создает новые event types. После появления
+`daily_summary.*` откат приложения выполняется только через восстановление
+backup или forward-fix, потому что старый formatter не знает эти события.
 
-## Риск Данных
+## Локальная Проверка
 
-Низкий для текущей истории: миграция не содержит `DELETE`, `UPDATE` существующей истории, `DROP` существующих product tables или изменения колонок existing history tables.
+- local Docker migration `202607120001`: pass;
+- clean-schema PostgreSQL `TRACKMATE_TEST_DATABASE_URL=... go test ./... -count=1`: pass;
+- `make test`, `make lint`, `go vet ./...`, `git diff --check`: pass;
+- live Telegram проверены нормальный итог, edit sync и auto-fail карточки;
+- local worker/API/PostgreSQL healthy, outbox и pending inputs пусты.
 
-Отдельный риск: `ALTER TYPE topickey ADD VALUE` требует PostgreSQL-compatible migration path; файл помечен `-- +goose NO TRANSACTION`, чтобы не упереться в ограничения enum DDL. Enum `DO $$` блоки обернуты в `-- +goose StatementBegin/StatementEnd`, это проверено на fresh schema в локальном PostgreSQL.
+## Production-Порядок
 
-## Локальный Dry-Run Уже Выполнен
-
-- Docker compose проверен: `postgres`, `api`, `worker` подняты и healthy/up.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./... -cover`: pass.
-- `make lint`: pass.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make test`: pass.
-- `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
-- `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-
-## Обязательный Dry-Run Перед Prod
-
-1. Поднять локальную/test PostgreSQL.
-2. Выполнить:
-
-```bash
-TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...
-```
-
-3. Отдельно проверить миграцию на копии или disposable schema:
-
-```bash
-TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go run ./cmd/migrate
-```
-
-4. Проверить, что existing rows остались:
-
-```sql
-select count(*) from daily_tasks;
-select count(*) from progress_events;
-select count(*) from participants;
-select count(*) from topic_bindings;
-```
-
-## Prod-Порядок После Approval
-
-1. Сделать backup production database штатным способом проекта.
-2. Зафиксировать текущие counts для history/stat tables:
-   - `daily_tasks`;
-   - `progress_events`;
-   - `daily_task_alerts`;
-   - `participants`;
-   - `workspace_groups`;
-   - `topic_bindings`;
-   - `pending_inputs`.
-3. Остановить или временно заморозить `api`/`worker`, чтобы во время миграции не было конкурирующих writes.
-4. Обновить код на production host.
-5. Запустить goose migrations через `trackmate migrate` / `go run ./cmd/migrate` в production environment.
-6. Повторить counts из пункта 2 и убедиться, что они не уменьшились.
-7. Перезапустить `api` и `worker`.
-8. Запустить `/setup` или `setup:start` в группе, чтобы создать/починить `Рутины` и `Цели`.
-9. Проверить smoke:
-   - `Сегодня` принимает новую задачу дня;
-   - `Рутины` показывает pinned `✏️ Настроить рутину`;
-   - `Цели` показывает pinned `✏️ Настроить цели`;
-   - `Прогресс` не получает routine events;
-   - вставки про цели появляются только у участников с активными целями и не чаще одного раза за 3 дня.
+1. Сделать `make docker-db-backup-stop`.
+2. Выполнить `git pull --ff-only` на нужный commit.
+3. Запустить `docker compose up -d --build`; migrate-контейнер применяет
+   `202607120001` до запуска API и worker.
+4. Проверить health, логи, `dailyentrykind`, новые labels `progresseventtype`,
+   сохранность counts, `pending_inputs=0` и пустой Progress outbox.
+5. Запустить `/setup` или `setup:start`, чтобы Today и Progress control-сообщения
+   обновились с новой подсказкой.
 
 ## Rollback
 
-До реального использования новых тем самый безопасный rollback — откат к backup.
-
-Goose Down удаляет только новые routine/goals tables и новые enum types, но намеренно оставляет enum labels `routine`/`goals` в `topickey`, потому что удаление enum labels в PostgreSQL требует переписывания зависимых колонок и рискованнее для production.
+Если migration/build не проходят проверку до появления новых итогов, восстановить
+backup через `make docker-db-restore FILE=<backup>`. Goose Down не удаляет enum
+labels, чтобы не переписывать production columns.

@@ -67,6 +67,65 @@ func TestWorkerTransitionsDispatchesAlertAndPublishesProgress(t *testing.T) {
 	}
 }
 
+func TestWorkerTransitionsDailySummaryWithOwnAlertsAndProgress(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100777000112, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicToday, 10, "Сегодня"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicProgress, 20, "Прогресс"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	summary, created, err := q.CreateDailySummary(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC))
+	if err != nil || !created {
+		t.Fatalf("summary created=%v err=%v", created, err)
+	}
+	if err := q.SetDailyTaskCardMessageID(ctx, summary.ID, 555); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeTelegram{nextMessageID: 1100}
+	runner := &worker.Runner{Store: store, TG: fake, Logger: logging.New("ERROR")}
+	if err := runner.Tick(ctx, time.Date(2026, 5, 28, 0, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	awaiting, found, err := q.GetTask(ctx, summary.ID)
+	if err != nil || !found || awaiting.Status != domain.DailyTaskAwaitingReport {
+		t.Fatalf("awaiting summary found=%v summary=%+v err=%v", found, awaiting, err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "итог дня ещё не записан") {
+		t.Fatalf("summary pending alert mismatch: %+v", fake.sent)
+	}
+
+	if err := runner.Tick(ctx, time.Date(2026, 5, 28, 12, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	failed, found, err := q.GetTask(ctx, summary.ID)
+	if err != nil || !found || failed.Status != domain.DailyTaskFailed {
+		t.Fatalf("failed summary found=%v summary=%+v err=%v", found, failed, err)
+	}
+	if len(fake.sent) != 3 {
+		t.Fatalf("summary sends=%d, want 3: %+v", len(fake.sent), fake.sent)
+	}
+	if !strings.Contains(fake.sent[1].Text, "Итог дня отмечен как невыполненный") {
+		t.Fatalf("summary failed alert mismatch: %+v", fake.sent[1])
+	}
+	if !strings.Contains(fake.sent[2].Text, "не подвёл итог дня вовремя") {
+		t.Fatalf("summary progress mismatch: %+v", fake.sent[2])
+	}
+	if len(fake.edits) != 1 || fake.edits[0].MessageID != 555 || !strings.Contains(fake.edits[0].Text, "не подвёл итог дня") || fake.edits[0].ReplyMarkup == nil || len(fake.edits[0].ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("summary card was not auto-closed: %+v", fake.edits)
+	}
+}
+
 func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	ctx := context.Background()
@@ -143,6 +202,7 @@ func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 type fakeTelegram struct {
 	nextMessageID int64
 	sent          []telegram.SendMessageRequest
+	edits         []telegram.EditMessageTextRequest
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -156,7 +216,8 @@ func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessa
 	f.sent = append(f.sent, request)
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
-func (f *fakeTelegram) EditMessageText(context.Context, telegram.EditMessageTextRequest) error {
+func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditMessageTextRequest) error {
+	f.edits = append(f.edits, request)
 	return nil
 }
 func (f *fakeTelegram) DeleteMessage(context.Context, int64, int64) error {

@@ -35,6 +35,17 @@ func (s DailyTaskStatus) IsFinalReport() bool {
 	return s == DailyTaskDone || s == DailyTaskPartial || s == DailyTaskFailed
 }
 
+type DailyEntryKind string
+
+const (
+	DailyEntryTask    DailyEntryKind = "task"
+	DailyEntrySummary DailyEntryKind = "summary"
+)
+
+func (k DailyEntryKind) IsSummary() bool {
+	return k == DailyEntrySummary
+}
+
 type AlertKind string
 
 const (
@@ -53,10 +64,12 @@ const (
 type ProgressEventType string
 
 const (
-	ProgressDailyTaskClosed   ProgressEventType = "daily_task.closed"
-	ProgressDailyTaskAutoFail ProgressEventType = "daily_task.auto_failed"
-	ProgressSystemAlert       ProgressEventType = "system_alert"
-	ProgressCustomUpdate      ProgressEventType = "custom_update"
+	ProgressDailyTaskClosed      ProgressEventType = "daily_task.closed"
+	ProgressDailyTaskAutoFail    ProgressEventType = "daily_task.auto_failed"
+	ProgressDailySummaryClosed   ProgressEventType = "daily_summary.closed"
+	ProgressDailySummaryAutoFail ProgressEventType = "daily_summary.auto_failed"
+	ProgressSystemAlert          ProgressEventType = "system_alert"
+	ProgressCustomUpdate         ProgressEventType = "custom_update"
 )
 
 type ProgressPublishStatus string
@@ -73,6 +86,7 @@ type PendingInputKind string
 const (
 	PendingDailyTaskText       PendingInputKind = "daily_task_text"
 	PendingDailyTaskReport     PendingInputKind = "daily_task_report"
+	PendingDailySummaryReport  PendingInputKind = "daily_summary_report"
 	PendingRoutinePlan         PendingInputKind = "routine_plan"
 	PendingRoutineReason       PendingInputKind = "routine_reason"
 	PendingSeasonalGoals       PendingInputKind = "seasonal_goals"

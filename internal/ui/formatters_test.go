@@ -87,6 +87,78 @@ func TestFormatProgressEventDailyTaskPartialUsesActionPhrase(t *testing.T) {
 	}
 }
 
+func TestFormatDailySummaryUsesGoodMediumBadWithoutSeparateScore(t *testing.T) {
+	report := "Разобрал ключевой вопрос и не распылялся."
+	summary := postgres.DailyTask{
+		Kind:        domain.DailyEntrySummary,
+		OwnerUserID: 42,
+		Status:      domain.DailyTaskActive,
+	}
+	open := FormatDailyTaskCard(summary, "Игорь", "igor", "")
+	for _, part := range []string{`🏁 <b>Итог дня</b> <a href="tg://user?id=42">Игоря</a>`, "<b>Статус:</b> ожидается"} {
+		if !strings.Contains(open, part) {
+			t.Fatalf("open summary missing %q: %s", part, open)
+		}
+	}
+
+	summary.Status = domain.DailyTaskPartial
+	summary.ReportText = &report
+	closed := FormatDailyTaskCard(summary, "Игорь", "igor", "")
+	for _, part := range []string{
+		`🔸 <b><a href="tg://user?id=42">Игорь</a> подвёл итог среднего дня</b>`,
+		"<b>Итог:</b>",
+		report,
+	} {
+		if !strings.Contains(closed, part) {
+			t.Fatalf("closed summary missing %q: %s", part, closed)
+		}
+	}
+	for _, forbidden := range []string{"<b>Оценка:</b>", "Частично"} {
+		if strings.Contains(closed, forbidden) {
+			t.Fatalf("closed summary should not contain %q: %s", forbidden, closed)
+		}
+	}
+	for _, testCase := range []struct {
+		status domain.DailyTaskStatus
+		phrase string
+	}{
+		{status: domain.DailyTaskDone, phrase: "подвёл итог хорошего дня"},
+		{status: domain.DailyTaskPartial, phrase: "подвёл итог среднего дня"},
+		{status: domain.DailyTaskFailed, phrase: "подвёл итог плохого дня"},
+	} {
+		summary.Status = testCase.status
+		if got := FormatDailyTaskCard(summary, "Игорь", "igor", ""); !strings.Contains(got, testCase.phrase) {
+			t.Fatalf("summary status %s missing %q: %s", testCase.status, testCase.phrase, got)
+		}
+	}
+}
+
+func TestFormatProgressEventDailySummaryUsesMediumWording(t *testing.T) {
+	event := postgres.ProgressEvent{
+		EventType: domain.ProgressDailySummaryClosed,
+		Payload: map[string]any{
+			"user_id":      float64(42),
+			"display_name": "Игорь",
+			"username":     "igor",
+			"status":       "partial",
+			"report_html":  "Сделал главное, остальное перенёс осознанно.",
+			"report_link":  "https://t.me/c/1/301?thread=10",
+		},
+	}
+	got := FormatProgressEvent(event)
+	for _, part := range []string{
+		`🔸 <b><a href="tg://user?id=42">Игорь</a> <a href="https://t.me/c/1/301?thread=10">подвёл итог среднего дня</a></b>`,
+		"<b>Итог:</b>",
+	} {
+		if !strings.Contains(got, part) {
+			t.Fatalf("summary progress missing %q: %s", part, got)
+		}
+	}
+	if strings.Contains(got, "Частично") || strings.Contains(got, "<b>Оценка:</b>") {
+		t.Fatalf("summary progress has obsolete score wording: %s", got)
+	}
+}
+
 func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	task := postgres.DailyTask{
 		OwnerUserID: 42,

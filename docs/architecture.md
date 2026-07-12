@@ -55,33 +55,40 @@ not publish material progress.
 
 ## Today Flow
 
-`today:add` creates one pending `daily_task_text` input scoped to the Today
-thread. The next message from that user is accepted only if it arrives in that
-thread.
+`today:add` is local-time aware. Before 20:00 it creates one pending
+`daily_task_text` input scoped to the Today thread. The next message from that
+user is accepted only if it arrives in that thread.
 
-Task creation is protected by:
+At or after 20:00, when the participant has no entry for the local date, the
+same button creates an open `summary` entry instead of a retrospective task.
+Its card asks for one of three outcomes: `Хорошо`, `Средне`, or `Плохо`.
+
+Daily entry creation is protected by:
 
 - one pending input per workspace/user/thread;
-- one task per participant per local day;
-- a block on creating a new task while the previous task is still open.
+- one entry per participant per local day: either a task or a summary;
+- a block on creating a new task while the previous regular task is still open.
 
 Task cards stay in Today and include a report button while the task is open.
+Summary cards stay in Today and show their three status buttons while open.
 
 `task:report:<task_id>` opens the report flow.
 `task:status:<task_id>:<done|partial|failed>` stores pending
-`daily_task_report`. The next Today message is claimed through the database,
-updates the task card, and creates a `daily_task.closed` progress event.
+`daily_task_report` or `daily_summary_report`. The next Today message is
+claimed through the database, updates the card, and creates a
+`daily_task.closed` or `daily_summary.closed` progress event. Summary status
+`partial` is rendered as `Средне`; it is never shown as `Частично`.
 
 Wrong-topic daily task/report input is ignored without consuming pending state.
 
 When Telegram sends `edited_message` for an already accepted user input,
 Trackmate matches it by the stored source `message_id`/thread/user in
 `daily_tasks`. Task text edits update the stored task, the Today card, and any
-existing task progress payload. Report edits update the stored report, the Today
-card, pending progress payloads, and already published Progress messages. On the
-normal path this stays silent. If Telegram refuses to edit an old bot message,
-Trackmate preserves the database update and queues a `system_alert` in
-`Прогресс` with a link to the message and the Telegram error.
+existing task progress payload. Task and summary report edits update the stored
+report, the Today card, pending progress payloads, and already published
+Progress messages. On the normal path this stays silent. If Telegram refuses to
+edit an old bot message, Trackmate preserves the database update and queues a
+`system_alert` in `Прогресс` with a link to the message and the Telegram error.
 
 ## Routine Flow
 
@@ -150,12 +157,13 @@ persist a per-user cooldown in PostgreSQL and cannot appear more than once every
 
 Each tick takes a PostgreSQL advisory lock before transitions.
 
-Transitions:
+Transitions for both task and summary entries:
 
 - after local midnight: `active` to `awaiting_report`, plus
   `day_closed_pending_report` alert;
 - after local noon: `active` or `awaiting_report` to `failed`, plus
-  `overdue_task_failed` alert and `daily_task.auto_failed` progress event.
+  `overdue_task_failed` alert and a `daily_task.auto_failed` or
+  `daily_summary.auto_failed` progress event.
 
 Alerts and progress events are claimed with `FOR UPDATE SKIP LOCKED`. Telegram
 transient failures are requeued; permanent failures are marked failed.
@@ -193,12 +201,14 @@ Important enum values:
 
 - `topickey`: `today`, `progress`, `routine`, `goals`
 - `dailytaskstatus`: `active`, `awaiting_report`, `done`, `partial`, `failed`
+- `dailyentrykind`: `task`, `summary`
 - `routineitemstatus`: `done`, `partial`, `failed`
 - `goalfinalstatus`: `done`, `partial`, `failed`
 - `alertkind`: `day_closed_pending_report`, `overdue_task_failed`
 - `alertdispatchstatus`: `pending`, `dispatching`, `sent`
 - `progresseventtype`: `daily_task.closed`, `daily_task.auto_failed`,
-  `system_alert`, `custom_update`
+  `daily_summary.closed`, `daily_summary.auto_failed`, `system_alert`,
+  `custom_update`
 - `progresspublishstatus`: `pending`, `publishing`, `published`, `failed`
 
 Material tables and material enum values are intentionally absent after

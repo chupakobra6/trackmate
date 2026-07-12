@@ -114,7 +114,7 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 20, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Отметь до полуночи") || strings.Contains(fake.sent[0].Text, "12:00") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil || fake.sent[0].DisableNotification {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Жду ответы до полуночи") || strings.Contains(fake.sent[0].Text, "12:00") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil || fake.sent[0].DisableNotification {
 		t.Fatalf("unexpected reminder send: %+v", fake.sent)
 	}
 	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)

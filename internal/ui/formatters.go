@@ -98,6 +98,9 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 }
 
 func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
+	if task.Kind.IsSummary() {
+		return FormatDailySummaryCard(task, displayName, username, notice)
+	}
 	lines := []string{
 		dailyTaskCardTitle(task.Status, displayName, username, task.OwnerUserID),
 		"",
@@ -106,6 +109,23 @@ func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username s
 	}
 	if task.ReportText != nil && *task.ReportText != "" {
 		lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*task.ReportText))
+	}
+	return appendNotice(lines, notice)
+}
+
+func FormatDailySummaryCard(task postgres.DailyTask, displayName string, username string, notice string) string {
+	if task.Status.IsOpen() {
+		person := userLinkLabelCase(displayName, username, task.OwnerUserID, participantNameGenitive)
+		return appendNotice([]string{
+			messages.Format("daily.summary.card.title", "person", person),
+			"",
+			messages.Text("daily.summary.card.awaiting"),
+		}, notice)
+	}
+	person := userLinkLabel(displayName, username, task.OwnerUserID)
+	lines := []string{dailySummaryCardTitle(task, person)}
+	if task.ReportText != nil && *task.ReportText != "" {
+		lines = append(lines, "", messages.Text("daily.summary.body"), renderSectionHTML(*task.ReportText))
 	}
 	return appendNotice(lines, notice)
 }
@@ -124,6 +144,10 @@ func DailyTaskReportPrompt(nudge string) string {
 		lines = append(lines, "", "💡 "+html.EscapeString(nudge))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func DailySummaryReportPrompt() string {
+	return messages.Text("daily.summary.prompt.report")
 }
 
 func RoutinePlanPrompt() string {
@@ -439,6 +463,16 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 			messages.Text("daily.card.plan"),
 			renderTaskSectionHTML(payloadString(payload, "task_html")),
 		}, "\n")
+	case domain.ProgressDailySummaryClosed:
+		action := dailySummaryClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
+		return strings.Join([]string{
+			dailySummaryClosedProgressTitle(payloadString(payload, "status"), person, action),
+			"",
+			messages.Text("daily.summary.body"),
+			renderSectionHTML(payloadString(payload, "report_html")),
+		}, "\n")
+	case domain.ProgressDailySummaryAutoFail:
+		return messages.Format("progress.summary.auto_failed", "person", person)
 	case domain.ProgressCustomUpdate:
 		return formatCustomProgressUpdate(payload)
 	case domain.ProgressSystemAlert:
@@ -502,6 +536,16 @@ func AlertText(kind domain.AlertKind, displayName string, username string, userI
 	return messages.Text("alert.auto_failed")
 }
 
+func DailyEntryAlertText(kind domain.AlertKind, entryKind domain.DailyEntryKind, displayName string, username string, userID int64, seed string) string {
+	if entryKind.IsSummary() {
+		if kind == domain.AlertDayClosedPendingReport {
+			return messages.Text("alert.summary.pending")
+		}
+		return messages.Text("alert.summary.auto_failed")
+	}
+	return AlertText(kind, displayName, username, userID, seed)
+}
+
 func mark(value bool) string {
 	if value {
 		return "✅"
@@ -543,6 +587,22 @@ func dailyTaskCardTitle(status domain.DailyTaskStatus, displayName string, usern
 	default:
 		person := userLinkLabelCase(displayName, username, userID, participantNameGenitive)
 		return messages.Format("daily.card.title", "emoji", dailyTaskCardEmoji(status), "person", person)
+	}
+}
+
+func dailySummaryCardTitle(task postgres.DailyTask, person string) string {
+	switch task.Status {
+	case domain.DailyTaskDone:
+		return messages.Format("daily.summary.closed.done", "person", person)
+	case domain.DailyTaskPartial:
+		return messages.Format("daily.summary.closed.partial", "person", person)
+	case domain.DailyTaskFailed:
+		if task.ReportText == nil || *task.ReportText == "" {
+			return messages.Format("daily.summary.closed.missed", "person", person)
+		}
+		return messages.Format("daily.summary.closed.failed", "person", person)
+	default:
+		return messages.Format("daily.summary.card.title", "person", person)
 	}
 }
 
@@ -631,6 +691,34 @@ func dailyTaskClosedAction(status string, reportLink string) string {
 	case "failed":
 		label = messages.Text("progress.daily.action.failed")
 	}
+	if reportLink == "" {
+		return label
+	}
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(reportLink), label)
+}
+
+func dailySummaryClosedProgressTitle(status string, person string, action string) string {
+	switch status {
+	case "done":
+		return messages.Format("progress.summary.closed.done", "person", person, "action", action)
+	case "partial":
+		return messages.Format("progress.summary.closed.partial", "person", person, "action", action)
+	case "failed":
+		return messages.Format("progress.summary.closed.failed", "person", person, "action", action)
+	default:
+		return messages.Format("progress.summary.closed.done", "person", person, "action", action)
+	}
+}
+
+func dailySummaryClosedAction(status string, reportLink string) string {
+	key := "progress.summary.action.done"
+	switch status {
+	case "partial":
+		key = "progress.summary.action.partial"
+	case "failed":
+		key = "progress.summary.action.failed"
+	}
+	label := messages.Text(key)
 	if reportLink == "" {
 		return label
 	}

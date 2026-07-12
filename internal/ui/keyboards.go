@@ -72,6 +72,16 @@ func DailyTaskStatusKeyboard(taskID int64) *telegram.InlineKeyboardMarkup {
 	}}
 }
 
+func DailySummaryStatusKeyboard(taskID int64) *telegram.InlineKeyboardMarkup {
+	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
+		{
+			{Text: messages.Text("button.summary.done"), CallbackData: fmt.Sprintf("task:status:%d:done", taskID)},
+			{Text: messages.Text("button.summary.partial"), CallbackData: fmt.Sprintf("task:status:%d:partial", taskID)},
+			{Text: messages.Text("button.summary.failed"), CallbackData: fmt.Sprintf("task:status:%d:failed", taskID)},
+		},
+	}}
+}
+
 func AlertKeyboard(taskID int64, alertID int64) *telegram.InlineKeyboardMarkup {
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
 		{{Text: messages.Text("button.task.report"), CallbackData: fmt.Sprintf("task:report:%d", taskID)}},

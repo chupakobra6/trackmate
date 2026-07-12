@@ -224,7 +224,8 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	assertNoTable(t, store, "material_items")
 	assertNoTable(t, store, "material_participant_progresses")
 	assertEnumLabels(t, store, "topickey", []string{"today", "progress", "routine", "goals"})
-	assertEnumLabels(t, store, "progresseventtype", []string{"daily_task.closed", "daily_task.auto_failed", "system_alert", "custom_update"})
+	assertEnumLabels(t, store, "dailyentrykind", []string{"task", "summary"})
+	assertEnumLabels(t, store, "progresseventtype", []string{"daily_task.closed", "daily_task.auto_failed", "system_alert", "custom_update", "daily_summary.closed", "daily_summary.auto_failed"})
 
 	if err := q.SetSetupMessageID(ctx, workspace.ID, 777); err != nil {
 		t.Fatal(err)

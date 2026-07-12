@@ -35,6 +35,24 @@ func TestDailyTaskTransitions(t *testing.T) {
 	}
 }
 
+func TestIsDailySummaryTimeUsesWorkspaceTimezoneAndCutoff(t *testing.T) {
+	before, err := IsDailySummaryTime("Europe/Moscow", time.Date(2026, 7, 12, 16, 59, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before {
+		t.Fatal("summary mode should stay off before 20:00 local time")
+	}
+
+	atCutoff, err := IsDailySummaryTime("Europe/Moscow", time.Date(2026, 7, 12, 17, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !atCutoff {
+		t.Fatal("summary mode should start exactly at 20:00 local time")
+	}
+}
+
 func TestParseRoutineItemsAcceptsDashLines(t *testing.T) {
 	got, err := ParseRoutineItems("  - зарядка\n— работа\n- английский перед сном\n- йога\n\n")
 	if err != nil {

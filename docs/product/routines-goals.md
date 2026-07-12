@@ -9,14 +9,17 @@ Trackmate owns two product topics beyond Today and Progress:
 - Routines: daily check-ins for repeated habits, with streaks and leaderboard inside the Routines topic.
 - Goals: seasonal goals, reviews every two weeks, and final review at the end of the period.
 
-Today remains the daily focus topic. Progress remains for closed daily tasks,
-auto-failed daily tasks, and rare system alerts when Trackmate saved data but
-Telegram refused to edit an old message.
+Today remains the daily focus topic: before 20:00 it records one main task,
+and after 20:00 without an entry it records one day summary. Progress remains
+for closed and auto-failed daily tasks, closed and auto-failed day summaries,
+and rare system alerts when Trackmate saved data but Telegram refused to edit
+an old message.
 
 ## Implemented decisions
 
 1. Add topic keys `routine` and `goals`.
-2. Keep `Today` as one main goal-task per day.
+2. Keep `Today` to one daily entry: a main goal-task before 20:00 or a day
+   summary after 20:00 when no entry exists for that local date.
 3. Add a pinned Routines control message with one button: `✏️ Настроить рутину`.
 4. Accept routine setup as line-based text, supporting dash/long-dash prefixes and numbered lines.
 5. Limit routine items to 9.

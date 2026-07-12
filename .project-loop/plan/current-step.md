@@ -4,18 +4,18 @@
 Обновлено: 2026-07-12
 
 ## Активный Шаг
-- id: `STEP-029`
-- status: `готово`
-- objective: Исправить production bug кнопки `Понял` у routine reminder и развернуть проверенное исправление.
-- requirement IDs: `REQ-052`
-- owned paths: `internal/telegram/`, `internal/bot/`, `.project-loop/`
-- validation: production callback/DB check: pass; focused tests: pass; `make test`: pass; `make lint`: pass; local Docker healthy; production `2a25305`, services healthy, migrations applied, `pending_inputs=0`
-- done criteria: ошибка удаления не маскируется; при запрете удаления клавиатура снимается; production обновлен и healthy.
+- id: `STEP-030`
+- status: `в работе`
+- objective: Реализовать отдельный `Итог дня` после 20:00, сохранить общий lifecycle задачи, проверить весь Telegram-flow и развернуть в production.
+- requirement IDs: `REQ-053`, `VAL-008`
+- owned paths: `internal/domain/`, `internal/storage/postgres/`, `internal/app/today/`, `internal/bot/`, `internal/ui/`, `internal/messages/`, `migrations/`, `docs/`, `e2e/telegram/`, `.project-loop/`
+- validation: focused unit/integration tests; PostgreSQL migration; `make test`; `make lint`; live E2E на тестовом боте; production backup/deploy/service+DB verification.
+- done criteria: итог создается только после 20:00 без задачи, использует `active → awaiting_report → done/partial/failed`, отображается в Today/Progress с утвержденным copy, не искажает task metrics, production healthy.
 
 ## Фокус Ревью
-- Проверить только обработку `notice:dismiss`, классификацию Telegram delete errors и fallback снятия клавиатуры.
-- Пользовательские тексты не менять.
+- Проверить временную границу, callback/input flow, edit sync, worker transitions, copy и ссылки в Today/Progress.
+- Не менять кнопку закрепа `➕ Добавить задачу` и не добавлять состояние `не заполнен`.
 
 ## Примечания
-- STEP-028 production routine reset уже завершен ранее; в будущем update message все еще нужно попросить участников заново настроить рутины.
-- В E2E reset добавлена очистка `goal_nudge_cooldowns`, иначе сценарий `14` зависел от старого cooldown.
+- STEP-029 production routine reminder fix уже завершен ранее.
+- Итог дня остается отдельным видом записи для аналитики, но пользуется существующими финальными статусами задачи.

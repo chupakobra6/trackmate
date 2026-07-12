@@ -1,0 +1,18 @@
+# Проверяет вечерний итог дня: «Средне», публикацию в «Прогресс» и синхронизацию правки.
+# Перед запуском очисти тестовое пространство и выставь локальное время группы не раньше 20:00.
+{"id":"select_today","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"open_day_summary","action":"click_button","button_text":"➕ Добавить задачу","timeout_ms":60000}
+{"id":"assert_summary_card","action":"assert_visible_text","text":"Статус: ожидается","timeout_ms":90000}
+{"id":"choose_medium","action":"click_button","button_text":"🔸 Средне","message_text":"Итог дня","timeout_ms":60000}
+{"id":"assert_summary_prompt","action":"assert_visible_text","text":"Напиши итог дня одним сообщением","timeout_ms":60000}
+{"id":"send_summary","action":"send_text","text":"Вечерний итог: разобрал ключевой вопрос и закрепил выводы."}
+{"id":"assert_summary_closed","action":"assert_visible_text","text":"подвёл итог среднего дня","timeout_ms":90000}
+{"id":"select_progress","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
+{"id":"assert_summary_published","action":"assert_visible_text","text":"Вечерний итог: разобрал ключевой вопрос и закрепил выводы.","timeout_ms":120000}
+{"id":"select_today_for_edit","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{TODAY_THREAD_ID}}}
+{"id":"edit_summary","action":"edit_text","message_text":"Вечерний итог: разобрал ключевой вопрос и закрепил выводы.","text":"Вечерний итог: разобрал ключевой вопрос и оформил следующий шаг."}
+{"id":"assert_old_summary_gone_today","action":"assert_not_visible_text","text":"Вечерний итог: разобрал ключевой вопрос и закрепил выводы.","timeout_ms":120000}
+{"id":"assert_new_summary_today","action":"assert_visible_text","text":"Вечерний итог: разобрал ключевой вопрос и оформил следующий шаг.","timeout_ms":120000}
+{"id":"select_progress_after_edit","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{PROGRESS_THREAD_ID}}}
+{"id":"assert_old_summary_gone_progress","action":"assert_not_visible_text","text":"Вечерний итог: разобрал ключевой вопрос и закрепил выводы.","timeout_ms":120000}
+{"id":"assert_new_summary_progress","action":"assert_visible_text","text":"Вечерний итог: разобрал ключевой вопрос и оформил следующий шаг.","timeout_ms":120000}

@@ -47,6 +47,7 @@ type DailyTask struct {
 	ParticipantID         int64
 	OwnerUserID           int64
 	TaskDate              time.Time
+	Kind                  domain.DailyEntryKind
 	Text                  string
 	Status                domain.DailyTaskStatus
 	ReportText            *string

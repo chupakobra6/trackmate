@@ -108,6 +108,16 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
 			return nil
 		}
+		if task.Kind.IsSummary() && alert.AlertKind == domain.AlertOverdueTaskFailed && task.TodayCardMessageID != nil {
+			if err := r.TG.EditMessageText(ctx, telegram.EditMessageTextRequest{
+				ChatID:      workspace.ChatID,
+				MessageID:   *task.TodayCardMessageID,
+				Text:        ui.FormatDailyTaskCard(task, displayName, username, ""),
+				ReplyMarkup: ui.EmptyKeyboard(),
+			}); err != nil && !telegram.IsNotModifiedError(err) && r.Logger != nil {
+				r.Logger.WarnContext(ctx, "daily_summary_card_auto_close_edit_failed", "task_id", task.ID, "error", err)
+			}
+		}
 		todayTopic, found, err := r.Store.Queries().GetTopicBinding(ctx, workspace.ID, domain.TopicToday)
 		if err != nil {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
@@ -120,7 +130,7 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 		message, err := r.TG.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
 			ChatID:           workspace.ChatID,
 			MessageThreadID:  todayTopic.ThreadID,
-			Text:             ui.AlertText(alert.AlertKind, displayName, username, userID, fmt.Sprintf("daily-alert:%d:%s", alert.ID, alert.AlertKind)),
+			Text:             ui.DailyEntryAlertText(alert.AlertKind, task.Kind, displayName, username, userID, fmt.Sprintf("daily-alert:%d:%s", alert.ID, alert.AlertKind)),
 			ReplyToMessageID: optionalInt64(task.TodayCardMessageID),
 			ReplyMarkup:      ui.AlertKeyboard(task.ID, alert.ID),
 		}))
