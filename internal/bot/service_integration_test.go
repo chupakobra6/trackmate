@@ -1076,14 +1076,43 @@ func TestNoticeDismissDeletesMessage(t *testing.T) {
 	}
 }
 
+func TestNoticeDismissRemovesKeyboardWhenTelegramCannotDeleteMessage(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	fake.deleteErrors = map[int64]error{777: errors.New("Bad Request: message can't be deleted")}
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+
+	answer, err := service.HandleUpdate(context.Background(), telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "notice-dismiss-fallback",
+		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
+		Data: "notice:dismiss",
+		Message: &telegram.Message{
+			MessageID:       777,
+			MessageThreadID: 13,
+			Chat:            telegram.Chat{ID: -1001234567890, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Text != "" {
+		t.Fatalf("dismiss should be silent, got %q", answer.Text)
+	}
+	if len(fake.replyMarkupEdits) != 1 || fake.replyMarkupEdits[0].MessageID != 777 || fake.replyMarkupEdits[0].ReplyMarkup != nil {
+		t.Fatalf("notice keyboard was not removed: %+v", fake.replyMarkupEdits)
+	}
+}
+
 type fakeTelegram struct {
-	createdTopics []string
-	nextThreadID  int64
-	nextMessageID int64
-	edits         []telegram.EditMessageTextRequest
-	editErrors    map[int64]error
-	sent          []telegram.SendMessageRequest
-	deleted       []int64
+	createdTopics    []string
+	nextThreadID     int64
+	nextMessageID    int64
+	edits            []telegram.EditMessageTextRequest
+	editErrors       map[int64]error
+	replyMarkupEdits []telegram.EditMessageReplyMarkupRequest
+	sent             []telegram.SendMessageRequest
+	deleted          []int64
+	deleteErrors     map[int64]error
 }
 
 func newFakeTelegram() *fakeTelegram {
@@ -1108,8 +1137,15 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditM
 	}
 	return nil
 }
+func (f *fakeTelegram) EditMessageReplyMarkup(_ context.Context, request telegram.EditMessageReplyMarkupRequest) error {
+	f.replyMarkupEdits = append(f.replyMarkupEdits, request)
+	return nil
+}
 func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
 	f.deleted = append(f.deleted, messageID)
+	if f.deleteErrors != nil && f.deleteErrors[messageID] != nil {
+		return f.deleteErrors[messageID]
+	}
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {

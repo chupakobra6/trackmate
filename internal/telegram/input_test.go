@@ -33,4 +33,7 @@ func TestTelegramErrorClassifiers(t *testing.T) {
 	if !IsMissingDeleteTarget(&Error{Description: "Bad Request: message to delete not found"}) {
 		t.Fatal("missing delete was not classified")
 	}
+	if IsMissingDeleteTarget(&Error{Description: "Bad Request: message can't be deleted"}) {
+		t.Fatal("undeletable message must not be treated as an already missing target")
+	}
 }

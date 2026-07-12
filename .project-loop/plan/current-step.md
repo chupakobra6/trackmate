@@ -1,20 +1,20 @@
 # Текущий Шаг
 
 Проект: trackmate
-Обновлено: 2026-06-30
+Обновлено: 2026-07-12
 
 ## Активный Шаг
-- id: `STEP-027`
-- status: `готово`
-- objective: Полный live E2E текущего локального head и исправление найденных deterministic-сбоев.
-- requirement IDs: `REQ-049`, `VAL-007`
-- owned paths: `internal/`, `cmd/trackmate-worker/`, `e2e/telegram/scenarios/`, `.project-loop/`
-- validation: live E2E run `s030-015143`: pass; log scan timeout/error/panic: clean; DB `pending_inputs=0`, unpublished progress `0`; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate`: pass
-- done criteria: scenarios `00`, `01..11`, split `12`, split `13`, `14` pass on the test Telegram bot; found product/test-control issues are fixed; no production deploy performed.
+- id: `STEP-029`
+- status: `в работе`
+- objective: Исправить production bug кнопки `Понял` у routine reminder и развернуть проверенное исправление.
+- requirement IDs: `REQ-052`
+- owned paths: `internal/telegram/`, `internal/bot/`, `.project-loop/`
+- validation: production callback/DB check: pass; focused tests: pass; `make test`: pass; `make lint`: pass; deploy и post-deploy smoke-check ожидаются
+- done criteria: ошибка удаления не маскируется; при запрете удаления клавиатура снимается; production обновлен и healthy.
 
 ## Фокус Ревью
-- Проверить только изменения, найденные E2E: pending time source, routine reason prompt, goal prompt fallback, deterministic `/control/tick`, E2E reset cleanup и progress scenario assertion.
-- Production deploy отдельно не выполнялся и требует отдельного решения.
+- Проверить только обработку `notice:dismiss`, классификацию Telegram delete errors и fallback снятия клавиатуры.
+- Пользовательские тексты не менять.
 
 ## Примечания
 - STEP-028 production routine reset уже завершен ранее; в будущем update message все еще нужно попросить участников заново настроить рутины.

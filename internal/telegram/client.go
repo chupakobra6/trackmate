@@ -109,6 +109,17 @@ func (c *Client) EditMessageText(ctx context.Context, request EditMessageTextReq
 	return nil
 }
 
+func (c *Client) EditMessageReplyMarkup(ctx context.Context, request EditMessageReplyMarkupRequest) error {
+	var response baseResponse
+	if err := c.callJSON(ctx, "editMessageReplyMarkup", request, &response); err != nil {
+		if IsNotModifiedError(err) {
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
 func (c *Client) DeleteMessage(ctx context.Context, chatID int64, messageID int64) error {
 	if messageID == 0 {
 		return nil
@@ -267,7 +278,7 @@ func responseDescription(dest any) string {
 
 func retryAttempts(method string) int {
 	switch method {
-	case "getUpdates", "answerCallbackQuery", "sendMessage", "editMessageText", "deleteMessage", "pinChatMessage", "getChat", "getChatMember", "createForumTopic", "editForumTopic":
+	case "getUpdates", "answerCallbackQuery", "sendMessage", "editMessageText", "editMessageReplyMarkup", "deleteMessage", "pinChatMessage", "getChat", "getChatMember", "createForumTopic", "editForumTopic":
 		return 3
 	default:
 		return 1
@@ -293,7 +304,7 @@ func requestTimeout(method string) time.Duration {
 		return 8 * time.Second
 	case "sendMessage":
 		return 60 * time.Second
-	case "editMessageText":
+	case "editMessageText", "editMessageReplyMarkup":
 		return 20 * time.Second
 	case "deleteMessage":
 		return 15 * time.Second
@@ -348,7 +359,6 @@ func IsMissingDeleteTarget(err error) bool {
 	}
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "message to delete not found") ||
-		strings.Contains(text, "message can't be deleted") ||
 		strings.Contains(text, "message_id_invalid")
 }
 

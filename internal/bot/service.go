@@ -599,8 +599,24 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 }
 
 func (s *Service) handleNoticeDismiss(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
-	_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
-	return CallbackAnswer{}, nil
+	err := s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
+	if err == nil {
+		return CallbackAnswer{}, nil
+	}
+	s.Logger.WarnContext(ctx, "notice_delete_failed", "chat_id", callback.Message.Chat.ID, "message_id", callback.Message.MessageID, "error", err)
+	if editor, ok := s.Telegram.(interface {
+		EditMessageReplyMarkup(context.Context, telegram.EditMessageReplyMarkupRequest) error
+	}); ok {
+		if editErr := editor.EditMessageReplyMarkup(ctx, telegram.EditMessageReplyMarkupRequest{
+			ChatID:    callback.Message.Chat.ID,
+			MessageID: callback.Message.MessageID,
+		}); editErr == nil {
+			return CallbackAnswer{}, nil
+		} else {
+			s.Logger.WarnContext(ctx, "notice_keyboard_remove_failed", "chat_id", callback.Message.Chat.ID, "message_id", callback.Message.MessageID, "error", editErr)
+		}
+	}
+	return CallbackAnswer{}, err
 }
 
 func (s *Service) dismissTaskAlerts(ctx context.Context, q *postgres.Queries, chatID int64, taskID int64) error {

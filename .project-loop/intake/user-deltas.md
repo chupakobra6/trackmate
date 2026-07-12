@@ -568,6 +568,18 @@ ID источника: `S007`
 Конфликты:
 - отсутствуют
 
+### Broken dismiss callback delta
+
+ID источника: `S029`
+
+Нормализация:
+- [x] проверить production health, callback logs и routine state по напоминанию за 09.07;
+- [x] подтвердить, что callback дошел и данные рутины не повреждены;
+- [x] перестать считать `message can't be deleted` успешным удалением;
+- [x] при невозможности удаления снять сломанную inline-клавиатуру и записать ошибку в лог;
+- [x] покрыть оба пути тестами;
+- [ ] развернуть исправление на production и проверить сервисы.
+
 ### Production Delta: Sync Existing Topic Messages To Current Flow
 
 ID источника: `S028`

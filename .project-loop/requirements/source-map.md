@@ -43,6 +43,7 @@
 | S026 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md` | отложено | Validation request: run full live E2E for all old and new scenarios on the test Telegram bot, inspect chat history/messages and verify recent fixes specifically before any production deploy. |
 | S027 | user | 2026-06-29 | `.project-loop/intake/user-deltas.md` | принято | Production operation: reset routine plans and routine statistics in the main group, clean known routine-topic bot noise, and remember that the next update message must ask users to configure routines again. |
 | S028 | user | 2026-06-30 | `.project-loop/intake/user-deltas.md` | принято | Production operation: after deploying the current head, verify and edit existing pinned/control topic messages to match the new style, keep routines empty, and adapt existing Goals messages to the source-link flow without deleting visible history. |
+| S029 | user | 2026-07-12 | `.project-loop/intake/user-deltas.md`; screenshot `/Users/igor/Downloads/IMG_7564.PNG` | принято | Production bug: callback `notice:dismiss` дошел для routine reminder, но сообщение не удалилось; проверить данные, устранить маскировку ошибки удаления, добавить надежный fallback и выкатить исправление. |
 
 ## Конфликты
 | Источники | Решение | Дата |
