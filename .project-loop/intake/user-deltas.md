@@ -595,8 +595,8 @@ ID источника: `S030`
 - [x] план и текущий шаг переводятся в `STEP-030`
 - [x] реализация и миграция
 - [x] локальная и live E2E-валидация
-- [ ] production deploy и post-deploy verification
-- [ ] handoff обновлен
+- [x] production deploy и post-deploy verification
+- [x] handoff обновлен
 
 Конфликты:
 - `S030` заменяет ранее предложенное состояние `не заполнен`: для итога дня применяется существующее `failed`.

@@ -1,7 +1,7 @@
 # План Production-Миграции
 
 Проект: Trackmate
-Статус: одобрено пользователем для S030.
+Статус: выполнено на production.
 
 ## Что Меняется В БД
 
@@ -32,16 +32,19 @@ backup или forward-fix, потому что старый formatter не зн�
 - live Telegram проверены нормальный итог, edit sync и auto-fail карточки;
 - local worker/API/PostgreSQL healthy, outbox и pending inputs пусты.
 
-## Production-Порядок
+## Production-Результат
 
-1. Сделать `make docker-db-backup-stop`.
-2. Выполнить `git pull --ff-only` на нужный commit.
-3. Запустить `docker compose up -d --build`; migrate-контейнер применяет
-   `202607120001` до запуска API и worker.
-4. Проверить health, логи, `dailyentrykind`, новые labels `progresseventtype`,
-   сохранность counts, `pending_inputs=0` и пустой Progress outbox.
-5. Запустить `/setup` или `setup:start`, чтобы Today и Progress control-сообщения
-   обновились с новой подсказкой.
+1. Перед развёртыванием создан backup: `/opt/trackmate/backups/trackmate_20260712T203143Z.dump`.
+2. На production развёрнут commit `848042d`; `docker compose up -d --build`
+   применил миграцию `202607120001`.
+3. `api`, `worker` и `postgres` находятся в состоянии healthy; error-log scan
+   после развёртывания чистый.
+4. Схема содержит `dailyentrykind` (`task`, `summary`) и новые события
+   `daily_summary.closed`/`daily_summary.auto_failed`; существующие 201 записей
+   остались типом `task`, количество данных до и после развёртывания совпало.
+5. Пустой Progress outbox и неизменный `pending_inputs=3` подтверждены. Контрольные
+   сообщения Today (`8`) и Progress (`10`) обновлены через Bot API и повторно
+   сверены по тексту.
 
 ## Rollback
 

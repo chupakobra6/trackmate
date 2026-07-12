@@ -346,3 +346,13 @@
 - Проверки: focused tests, `make test`, `make lint`, Project Loop validation, local Docker health.
 - Production backup: `/opt/trackmate/backups/trackmate_20260712T115219Z.dump`.
 - Production deploy: commit `2a25305`; `api`, `worker`, `postgres` healthy; migrations applied; `pending_inputs=0`.
+
+### STEP-030: итог дня после 20:00
+
+- Production: commit `848042d`; миграция `202607120001` применена.
+- После 20:00 кнопка `➕ Добавить задачу` при отсутствии записи создает отдельный итог дня с оценками `✅ Хорошо`, `🔸 Средне`, `❌ Плохо`. До 20:00 и при уже созданной записи остается обычный путь задачи.
+- Итог использует состояния `active → awaiting_report → done/partial/failed`, но отдельный тип данных и события Progress; итог не входит в метрики обычных задач.
+- Закрытая Today/Progress запись показывает `Игорь подвёл итог хорошего/среднего/плохого дня` без отдельной строки оценки. Автопровал редактирует карточку в `❌ Игорь не подвёл итог дня` и снимает кнопки.
+- Локально: PostgreSQL integration, `go test ./... -count=1`, `make test`, `make lint`, `go vet ./...`, `git diff --check` и Docker health: pass.
+- Live Telegram E2E: нормальный flow с редактированием исходного сообщения и auto-fail flow: pass; тестовая группа очищена после проверки.
+- Production backup: `/opt/trackmate/backups/trackmate_20260712T203143Z.dump`. После развёртывания `api`, `worker`, `postgres` healthy; миграция, enum, счётчики, пустой Progress outbox и логи проверены. Сегодня/Прогресс control-сообщения `8`/`10` обновлены через Bot API и подтверждены по тексту.
