@@ -7,7 +7,7 @@
 - Поддерживать текущий Trackmate и закрывать production-наблюдения локальными проверяемыми исправлениями до отдельного production approval.
 
 ## Текущий Шаг
-- active step: `STEP-031`
+- active step: `STEP-032`
 - status: `готово`
 
 ## Завершено
@@ -323,12 +323,12 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Production сейчас на commit `21e771d`; STEP-012/STEP-013/STEP-015/STEP-016/STEP-017/STEP-023..STEP-026 выкачены.
+- Production сейчас на commit `76db6c2`; STEP-031/STEP-032 локальны и требуют отдельного approval на deploy.
 - Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
 - User-visible text changes require explicit user request and before/after preview.
 
 ## Следующее Действие
-- Ждать следующий скриншот/дельту. Production уже обновлен до `21e771d`; routine setup в основной группе пустой, поэтому в следующем пользовательском апдейт-сообщении нужно попросить участников заново настроить рутины.
+- Передать пользователю pipeline целей и отдельно согласовать желаемое поведение unanswered двухнедельных review prompts. Production deploy STEP-031/STEP-032 выполнять только после явного approval.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
@@ -366,4 +366,15 @@
 - Unit и clean-schema PostgreSQL integration покрывают тройной replay, старый null message ID, undeletable message и полный Telegram failure с сохранением retryable DB state.
 - Полный DB-backed `go test ./... -count=1`, `make lint`, `git diff --check`, Project Loop validation: pass.
 - Live test bot: alert message `828` удален кнопкой `Понял`; report flow прошел на одном message `827` (`task card → status chooser → report prompt → closed card`); финально `pending_inputs=0`, unpublished progress `0`, open alerts `0`, сервисы healthy, error log scan clean.
+- Production code не менялся; deploy остается за отдельным approval.
+
+### STEP-032: recoverable setup prompts Goals/Routine
+
+- Production routine check-in `1220772` Егора за `2026-08-04` уже имел первый пункт `done`, пустую причину и все семь выполненных пунктов; Telegram message `6010` уже показывал полное выполнение. Лишняя production mutation не выполнялась.
+- Production Goals mismatch подтвержден: callback создал setup prompt `6037`, pending input `739` сохранил его ID, но свежий MTProto dump сообщения не содержал.
+- Goals и Routine теперь используют один lifecycle: существующий prompt проверяется и переиспользуется; только подтвержденный Telegram missing target создает одну замену; transient edit failure не создает дубль и сохраняет retryable pending state.
+- Participant upsert сериализует конкурентные configure callbacks одного пользователя внутри транзакции; два callback не могут одновременно решить, что prompt отсутствует.
+- PostgreSQL tests покрывают Goals и Routine reuse/missing/transient paths. Полный DB-backed Go suite, lint, vet, diff check и Project Loop validation прошли.
+- Live test bot: первый Goals callback создал message `833`, повторный callback переиспользовал его без send; source message `834` сохранился, confirmation `835` отправлен один раз, `pending_inputs=0`, сервисы healthy, error log scan clean.
+- Текущая product semantics weekly reviews не менялась: unanswered pending очищается через 24 часа, та же review row повторно не отправляется; следующий двухнедельный review независим. Нужен выбор пользователя, если это следует изменить.
 - Production code не менялся; deploy остается за отдельным approval.

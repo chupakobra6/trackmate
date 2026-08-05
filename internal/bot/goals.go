@@ -21,33 +21,7 @@ func (s *Service) handleGoalsConfigure(ctx context.Context, callback telegram.Ca
 	if err != nil || workspace.ID == 0 {
 		return CallbackAnswer{Text: messages.Text("callback.workspace_missing")}, err
 	}
-	var answer CallbackAnswer
-	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
-		if pending, found, err := q.GetPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID); err != nil {
-			return err
-		} else if found {
-			answer.Text = pendingBusyText(pending.Kind)
-			return nil
-		}
-		if _, err := q.RegisterParticipant(ctx, workspace.ID, callback.From.ID, callback.From.Username, telegram.DisplayName(callback.From)); err != nil {
-			return err
-		}
-		prompt, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
-			ChatID:              callback.Message.Chat.ID,
-			MessageThreadID:     callback.Message.MessageThreadID,
-			Text:                ui.SeasonalGoalsPrompt(),
-			DisableNotification: true,
-		})
-		if err != nil {
-			return err
-		}
-		_, err = q.UpsertPendingInput(ctx, workspace.ID, callback.From.ID, callback.Message.MessageThreadID, domain.PendingSeasonalGoals, map[string]any{
-			"thread_id":         callback.Message.MessageThreadID,
-			"prompt_message_id": prompt.MessageID,
-		})
-		return err
-	})
-	return answer, err
+	return s.openSetupPrompt(ctx, workspace, callback, domain.PendingSeasonalGoals, ui.SeasonalGoalsPrompt())
 }
 
 func (s *Service) consumeSeasonalGoals(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pending postgres.PendingInput) error {

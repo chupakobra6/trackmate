@@ -4,20 +4,20 @@
 Обновлено: 2026-08-05
 
 ## Завершенный Шаг
-- id: `STEP-031`
+- id: `STEP-032`
 - status: `готово`
-- objective: Устранить stacking status prompts и ложное acknowledgement Today alerts через единый идемпотентный Telegram message lifecycle.
-- requirement IDs: `REQ-054`, `VAL-009`
-- owned paths: `internal/bot/`, `internal/messages/`, `internal/telegram/` при необходимости, `docs/architecture.md`, `e2e/telegram/`, `.project-loop/`.
-- validation: unit + clean-schema PostgreSQL integration на replay/ack/fallback/failure; полный `go test ./...`; lint; Project Loop validation; live test-bot alert/report lifecycle.
-- done criteria: выполнены локально. Повторные callbacks редактируют одно сообщение; `Понял` удаляет или явно закрывает alert без кнопок; Telegram failure не очищает DB преждевременно; старый null message ID восстанавливается из callback; live message `827` прошел весь lifecycle in place.
+- objective: Подтвердить routine correction и сделать setup prompts целей/рутин восстанавливаемыми без дублирования.
+- requirement IDs: `REQ-055`, `REQ-056`, `VAL-010`
+- owned paths: `internal/bot/goals.go`, `internal/bot/routines.go`, shared setup lifecycle, `internal/telegram/`, tests, docs, `.project-loop/`.
+- validation: production read-only DB/Telegram evidence; missing/transient Telegram error classification; clean-schema PostgreSQL integration; full tests/lint/Project Loop validation; live Goals callback replay.
+- done criteria: выполнены локально. Routine state/card совпадают без лишней mutation; живой prompt переиспользуется, отсутствующий восстанавливается одним send, transient failure не создает replacement; pipeline целей подготовлен пользователю с отмеченной открытой product semantics для unanswered reviews.
 
 ## Фокус Ревью
-- Проверить повторную доставку callback, порядок Telegram transition → DB acknowledgement и отсутствие новых status messages.
-- Не менять доменную модель задач/итогов, Progress events и расписание worker alerts.
+- Проверить общий lifecycle для Routine/Goals без копирования двух recovery path.
+- Не менять периодичность/TTL goal weekly reviews без решения пользователя.
 
 ## Примечания
-- Production evidence: `task:report:244` пришел трижды для message `5828`; alert `114` получил повторные `alert:ack` после DB acknowledgement.
-- Root cause закрыт единым helper-слоем message lifecycle и in-place report transition.
-- Видимый fallback copy: раньше старый alert оставался на экране с кнопкой; теперь `👀 Уведомление закрыто` без кнопок.
-- Production не менялся; deploy требует отдельного approval по `CON-004`.
+- Routine check-in `1220772` и Telegram message `6010` уже корректны; production write не нужен.
+- Goals callback отправил message `6037`, DB pending `739` жив, но message отсутствует в fresh MTProto dump.
+- STEP-031 завершен и закоммичен как `8f1140c`; production deploy по-прежнему требует отдельного approval.
+- Live Goals replay: два configure callback оставили один setup message `833`; source `834` сохранен; confirmation `835`; pending inputs очищены.

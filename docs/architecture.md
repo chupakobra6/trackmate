@@ -109,6 +109,12 @@ accepts lines that start with `-`, `—`, `1.`, or `1)`, and caps the list at 9
 daily items. Plain lines and unsupported bullet symbols are rejected so the setup
 format stays unambiguous.
 
+Routine and Goals setup share one recoverable prompt lifecycle. Repeated
+configure callbacks verify and reuse the stored prompt instead of sending a
+second copy. A replacement is sent and attached to the existing pending input
+only when Telegram explicitly reports that the stored message no longer
+exists; transient edit failures are returned without creating a duplicate.
+
 Pending input is isolated by Telegram topic thread. A Routine draft does not
 block Today or Goals, and a message from another thread does not consume or
 cancel the Routine draft. Worker cleanup removes pending inputs older than 24
@@ -158,6 +164,9 @@ Every second Sunday after 20:00 local time, the worker sends one goals review
 prompt in `Цели` and stores the response as `goal_weekly_review`. On and after
 the period end date, the worker sends a final review prompt with buttons
 `done|partial|failed`; after the button, the user writes one final summary.
+Like every pending input, an unanswered review prompt is cleaned up after 24
+hours. The current product does not resend that same review row; the next
+scheduled two-week review is independent.
 
 Today can show a rare deterministic goal nudge when a participant already has
 seasonal goals for the current period. Nudges are pseudo-random by seed, but
