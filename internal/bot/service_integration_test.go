@@ -233,7 +233,11 @@ func TestEditedReportMessageUpdatesPublishedProgress(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("progress events = %d, want 1", len(events))
 	}
-	if err := q.MarkProgressEventPublished(ctx, events[0].ID, 500, time.Now().UTC()); err != nil {
+	claimedEvent, ok, err := q.ClaimProgressEvent(ctx)
+	if err != nil || !ok || claimedEvent.ID != events[0].ID {
+		t.Fatalf("progress claim=%+v ok=%v err=%v", claimedEvent, ok, err)
+	}
+	if err := q.MarkProgressEventPublished(ctx, claimedEvent.ID, 500, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -320,7 +324,11 @@ func TestEditedReportMessageQueuesProgressAlertWhenPublishedEditFails(t *testing
 	if len(events) != 1 {
 		t.Fatalf("progress events = %d, want 1", len(events))
 	}
-	if err := q.MarkProgressEventPublished(ctx, events[0].ID, 500, time.Now().UTC()); err != nil {
+	claimedEvent, ok, err := q.ClaimProgressEvent(ctx)
+	if err != nil || !ok || claimedEvent.ID != events[0].ID {
+		t.Fatalf("progress claim=%+v ok=%v err=%v", claimedEvent, ok, err)
+	}
+	if err := q.MarkProgressEventPublished(ctx, claimedEvent.ID, 500, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 

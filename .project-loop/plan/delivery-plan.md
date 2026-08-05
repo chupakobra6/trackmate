@@ -40,6 +40,7 @@
 | STEP-032 | `готово` | REQ-055,REQ-056,VAL-010 | Сверить routine misclick и добавить recoverable setup prompt lifecycle для Goals/Routine. | Не делать лишнюю production mutation; общий helper проверяет существующий prompt, различает missing/transient Telegram errors и обновляет pending только после успешного replacement send. | production routine DB/card evidence; Goals/Routine PostgreSQL tests; full DB-backed suite/lint/vet; live Goals callback replay reused message `833`, saved source `834`, sent one confirmation `835`; pending clean |
 | STEP-033 | `готово` | REQ-057,VAL-011 | Довести routine auto-close до общего reply-alert lifecycle. | Сохранена и финализируется конкретная routine card; alert отвечает на нее, называет участника и ссылается на source routine; транзакционный row claim исключает stacking при конкурентных тиках. | focused packages + lint/vet: pass; PostgreSQL concurrency regression: pass; focused live scenario: one alert `851`, dismiss pass, card `850` retained; full Telegram E2E not run |
 | STEP-034 | `готово` | REQ-058,VAL-012 | Добавить persisted retry/skip lifecycle двухнедельного вопроса по целям. | Weekly review выведен из generic stale cleanup; `reminder_sent_at`/`skipped_at` сохраняют lifecycle; чужой pending остается нетронутым, final review ждет weekly closure. | focused/full Go checks: pass; local migration: pass; focused live initial `855` → retry `856` → removed/skipped at 72h; full Telegram E2E not run |
+| STEP-035 | `в работе` | REQ-059,REQ-060,VAL-013 | Упростить delivery concurrency, убрать loss/stuck contracts и развернуть исправления. | Удалить ненужный async dispatcher; Telegram offset подтверждается после success; worker lock живет на одной DB session; alert/progress claims имеют persisted recovery lease; worker deliveries компенсируют failed persistence; focused validation и production deploy проходят с backup. | pending |
 
 ## Примечания По Порядку
 - Шаги достаточно маленькие для цикла: реализация, ревью, исправление, проверка, коммит, handoff.
@@ -47,4 +48,4 @@
 - Для существенной работы используются пары `STEP-N` / `STEP-NR`.
 - Человекочитаемые проектные артефакты пишутся на русском.
 - Имена файлов описательные; ID источников хранятся в карте источников и чеклисте.
-- Текущий запрос Игоря дает явное разрешение на непрерывную локальную реализацию до ревью; prod-действия остаются отложенными до отдельного approval.
+- Текущий запрос Игоря дает явное разрешение на непрерывную реализацию и production deploy STEP-035 после focused validation и backup.

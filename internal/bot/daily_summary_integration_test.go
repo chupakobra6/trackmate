@@ -107,7 +107,11 @@ func TestTodayAddAfterCutoffCreatesAndClosesDailySummary(t *testing.T) {
 	if err != nil || len(events) != 1 || events[0].EventType != domain.ProgressDailySummaryClosed {
 		t.Fatalf("summary progress events=%+v err=%v", events, err)
 	}
-	if err := q.MarkProgressEventPublished(ctx, events[0].ID, 501, time.Now().UTC()); err != nil {
+	claimedEvent, ok, err := q.ClaimProgressEvent(ctx)
+	if err != nil || !ok || claimedEvent.ID != events[0].ID {
+		t.Fatalf("progress claim=%+v ok=%v err=%v", claimedEvent, ok, err)
+	}
+	if err := q.MarkProgressEventPublished(ctx, claimedEvent.ID, 501, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
 	editedReport := report

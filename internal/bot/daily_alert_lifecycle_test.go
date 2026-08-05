@@ -153,10 +153,14 @@ func createSentAlert(t *testing.T, ctx context.Context, store *postgres.Store, t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Queries().MarkAlertSent(ctx, alert.ID, messageID); err != nil {
+	claimed, found, err := store.Queries().ClaimPendingAlert(ctx)
+	if err != nil || !found || claimed.ID != alert.ID {
+		t.Fatalf("alert claim=%+v found=%v err=%v", claimed, found, err)
+	}
+	if err := store.Queries().MarkAlertSent(ctx, claimed.ID, messageID); err != nil {
 		t.Fatal(err)
 	}
-	alert, found, err := store.Queries().GetAlert(ctx, alert.ID)
+	alert, found, err = store.Queries().GetAlert(ctx, alert.ID)
 	if err != nil || !found {
 		t.Fatalf("alert found=%v err=%v", found, err)
 	}

@@ -100,6 +100,28 @@ docker compose ps
 docker compose logs --tail=200 migrate api worker
 ```
 
+Verify that delivery leases and the worker lock are not stuck:
+
+```sql
+SELECT id, dispatch_status, dispatch_started_at
+FROM daily_task_alerts
+WHERE dispatch_status = 'dispatching'
+  AND (dispatch_started_at IS NULL OR dispatch_started_at < now() - interval '5 minutes');
+
+SELECT id, publish_status, publish_started_at
+FROM progress_events
+WHERE publish_status = 'publishing'
+  AND (publish_started_at IS NULL OR publish_started_at < now() - interval '5 minutes');
+
+SELECT pid, granted
+FROM pg_locks
+WHERE locktype = 'advisory' AND classid = 3842001 AND objsubid = 2;
+```
+
+The two stale-lease queries must be empty. The advisory-lock query may briefly
+show one granted row while a worker tick is active; it must not show waiters or
+multiple holders.
+
 5. If the update is verified, keep the old backup until the next stable backup
    cycle.
 

@@ -27,18 +27,23 @@ RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::tex
 func (q *Queries) ClaimProgressEvent(ctx context.Context) (ProgressEvent, bool, error) {
 	row := q.db.QueryRow(ctx, `
 UPDATE progress_events
-SET publish_status = 'publishing'
+SET publish_status = 'publishing',
+    publish_started_at = now()
 WHERE id = (
     SELECT id
     FROM progress_events
     WHERE publish_status = 'pending'
+       OR (
+            publish_status = 'publishing'
+            AND (publish_started_at IS NULL OR publish_started_at <= now() - make_interval(secs => $1))
+       )
     ORDER BY id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1
 )
 RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::text,
           publish_status::text, payload, published_message_id, created_at, published_at
-`)
+`, deliveryClaimTimeoutSeconds)
 	event, err := scanProgressEvent(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProgressEvent{}, false, nil
@@ -47,32 +52,35 @@ RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::tex
 }
 
 func (q *Queries) RequeueProgressEvent(ctx context.Context, eventID int64) error {
-	_, err := q.db.Exec(ctx, `
+	tag, err := q.db.Exec(ctx, `
 UPDATE progress_events
-SET publish_status = 'pending'
+SET publish_status = 'pending',
+    publish_started_at = NULL
 WHERE id = $1 AND publish_status = 'publishing'
 `, eventID)
-	return err
+	return requireDeliveryClaim(tag, err, "progress event", eventID)
 }
 
 func (q *Queries) MarkProgressEventFailed(ctx context.Context, eventID int64) error {
-	_, err := q.db.Exec(ctx, `
+	tag, err := q.db.Exec(ctx, `
 UPDATE progress_events
-SET publish_status = 'failed'
-WHERE id = $1
+SET publish_status = 'failed',
+    publish_started_at = NULL
+WHERE id = $1 AND publish_status = 'publishing'
 `, eventID)
-	return err
+	return requireDeliveryClaim(tag, err, "progress event", eventID)
 }
 
 func (q *Queries) MarkProgressEventPublished(ctx context.Context, eventID int64, messageID int64, publishedAt time.Time) error {
-	_, err := q.db.Exec(ctx, `
+	tag, err := q.db.Exec(ctx, `
 UPDATE progress_events
 SET publish_status = 'published',
     published_message_id = $2,
-    published_at = $3
-WHERE id = $1
+    published_at = $3,
+    publish_started_at = NULL
+WHERE id = $1 AND publish_status = 'publishing'
 `, eventID, messageID, publishedAt.UTC())
-	return err
+	return requireDeliveryClaim(tag, err, "progress event", eventID)
 }
 
 func (q *Queries) ListPendingProgressEvents(ctx context.Context) ([]ProgressEvent, error) {

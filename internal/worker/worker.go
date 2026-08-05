@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	appdelivery "github.com/igor/trackmate/internal/app/delivery"
 	appgoals "github.com/igor/trackmate/internal/app/goals"
 	apppending "github.com/igor/trackmate/internal/app/pending"
 	appprogress "github.com/igor/trackmate/internal/app/progress"
@@ -26,15 +27,17 @@ type Runner struct {
 
 var ErrWorkerLockBusy = errors.New("worker lock is busy")
 
-func (r *Runner) Tick(ctx context.Context, now time.Time) error {
-	acquired, err := r.Store.TryAcquireWorkerLock(ctx)
+func (r *Runner) Tick(ctx context.Context, now time.Time) (err error) {
+	lease, acquired, err := r.Store.TryAcquireWorkerLease(ctx)
 	if err != nil || !acquired {
 		if err != nil {
 			return err
 		}
 		return ErrWorkerLockBusy
 	}
-	defer r.Store.ReleaseWorkerLock(ctx)
+	defer func() {
+		err = errors.Join(err, lease.Release())
+	}()
 
 	current := now.UTC()
 	if err := r.Store.InTx(ctx, func(q *postgres.Queries) error {
@@ -142,7 +145,10 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			return err
 		}
 		if err := r.Store.Queries().MarkAlertSent(ctx, alert.ID, message.MessageID); err != nil {
-			return err
+			compensateErr := appdelivery.CompensateSentMessage(r.TG, workspace.ChatID, message.MessageID, func(cleanupCtx context.Context) error {
+				return r.Store.Queries().RequeueAlert(cleanupCtx, alert.ID)
+			})
+			return errors.Join(err, compensateErr)
 		}
 	}
 }

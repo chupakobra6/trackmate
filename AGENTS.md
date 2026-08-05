@@ -44,6 +44,11 @@
 - Update tests for changed behavior.
 - Update docs when public behavior, contracts, or setup changes.
 
+## Delivery invariants
+- Advance the Telegram polling offset only after the update handler succeeds. Do not put updates behind an unacknowledged in-memory queue.
+- Session-level PostgreSQL advisory locks must be schema-namespaced and acquired/released through the same pinned `pgxpool.Conn`; never acquire or unlock them directly through the pool.
+- Persisted `dispatching`/`publishing` states must carry a reclaimable lease timestamp. Terminal transitions must verify that the row is still claimed, and send-then-persist failures should remove the just-sent Telegram message when safe.
+
 ## Verification
 - Before finishing, run the narrowest relevant validation.
 - If code paths changed materially, run lint + tests relevant to touched files.

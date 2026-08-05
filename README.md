@@ -64,6 +64,8 @@ make worker
 make setup               # go mod tidy
 make test                # go test ./...
 make lint                # gofmt drift check
+make vet                 # go vet ./...
+make check               # lint, vet, and tests
 make migrate             # apply goose migrations
 make api                 # run Telegram poller
 make worker              # run background worker
@@ -106,9 +108,8 @@ Use these only with disposable local/test Telegram groups and local databases.
 
 - `cmd/`: process entrypoints.
 - `internal/telegram/`: typed Bot API client, update structs, retry/error semantics, input extraction.
-- `internal/dispatcher/`: per-mailbox update ordering.
 - `internal/bot/`: update routing and Telegram-facing handlers.
-- `internal/app/`: setup, Today transition, and progress publishing use cases.
+- `internal/app/`: setup, Today transitions, worker deliveries, and progress publishing use cases.
 - `internal/storage/postgres/`: pgx storage, transactions, claims, control helpers.
 - `internal/ui/`: Telegram HTML formatters and inline keyboards.
 - `migrations/`: goose migrations.

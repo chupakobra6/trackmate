@@ -2,7 +2,9 @@ package progress
 
 import (
 	"context"
+	"errors"
 
+	"github.com/igor/trackmate/internal/app/delivery"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
@@ -49,7 +51,10 @@ func PublishPending(ctx context.Context, store *postgres.Store, tg telegram.API)
 			continue
 		}
 		if err := store.Queries().MarkProgressEventPublished(ctx, event.ID, message.MessageID, message.Date()); err != nil {
-			return err
+			compensateErr := delivery.CompensateSentMessage(tg, workspace.ChatID, message.MessageID, func(cleanupCtx context.Context) error {
+				return store.Queries().RequeueProgressEvent(cleanupCtx, event.ID)
+			})
+			return errors.Join(err, compensateErr)
 		}
 	}
 }

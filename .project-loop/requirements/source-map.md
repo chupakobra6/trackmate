@@ -50,6 +50,7 @@
 | S033 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-922835fb-8c84-49bc-8052-db329d55d465.png` | принято | Разобрать user flow целей и возможное исчезновение prompt: объяснить setup/двухнедельные вопросы/финал и сделать setup prompt восстанавливаемым без дублей. |
 | S034 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-16fbfc7f-e4f6-4372-ba3d-b9a043a4a3ac.png` | принято | Довести routine auto-close до общего alert-контракта: понятный адресат, reply к конкретной карточке, ссылка на исходную рутину, единое форматирование/copy и отсутствие сырого standalone notice. |
 | S035 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Подтвержден lifecycle двухнедельного вопроса по целям: один повтор через 24 часа, затем закрытие как пропущенного через 72 часа без дальнейших повторов. |
+| S036 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Архитектурно уменьшить точки отказа вокруг Telegram cursor, конкурентной обработки, PostgreSQL advisory lock и delivery claims без изменения UI; применить tooling-review/session-learnings/repo-polish, проверить только затронутые flows и развернуть в production. |
 
 ## Конфликты
 | Источники | Решение | Дата |

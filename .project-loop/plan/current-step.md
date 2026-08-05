@@ -3,23 +3,24 @@
 Проект: trackmate
 Обновлено: 2026-08-05
 
-## Завершенный Шаг
-- id: `STEP-034`
-- status: `готово`
-- objective: Сделать один повтор неотвеченного двухнедельного вопроса по целям через 24 часа и persisted skip через 72 часа.
-- requirement IDs: `REQ-058`, `VAL-012`
-- owned paths: `internal/domain/`, `internal/app/goals/`, `internal/app/pending/`, `internal/storage/postgres/`, additive migration, goals docs/E2E expectations, `.project-loop/`.
-- validation: domain boundary tests; clean-schema PostgreSQL integration; focused goals/worker/pending tests; lint/vet; только focused live goals-review scenario.
-- done criteria: ровно один retry; prompt/pending доступны для ответа до общего 72-часового дедлайна; после дедлайна review persisted как skipped и не возвращается; final review не пересекается с незавершенным weekly review.
+## Активный Шаг
+- id: `STEP-035`
+- status: `в работе`
+- objective: Упростить delivery concurrency и устранить потерю Telegram updates, session-leak advisory lock и навсегда зависающие delivery claims без изменения пользовательского вида.
+- requirement IDs: `REQ-059`, `REQ-060`, `VAL-013`
+- owned paths: `cmd/trackmate-api/`, `internal/dispatcher/`, `internal/worker/`, `internal/app/progress/`, `internal/app/routine/`, `internal/app/goals/`, `internal/storage/postgres/`, additive migration, architecture/operations docs, `AGENTS.md`, `.project-loop/`.
+- validation: focused unit/PostgreSQL concurrency tests; additive migration; focused worker/app packages; full Go suite, lint/vet; только затронутые Telegram scenarios; production backup/deploy/read-only verification.
+- done criteria: success-based Telegram offset; no in-memory unacknowledged queue; same-session worker lock; crash-recoverable alert/progress claims; compensated worker send/persist failures; clean production services/queues/logs.
 
 ## Фокус Ревью
-- Проверить границы ровно 24/72 часа, restart-safe timestamps и отсутствие второго retry.
-- Проверить, что cleanup не удаляет retry на 48-м часу и не очищает чужой pending.
-- Не запускать полный Telegram E2E; проверить только измененный goals-review flow.
+- Не оставлять compatibility aliases или параллельные старые contracts.
+- Удалить dispatcher, если последовательная обработка сохраняет нужный пользовательский flow и делает cursor ownership однозначным.
+- Проверить границы внешнего Telegram send и DB persistence; exactly-once недоступен, поэтому нужны persisted lease + безопасная компенсация.
+- Не менять тексты, кнопки, расписания или продуктовые состояния.
 
-## Примечания
-- Текущий generic pending cleanup удаляет weekly prompt через 24 часа, а dispatch ищет только новое расписание; поэтому тот же review не возвращается.
-- Пользовательский текст prompt не меняется: повтор использует тот же canonical formatter.
-- Production deploy по-прежнему требует отдельного approval.
-- Focused live подтвержден: initial `855`, retry `856`, active pending на 48-м часу, удаление + `skipped_at` на 72-м часу.
-- Полный Telegram E2E не запускался.
+## Проверенная Исходная Картина
+- Production на `76db6c2`, сервисы healthy; alerts: `127 sent`, progress: `268 published`, stuck rows не обнаружены.
+- `pg_try_advisory_lock` и `pg_advisory_unlock` вызываются через pool без закрепленной session.
+- `dispatching`/`publishing` не имеют времени claim и после crash не восстанавливаются.
+- Telegram offset увеличивается до завершения async handler, поэтому следующий poll может подтвердить еще не обработанный update.
+- Полный Telegram E2E не запускается по явному пользовательскому правилу.

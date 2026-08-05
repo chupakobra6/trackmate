@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/igor/trackmate/internal/app/delivery"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
@@ -197,11 +198,11 @@ func sendWeeklyReviewPrompt(ctx context.Context, store *postgres.Store, tg teleg
 	if persistErr == nil {
 		return nil
 	}
-	_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, message.MessageID)
+	cleanupErr := delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil)
 	if errors.Is(persistErr, errWeeklyReviewNoLongerOpen) {
-		return nil
+		return cleanupErr
 	}
-	return persistErr
+	return errors.Join(persistErr, cleanupErr)
 }
 
 func pendingBelongsToWeeklyReview(pending postgres.PendingInput, reviewID int64) bool {
@@ -268,7 +269,7 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 			return err
 		}
 		if err := store.Queries().SetGoalFinalReviewPrompt(ctx, review.ID, message.MessageID, goalsTopic.ThreadID); err != nil {
-			return err
+			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	return nil

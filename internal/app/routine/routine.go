@@ -3,10 +3,12 @@ package routine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/igor/trackmate/internal/app/delivery"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
@@ -57,7 +59,7 @@ func DispatchDueCheckins(ctx context.Context, store *postgres.Store, tg telegram
 			return err
 		}
 		if err := store.Queries().SetRoutineCheckinCardMessageID(ctx, checkin.ID, message.MessageID, routineTopic.ThreadID); err != nil {
-			return err
+			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	return nil
@@ -125,7 +127,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			return err
 		}
 		if err := store.Queries().SetRoutineCheckinReminderMessageID(ctx, item.Checkin.ID, message.MessageID, nowUTC); err != nil {
-			return err
+			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	for {
@@ -200,7 +202,8 @@ func deliverRoutineAutoCloseNotice(ctx context.Context, q *postgres.Queries, tg 
 		return fmt.Errorf("send auto-close notice for routine %d: %w", checkin.ID, err)
 	}
 	if err := q.SetRoutineCheckinAutoCloseNoticeMessageID(ctx, checkin.ID, notice.MessageID, nowUTC); err != nil {
-		return fmt.Errorf("store auto-close notice for routine %d: %w", checkin.ID, err)
+		storeErr := fmt.Errorf("store auto-close notice for routine %d: %w", checkin.ID, err)
+		return errors.Join(storeErr, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, notice.MessageID, nil))
 	}
 	return nil
 }
@@ -251,7 +254,10 @@ func RefreshLeaderboard(ctx context.Context, q *postgres.Queries, tg telegram.AP
 	if err != nil {
 		return err
 	}
-	return q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &message.MessageID, nil, false, false)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &message.MessageID, nil, false, false); err != nil {
+		return errors.Join(err, delivery.CompensateSentMessage(tg, chatID, message.MessageID, nil))
+	}
+	return nil
 }
 
 func participantUsername(participant postgres.Participant) string {

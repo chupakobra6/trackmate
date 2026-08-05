@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
 	"github.com/igor/trackmate/internal/bot"
 	"github.com/igor/trackmate/internal/config"
-	"github.com/igor/trackmate/internal/dispatcher"
 	"github.com/igor/trackmate/internal/logging"
 	"github.com/igor/trackmate/internal/observability"
 	"github.com/igor/trackmate/internal/storage/postgres"
@@ -48,15 +46,10 @@ func run() error {
 		return err
 	}
 	service := bot.NewService(store, tg, logger, cfg.DefaultTimezone, me.ID)
-	updateDispatcher := dispatcher.New(32, 5*time.Minute)
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		_ = updateDispatcher.Shutdown(shutdownCtx)
-	}()
 
 	var offset int64
 	var pollErrorStreak int
+	var updateErrorStreak int
 	for {
 		updates, err := tg.PollUpdates(ctx, offset, cfg.PollTimeout)
 		if err != nil {
@@ -73,87 +66,52 @@ func run() error {
 			continue
 		}
 		pollErrorStreak = 0
-		for _, update := range updates {
-			offset = update.UpdateID + 1
-			update := update
-			updateCtx := observability.WithUpdateID(observability.EnsureTraceID(ctx), update.UpdateID)
+		nextOffset, err := processUpdates(ctx, offset, updates, func(batchCtx context.Context, update telegram.Update) error {
+			updateCtx := observability.WithUpdateID(observability.EnsureTraceID(batchCtx), update.UpdateID)
 			telegram.LogIncomingUpdate(updateCtx, logger, update)
-			key := updateMailboxKey(update)
-			if err := updateDispatcher.Submit(updateCtx, key, func(jobCtx context.Context) {
-				answer, err := service.HandleUpdate(jobCtx, update)
-				if update.Callback != nil {
-					answerID := update.Callback.ID
-					text := answer.Text
-					if answer.ID != "" {
-						answerID = answer.ID
-					}
-					if err := tg.AnswerCallbackQuery(jobCtx, telegram.AnswerCallbackQueryRequest{CallbackQueryID: answerID, Text: text}); err != nil {
-						logger.WarnContext(jobCtx, "answer_callback_failed", "error", err)
-					}
+			answer, handleErr := service.HandleUpdate(updateCtx, update)
+			if update.Callback != nil {
+				answerID := update.Callback.ID
+				text := answer.Text
+				if answer.ID != "" {
+					answerID = answer.ID
 				}
-				if err != nil {
-					logger.ErrorContext(jobCtx, "handle_update_failed", "update_id", update.UpdateID, "error", err)
+				if err := tg.AnswerCallbackQuery(updateCtx, telegram.AnswerCallbackQueryRequest{CallbackQueryID: answerID, Text: text}); err != nil {
+					logger.WarnContext(updateCtx, "answer_callback_failed", "error", err)
 				}
-			}); err != nil {
-				if errors.Is(err, dispatcher.ErrDispatcherClosed) || errors.Is(err, context.Canceled) {
-					return nil
-				}
-				logger.ErrorContext(updateCtx, "dispatch_update_failed", "update_id", update.UpdateID, "error", err)
 			}
+			return handleErr
+		})
+		offset = nextOffset
+		if err == nil {
+			updateErrorStreak = 0
+			continue
+		}
+		if errors.Is(err, context.Canceled) {
+			return nil
+		}
+		updateErrorStreak++
+		logger.ErrorContext(ctx, "handle_update_failed", "next_offset", nextOffset, "streak", updateErrorStreak, "error", err)
+		select {
+		case <-time.After(pollRetryDelay(updateErrorStreak)):
+		case <-ctx.Done():
+			return nil
 		}
 	}
 }
 
-func updateMailboxKey(update telegram.Update) string {
-	if update.MyChatMember != nil {
-		return fmt.Sprintf("chat:%d:setup", update.MyChatMember.Chat.ID)
-	}
-	if update.Callback != nil {
-		if update.Callback.Message != nil {
-			if update.Callback.Data == "setup:check" || update.Callback.Data == "setup:start" {
-				return fmt.Sprintf("chat:%d:setup", update.Callback.Message.Chat.ID)
-			}
-			return fmt.Sprintf("chat:%d:user:%d", update.Callback.Message.Chat.ID, update.Callback.From.ID)
+func processUpdates(ctx context.Context, offset int64, updates []telegram.Update, handle func(context.Context, telegram.Update) error) (int64, error) {
+	nextOffset := offset
+	for _, update := range updates {
+		if update.UpdateID < nextOffset {
+			continue
 		}
-		return "user:" + strconv.FormatInt(update.Callback.From.ID, 10)
-	}
-	if update.Message != nil {
-		return messageMailboxKey(*update.Message)
-	}
-	if update.EditedMessage != nil {
-		return messageMailboxKey(*update.EditedMessage)
-	}
-	return fmt.Sprintf("update:%d", update.UpdateID)
-}
-
-func messageMailboxKey(message telegram.Message) string {
-	if message.From != nil {
-		if isCommand(message.Text, "/setup") {
-			return fmt.Sprintf("chat:%d:setup", message.Chat.ID)
+		if err := handle(ctx, update); err != nil {
+			return nextOffset, fmt.Errorf("handle update %d: %w", update.UpdateID, err)
 		}
-		return fmt.Sprintf("chat:%d:user:%d", message.Chat.ID, message.From.ID)
+		nextOffset = update.UpdateID + 1
 	}
-	return fmt.Sprintf("chat:%d", message.Chat.ID)
-}
-
-func isCommand(text string, command string) bool {
-	if len(text) < len(command) {
-		return false
-	}
-	token := text
-	for i, r := range text {
-		if r == ' ' || r == '\n' || r == '\t' {
-			token = text[:i]
-			break
-		}
-	}
-	for i, r := range token {
-		if r == '@' {
-			token = token[:i]
-			break
-		}
-	}
-	return token == command
+	return nextOffset, nil
 }
 
 func pollRetryDelay(streak int) time.Duration {

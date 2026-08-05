@@ -1,12 +1,14 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup tidy fmt fmt-check lint test migrate api worker dev docker-up docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean down logs logs-all logs-db
+.PHONY: help setup tidy fmt fmt-check lint vet test check migrate api worker dev docker-up docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean down logs logs-all logs-db
 
 help:
 	@printf "Available commands:\n"
 	@printf "  make setup              # go mod tidy\n"
 	@printf "  make test               # go test ./...\n"
 	@printf "  make lint               # fail on gofmt drift under cmd/ and internal/\n"
+	@printf "  make vet                # go vet ./...\n"
+	@printf "  make check              # lint, vet, and test\n"
 	@printf "  make migrate            # apply Go goose migrations\n"
 	@printf "  make api                # run Go Telegram poller locally\n"
 	@printf "  make worker             # run Go worker locally\n"
@@ -39,8 +41,13 @@ fmt-check:
 
 lint: fmt-check
 
+vet:
+	go vet ./...
+
 test:
 	go test ./...
+
+check: lint vet test
 
 migrate:
 	go run ./cmd/migrate

@@ -1165,3 +1165,34 @@ ID источника: `S035`
 - focused live: initial message `855` → единственный retry `856`; на 48-м часу retry/pending сохранены; на 72-м prompt удален, review `532` имеет `skipped_at=2026-08-12T17:00:00Z`, pending `0`;
 - внешний delete-event не пробудил runner action `wait`, поэтому template исправлен на прямой `assert_not_visible_text`; отдельная финальная проверка прошла;
 - полный Telegram E2E не запускался.
+
+### Delivery Concurrency Hardening And Production Update
+
+ID источника: `S036`
+
+Исходный ввод:
+
+```text
+Ошибок с конкурентностью, локами и курсорами было слишком много. Продумать причины, архитектурно уменьшить точки отказа без изменения вида для пользователя, применить tooling-review/session-learnings/repo-polish и обновить production. Полный Telegram E2E не нужен — проверять только затронутые фичи.
+```
+
+Нормализация:
+- [x] выполнить read-only аудит production и локального кода вокруг Telegram offset, dispatcher, worker advisory lock и persisted delivery claims;
+- [ ] подтверждать Telegram update только после успешной обработки, не оставляя неподтвержденную работу в памяти;
+- [ ] держать PostgreSQL advisory lock на одной выделенной session от acquire до unlock;
+- [ ] дать alert/progress claims persisted lease и автоматическое восстановление после падения процесса;
+- [ ] компенсировать worker send-then-persist ошибки удалением только что отправленного сообщения, где это безопасно;
+- [ ] удалить ставший лишним concurrency tooling и обновить архитектурные инварианты/операционный runbook;
+- [ ] выполнить focused PostgreSQL/Go/Telegram проверки без полного E2E;
+- [ ] снять production backup, развернуть текущий head и проверить schema/services/queues/logs.
+
+Маршрутизация:
+- [x] source map `S036`;
+- [x] `REQ-059..REQ-060`, `CON-007`, `VAL-013`, `STEP-035`;
+- [ ] локальная реализация, review и repair;
+- [ ] focused validation, commit и production handoff.
+
+Границы:
+- пользовательские тексты, кнопки и продуктовая семантика не меняются;
+- full Telegram E2E не запускается;
+- production data не редактируются вручную: до deploy очереди read-only проверены как чистые.

@@ -19,8 +19,6 @@ command.
 - `internal/logging`: structured `slog` setup.
 - `internal/telegram`: typed Bot API client, update models, retry/error
   classification, and input extraction.
-- `internal/dispatcher`: mailbox ordering by workspace/user so related updates
-  are processed serially.
 - `internal/bot`: explicit update router for setup, Today, reports, routines,
   seasonal goals, and alert acknowledgements.
 - `internal/app/setup`: forum/admin checks and product topic repair.
@@ -33,6 +31,29 @@ command.
   claims, advisory worker lock, and E2E control state.
 - `internal/ui`: Telegram HTML formatters and inline keyboards.
 - `internal/control`: local-only reset/clock/tick/topics HTTP endpoints.
+
+## Delivery And Concurrency
+
+The API handles Telegram updates in the order returned by `getUpdates`. The
+polling offset advances only after an update handler succeeds. A failed update
+therefore remains unacknowledged and is retried with backoff; already completed
+updates before it form the acknowledged prefix. Trackmate intentionally has no
+second in-memory dispatch queue, so process shutdown cannot strand fetched work
+behind an already advanced cursor.
+
+The worker serializes ticks with a schema-namespaced PostgreSQL session
+advisory lock. The lock owns one acquired `pgxpool.Conn` from
+`pg_try_advisory_lock` through
+`pg_advisory_unlock`; releasing it uses a bounded background context so a
+cancelled tick cannot return a locked session to the pool.
+
+Alert and Progress outbox claims persist their start time. A process may
+reclaim `dispatching` or `publishing` rows after five minutes, including legacy
+rows with no start time. Completion and requeue operations require the claimed
+state and report a lost claim instead of silently succeeding. Telegram sends
+still cross an external-system boundary, so when the following database write
+fails, worker flows make a bounded attempt to delete the just-sent message
+before making the row retryable.
 
 ## Product Surface
 
