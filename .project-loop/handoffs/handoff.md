@@ -323,12 +323,13 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Production сейчас на commit `76db6c2`; STEP-031/STEP-032/STEP-033/STEP-034 локальны и требуют отдельного approval на deploy.
+- Production сейчас на commit `ee07db3`; STEP-031..STEP-035 развернуты, обе миграции `202608050001..2` применены.
 - Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
 - User-visible text changes require explicit user request and before/after preview.
+- В production сохранен активный pending `seasonal_goals` от 2026-08-05 09:38 UTC; не считать его stuck cleanup без проверки пользовательского контекста.
 
 ## Следующее Действие
-- Передать пользователю готовый STEP-034. Production deploy STEP-031..STEP-034 выполнять только после явного approval.
+- Передать пользователю завершенный STEP-035; новых обязательных действий нет.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
@@ -366,7 +367,7 @@
 - Unit и clean-schema PostgreSQL integration покрывают тройной replay, старый null message ID, undeletable message и полный Telegram failure с сохранением retryable DB state.
 - Полный DB-backed `go test ./... -count=1`, `make lint`, `git diff --check`, Project Loop validation: pass.
 - Live test bot: alert message `828` удален кнопкой `Понял`; report flow прошел на одном message `827` (`task card → status chooser → report prompt → closed card`); финально `pending_inputs=0`, unpublished progress `0`, open alerts `0`, сервисы healthy, error log scan clean.
-- Production code не менялся; deploy остается за отдельным approval.
+- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
 
 ### STEP-032: recoverable setup prompts Goals/Routine
 
@@ -377,7 +378,7 @@
 - PostgreSQL tests покрывают Goals и Routine reuse/missing/transient paths. Полный DB-backed Go suite, lint, vet, diff check и Project Loop validation прошли.
 - Live test bot: первый Goals callback создал message `833`, повторный callback переиспользовал его без send; source message `834` сохранился, confirmation `835` отправлен один раз, `pending_inputs=0`, сервисы healthy, error log scan clean.
 - Текущая product semantics weekly reviews не менялась: unanswered pending очищается через 24 часа, та же review row повторно не отправляется; следующий двухнедельный review независим. Нужен выбор пользователя, если это следует изменить.
-- Production code не менялся; deploy остается за отдельным approval.
+- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
 
 ### STEP-033: контекстный routine auto-close alert
 
@@ -389,7 +390,7 @@
 - Первый focused live прогон подтвердил основной flow. Второй воспроизвел реальную гонку periodic/manual tick и два сообщения `845`/`846`; доставка исправлена транзакционным row claim `FOR UPDATE SKIP LOCKED`, concurrency regression test закрепляет отсутствие дубля.
 - Финальный focused live прогон: card `850` сохранена, отправлен единственный alert `851`, `Понял` удалил alert, card осталась; `pending_never_sent=0`, сервисы healthy, error/warn logs чисты.
 - Проверки: focused DB-backed Go packages, formatter/Telegram/storage tests, `make lint`, focused `go vet`, `git diff --check`, Project Loop validation. Полный Telegram E2E намеренно не запускался.
-- Production code не менялся; deploy остается за отдельным approval.
+- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
 
 ### STEP-034: retry/skip lifecycle вопросов по целям
 
@@ -401,4 +402,19 @@
 - Focused live: initial `855` (`requested_at=2026-08-09T17:00:00Z`), retry `856` (`reminder_sent_at=2026-08-10T17:00:00Z`), на 48-м часу message/pending сохранены, на 72-м prompt удален и review `532` получил `skipped_at=2026-08-12T17:00:00Z`; pending/open reviews `0`.
 - Первый E2E template использовал `wait` для внешнего delete-event; runner не проснулся, хотя snapshot уже показывал удаление. Template заменен на прямой `assert_not_visible_text`, финальная проверка прошла.
 - Проверки: focused DB-backed packages, `make test`, `make lint`, focused `go vet`, local migration/readback, Project Loop validation, Docker health/log scan. Полный Telegram E2E намеренно не запускался.
-- Пользовательские тексты не менялись. Production code не менялся; deploy остается за отдельным approval.
+- Пользовательские тексты не менялись. Развернуто в production вместе со STEP-035 на commit `ee07db3`.
+
+### STEP-035: delivery concurrency hardening и production deploy
+
+- Tooling review выделил три независимые первопричины: Telegram offset подтверждал update до async handler; session advisory lock acquire/unlock выполнялись через произвольные pool connections; `dispatching`/`publishing` не имели persisted lease и после crash могли остаться навсегда.
+- Async mailbox dispatcher удален. API обрабатывает полученный prefix последовательно и двигает offset только после успешного handler; ошибка сохраняет текущий update для retry с backoff.
+- Worker advisory lock теперь schema-namespaced, держит один pinned `pgxpool.Conn` и освобождается bounded background context; failed unlock закрывает session вместо возврата потенциально locked connection в pool.
+- Migration `202608050002_delivery_claim_leases.sql` добавила alert/progress claim timestamps и индексы. Fresh claim не переиспользуется, expired/legacy claim восстанавливается через 5 минут, terminal/requeue transition проверяет владение состоянием.
+- Worker send-then-persist paths в Today alerts, Progress, Routine и Goals делают bounded compensation: удаляют только что отправленное сообщение, прежде чем requeue/return.
+- Session learnings закреплены в `AGENTS.md` и architecture/operations; repo polish добавил `make vet` и единый `make check`.
+- Локально: additive migration/readback, clean-schema PostgreSQL concurrency tests, DB-backed `make check`, `git diff --check`, Project Loop validation и Docker health/log scan прошли.
+- Focused live без full E2E: task `134` → один alert `21`/message `860`; lease очищен, `👀 Понял` удалил alert; test DB/history очищены, clock override снят, stale claims/open progress/pending inputs `0`.
+- Commit `ee07db3` опубликован в `main`. Production backup `/opt/trackmate/backups/trackmate_20260805T113344Z.dump` проверен checksum и `pg_restore --list`.
+- Production обновлен `76db6c2 → ee07db3`: `api`/`worker`/`postgres` healthy; migrations `202608050001`/`202608050002` applied; alerts `127 sent`, progress `268 published`, stale claims `0`, idle transactions `0`, advisory waiters `0`, error/warn scan чистый.
+- Один свежий `seasonal_goals` pending сохранен как активный. Два исторических sent/unacknowledged alerts за май не мутировались: они не входят в claim queue и не могут stack-аться; новый callback lifecycle закроет их, если пользователь нажмет старую кнопку.
+- Пользовательские тексты/кнопки/расписания не менялись. Полный Telegram E2E намеренно не запускался.

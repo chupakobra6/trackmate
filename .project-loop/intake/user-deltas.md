@@ -1178,21 +1178,30 @@ ID источника: `S036`
 
 Нормализация:
 - [x] выполнить read-only аудит production и локального кода вокруг Telegram offset, dispatcher, worker advisory lock и persisted delivery claims;
-- [ ] подтверждать Telegram update только после успешной обработки, не оставляя неподтвержденную работу в памяти;
-- [ ] держать PostgreSQL advisory lock на одной выделенной session от acquire до unlock;
-- [ ] дать alert/progress claims persisted lease и автоматическое восстановление после падения процесса;
-- [ ] компенсировать worker send-then-persist ошибки удалением только что отправленного сообщения, где это безопасно;
-- [ ] удалить ставший лишним concurrency tooling и обновить архитектурные инварианты/операционный runbook;
-- [ ] выполнить focused PostgreSQL/Go/Telegram проверки без полного E2E;
-- [ ] снять production backup, развернуть текущий head и проверить schema/services/queues/logs.
+- [x] подтверждать Telegram update только после успешной обработки, не оставляя неподтвержденную работу в памяти;
+- [x] держать PostgreSQL advisory lock на одной выделенной session от acquire до unlock;
+- [x] дать alert/progress claims persisted lease и автоматическое восстановление после падения процесса;
+- [x] компенсировать worker send-then-persist ошибки удалением только что отправленного сообщения, где это безопасно;
+- [x] удалить ставший лишним concurrency tooling и обновить архитектурные инварианты/операционный runbook;
+- [x] выполнить focused PostgreSQL/Go/Telegram проверки без полного E2E;
+- [x] снять production backup, развернуть текущий head и проверить schema/services/queues/logs.
 
 Маршрутизация:
 - [x] source map `S036`;
 - [x] `REQ-059..REQ-060`, `CON-007`, `VAL-013`, `STEP-035`;
-- [ ] локальная реализация, review и repair;
-- [ ] focused validation, commit и production handoff.
+- [x] локальная реализация, review и repair;
+- [x] focused validation, commit и production handoff.
 
 Границы:
 - пользовательские тексты, кнопки и продуктовая семантика не меняются;
 - full Telegram E2E не запускается;
 - production data не редактируются вручную: до deploy очереди read-only проверены как чистые.
+
+Проверка:
+- success-based offset покрыт unit test; async dispatcher и его mailbox lifecycle удалены;
+- clean-schema PostgreSQL test подтверждает schema-namespaced same-session advisory lock, безопасный release после cancelled context, lease expiry/legacy reclaim и запрет повторного завершения claim;
+- migration `202608050002` применена локально и на production;
+- `TRACKMATE_TEST_DATABASE_URL=... make check`, `git diff --check` и Project Loop validation прошли;
+- focused live alert/worker smoke: task `134`, alert `21`/message `860`, один send, очищенный lease, успешный `Понял`; test workspace/messages очищены;
+- production backup `/opt/trackmate/backups/trackmate_20260805T113344Z.dump` прошёл checksum и `pg_restore --list`;
+- production `ee07db3`: обе миграции applied, сервисы healthy, stale claims `0`, idle transactions `0`, error/warn scan чистый; активный `seasonal_goals` pending не тронут.

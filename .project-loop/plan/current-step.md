@@ -3,24 +3,30 @@
 Проект: trackmate
 Обновлено: 2026-08-05
 
-## Активный Шаг
+## Завершенный Шаг
 - id: `STEP-035`
-- status: `в работе`
+- status: `готово`
 - objective: Упростить delivery concurrency и устранить потерю Telegram updates, session-leak advisory lock и навсегда зависающие delivery claims без изменения пользовательского вида.
 - requirement IDs: `REQ-059`, `REQ-060`, `VAL-013`
-- owned paths: `cmd/trackmate-api/`, `internal/dispatcher/`, `internal/worker/`, `internal/app/progress/`, `internal/app/routine/`, `internal/app/goals/`, `internal/storage/postgres/`, additive migration, architecture/operations docs, `AGENTS.md`, `.project-loop/`.
-- validation: focused unit/PostgreSQL concurrency tests; additive migration; focused worker/app packages; full Go suite, lint/vet; только затронутые Telegram scenarios; production backup/deploy/read-only verification.
-- done criteria: success-based Telegram offset; no in-memory unacknowledged queue; same-session worker lock; crash-recoverable alert/progress claims; compensated worker send/persist failures; clean production services/queues/logs.
+- delivered commit: `ee07db3`
+- production: `ee07db3`, migrations `202608050001` и `202608050002` applied.
+- backup: `/opt/trackmate/backups/trackmate_20260805T113344Z.dump` (checksum + archive listing pass).
 
-## Фокус Ревью
-- Не оставлять compatibility aliases или параллельные старые contracts.
-- Удалить dispatcher, если последовательная обработка сохраняет нужный пользовательский flow и делает cursor ownership однозначным.
-- Проверить границы внешнего Telegram send и DB persistence; exactly-once недоступен, поэтому нужны persisted lease + безопасная компенсация.
-- Не менять тексты, кнопки, расписания или продуктовые состояния.
+## Итог
+- Telegram updates обрабатываются последовательно; offset двигается только после успешного handler, async mailbox dispatcher удален.
+- Worker lock schema-namespaced и живет на одном pinned `pgxpool.Conn` до bounded background unlock.
+- Alert/Progress claims имеют persisted 5-minute lease, legacy/crash reclaim и проверяемые terminal transitions.
+- Worker send-then-persist paths компенсируют ошибку bounded удалением только что отправленного Telegram message.
+- Инварианты сохранены в `AGENTS.md`/architecture/operations; `make check` объединяет lint, vet и tests.
 
-## Проверенная Исходная Картина
-- Production на `76db6c2`, сервисы healthy; alerts: `127 sent`, progress: `268 published`, stuck rows не обнаружены.
-- `pg_try_advisory_lock` и `pg_advisory_unlock` вызываются через pool без закрепленной session.
-- `dispatching`/`publishing` не имеют времени claim и после crash не восстанавливаются.
-- Telegram offset увеличивается до завершения async handler, поэтому следующий poll может подтвердить еще не обработанный update.
-- Полный Telegram E2E не запускается по явному пользовательскому правилу.
+## Валидация
+- Clean-schema PostgreSQL concurrency/delivery tests: pass.
+- `TRACKMATE_TEST_DATABASE_URL=... make check`: pass.
+- Local migration/readback, Docker health/log scan: pass.
+- Focused live alert/worker smoke: task `134`, alert `21`, message `860`, dismiss pass; test data/history cleaned.
+- Full Telegram E2E намеренно не запускался.
+- Production: services healthy; stale alert/progress claims `0`; idle transactions `0`; worker advisory waiters `0`; fresh error/warn scan empty.
+
+## Сохраненное Production-Состояние
+- Один свежий `seasonal_goals` pending Игоря оставлен без изменений как активный ввод.
+- Два исторических sent/unacknowledged alerts за май оставлены без ручной мутации; они не claimable и не создают повторных отправок, а новый callback lifecycle умеет закрыть их при клике.
