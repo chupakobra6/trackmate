@@ -1,7 +1,7 @@
 # План Поставки
 
 Проект: trackmate
-Обновлено: 2026-06-30
+Обновлено: 2026-08-05
 
 ## Этапы
 | Шаг | Статус | ID требований | Цель | Ревью | Проверка |
@@ -36,6 +36,7 @@
 | STEP-028 | `готово` | REQ-050 | Production-сброс рутинных данных и мусора перед повторной настройкой рутин участниками. | Сбросить только routine data/pending в основной группе, оставить Today/Goals/Progress нетронутыми, зафиксировать просьбу заново настроить рутины в будущем update message. | backup: pass; prod SQL `routine_reset_verify|0|0|0|0`: pass; services running |
 | STEP-029 | `готово` | REQ-052 | Диагностировать и исправить неработающее удаление routine reminder по кнопке `Понял`, затем развернуть исправление. | Сверить callback/log/DB на production; покрыть обычное удаление и undeletable fallback; не менять видимые тексты. | focused tests: pass; `make test`: pass; `make lint`: pass; local Docker healthy; production deploy `2a25305`: healthy |
 | STEP-030 | `готово` | REQ-053,VAL-008 | Добавить отдельный `Итог дня` после 20:00, полностью проверить и развернуть в production. | Сверить cutoff, общий lifecycle, Today/Progress copy, edit sync, alerts/auto-fail, DB distinction и отсутствие влияния на task metrics; выполнить local+live E2E и production health checks. | commit `848042d`; local Docker migration `202607120001`; PostgreSQL integration, full Go tests and live Telegram normal/auto-fail flows: pass; production backup/deploy complete; DB counts, schema, logs and `api`/`worker`/`postgres` verified |
+| STEP-031 | `готово` | REQ-054,VAL-009 | Исправить Today alert/report lifecycle без новых сообщений на повторный callback и с надежным `Понял`. | Проверить единый in-place state transition, отсутствие маскировки Telegram errors, старый DB/message рассинхрон, повторные callbacks и cleanup после завершения; затем focused/full tests и live E2E. | unit+PostgreSQL integration: pass; full DB-backed Go suite and lint: pass; live alert ack removed message `828`; report lifecycle edited message `827` in place; final DB/log/health checks clean |
 
 ## Примечания По Порядку
 - Шаги достаточно маленькие для цикла: реализация, ревью, исправление, проверка, коммит, handoff.

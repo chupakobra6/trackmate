@@ -545,6 +545,11 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			if err := s.dismissTaskAlerts(ctx, q, callback.Message.Chat.ID, taskID); err != nil {
 				return err
 			}
+			if callback.Message.MessageID != optionalInt64(task.TodayCardMessageID) {
+				if err := s.dismissTelegramMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID); err != nil {
+					return err
+				}
+			}
 			answer.Text = messages.Text("callback.task.closed")
 			return nil
 		}
@@ -554,14 +559,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			answer.Text = pendingBusyText(pending.Kind)
 			return nil
 		}
-		_, err = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
-			ChatID:              callback.Message.Chat.ID,
-			MessageThreadID:     callback.Message.MessageThreadID,
-			Text:                messages.Text("task.status.prompt"),
-			ReplyMarkup:         dailyEntryStatusKeyboard(task),
-			DisableNotification: true,
-		})
-		return err
+		return s.showDailyEntryStatus(ctx, callback.Message.Chat.ID, callback.Message.MessageID, task)
 	})
 	return answer, err
 }
@@ -646,8 +644,7 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 			return err
 		}
 		if !found {
-			_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
-			return nil
+			return s.dismissTelegramMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
 		}
 		task, taskFound, err := q.GetTask(ctx, alert.DailyTaskID)
 		if err != nil {
@@ -656,7 +653,7 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 		if taskFound && task.OwnerUserID != callback.From.ID {
 			return nil
 		}
-		if err := s.dismissAlertMessage(ctx, q, callback.Message.Chat.ID, alert); err != nil {
+		if err := s.dismissAlertMessage(ctx, q, callback.Message.Chat.ID, alert, callback.Message.MessageID); err != nil {
 			return err
 		}
 		answer.Text = messages.Text("callback.alert_hidden")
@@ -666,24 +663,7 @@ func (s *Service) handleAlertAck(ctx context.Context, callback telegram.Callback
 }
 
 func (s *Service) handleNoticeDismiss(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
-	err := s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
-	if err == nil {
-		return CallbackAnswer{}, nil
-	}
-	s.Logger.WarnContext(ctx, "notice_delete_failed", "chat_id", callback.Message.Chat.ID, "message_id", callback.Message.MessageID, "error", err)
-	if editor, ok := s.Telegram.(interface {
-		EditMessageReplyMarkup(context.Context, telegram.EditMessageReplyMarkupRequest) error
-	}); ok {
-		if editErr := editor.EditMessageReplyMarkup(ctx, telegram.EditMessageReplyMarkupRequest{
-			ChatID:    callback.Message.Chat.ID,
-			MessageID: callback.Message.MessageID,
-		}); editErr == nil {
-			return CallbackAnswer{}, nil
-		} else {
-			s.Logger.WarnContext(ctx, "notice_keyboard_remove_failed", "chat_id", callback.Message.Chat.ID, "message_id", callback.Message.MessageID, "error", editErr)
-		}
-	}
-	return CallbackAnswer{}, err
+	return CallbackAnswer{}, s.dismissTelegramMessage(ctx, callback.Message.Chat.ID, callback.Message.MessageID)
 }
 
 func (s *Service) dismissTaskAlerts(ctx context.Context, q *postgres.Queries, chatID int64, taskID int64) error {
@@ -692,22 +672,22 @@ func (s *Service) dismissTaskAlerts(ctx context.Context, q *postgres.Queries, ch
 		return err
 	}
 	for _, alert := range alerts {
-		if err := s.dismissAlertMessage(ctx, q, chatID, alert); err != nil {
+		if err := s.dismissAlertMessage(ctx, q, chatID, alert, 0); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Service) dismissAlertMessage(ctx context.Context, q *postgres.Queries, chatID int64, alert postgres.DailyTaskAlert) error {
-	_ = s.Telegram.DeleteMessage(ctx, chatID, optionalInt64(alert.TelegramMessageID))
-	if err := q.ClearAlertMessage(ctx, alert.ID); err != nil {
+func (s *Service) dismissAlertMessage(ctx context.Context, q *postgres.Queries, chatID int64, alert postgres.DailyTaskAlert, fallbackMessageID int64) error {
+	messageID := optionalInt64(alert.TelegramMessageID)
+	if messageID == 0 {
+		messageID = fallbackMessageID
+	}
+	if err := s.dismissTelegramMessage(ctx, chatID, messageID); err != nil {
 		return err
 	}
-	if alert.AcknowledgedAt == nil {
-		return q.AcknowledgeAlert(ctx, alert.ID, time.Now().UTC())
-	}
-	return nil
+	return q.AcknowledgeAlert(ctx, alert.ID, time.Now().UTC())
 }
 
 func (s *Service) ensureWorkspace(ctx context.Context, chatID int64, title string) (postgres.Workspace, error) {

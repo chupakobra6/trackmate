@@ -1,13 +1,13 @@
 # Handoff
 
 Проект: trackmate
-Обновлено: 2026-06-30
+Обновлено: 2026-08-05
 
 ## Цель
-- Реализовать локально новые топики Trackmate: `Рутины` и `Цели`, уточнить `Сегодня`, протестировать, подготовить миграционный план и остановиться перед production approval.
+- Поддерживать текущий Trackmate и закрывать production-наблюдения локальными проверяемыми исправлениями до отдельного production approval.
 
 ## Текущий Шаг
-- active step: `STEP-027`
+- active step: `STEP-031`
 - status: `готово`
 
 ## Завершено
@@ -356,3 +356,14 @@
 - Локально: PostgreSQL integration, `go test ./... -count=1`, `make test`, `make lint`, `go vet ./...`, `git diff --check` и Docker health: pass.
 - Live Telegram E2E: нормальный flow с редактированием исходного сообщения и auto-fail flow: pass; тестовая группа очищена после проверки.
 - Production backup: `/opt/trackmate/backups/trackmate_20260712T203143Z.dump`. После развёртывания `api`, `worker`, `postgres` healthy; миграция, enum, счётчики, пустой Progress outbox и логи проверены. Сегодня/Прогресс control-сообщения `8`/`10` обновлены через Bot API и подтверждены по тексту.
+
+### STEP-031: единый lifecycle Today alert/report
+
+- Production logs подтвердили две независимые причины: `task:report` отправлял новый status prompt на каждый callback, а alert ack игнорировал delete error и очищал Telegram message ID в БД раньше времени.
+- `task:report` теперь редактирует исходную карточку/alert в `Выбери итог дня`; повторная доставка callback безопасно повторяет edit того же message ID и не отправляет новых сообщений.
+- Alert/notice dismissal централизован: delete → явный tombstone `👀 Уведомление закрыто` без кнопок → удаление одной клавиатуры как последний fallback.
+- Alert подтверждается в БД только после успешного Telegram transition. Callback message ID закрывает старые alerts, у которых прежний код уже очистил stored message ID.
+- Unit и clean-schema PostgreSQL integration покрывают тройной replay, старый null message ID, undeletable message и полный Telegram failure с сохранением retryable DB state.
+- Полный DB-backed `go test ./... -count=1`, `make lint`, `git diff --check`, Project Loop validation: pass.
+- Live test bot: alert message `828` удален кнопкой `Понял`; report flow прошел на одном message `827` (`task card → status chooser → report prompt → closed card`); финально `pending_inputs=0`, unpublished progress `0`, open alerts `0`, сервисы healthy, error log scan clean.
+- Production code не менялся; deploy остается за отдельным approval.

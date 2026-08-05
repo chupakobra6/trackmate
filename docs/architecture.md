@@ -72,12 +72,23 @@ Daily entry creation is protected by:
 Task cards stay in Today and include a report button while the task is open.
 Summary cards stay in Today and show their three status buttons while open.
 
-`task:report:<task_id>` opens the report flow.
+`task:report:<task_id>` opens the report flow by editing the pressed task card
+or alert in place into the status chooser. Replayed callbacks edit that same
+message and never send another chooser, so repeated taps cannot stack duplicate
+`Выбери итог дня` messages.
 `task:status:<task_id>:<done|partial|failed>` stores pending
 `daily_task_report` or `daily_summary_report`. The next Today message is
 claimed through the database, updates the card, and creates a
 `daily_task.closed` or `daily_summary.closed` progress event. Summary status
 `partial` is rendered as `Средне`; it is never shown as `Частично`.
+
+Alert and notice dismissal first tries to delete the Telegram message. If an
+older message can no longer be deleted, Trackmate replaces it with an inert
+`Уведомление закрыто` tombstone and no buttons; keyboard removal is the final
+fallback. An alert is acknowledged and detached from its Telegram message in
+the database only after one of those UI transitions succeeds. The callback
+message ID is retained as a recovery path for alerts affected by older versions
+that cleared the stored message ID too early.
 
 Wrong-topic daily task/report input is ignored without consuming pending state.
 

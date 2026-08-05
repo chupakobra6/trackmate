@@ -568,6 +568,34 @@ ID источника: `S007`
 Конфликты:
 - отсутствуют
 
+### Today Alert Lifecycle Bug
+
+ID источника: `S031`
+
+Исходный ввод:
+
+```text
+На Today-alert кнопка «Понял» не убирает сообщение. При повторных нажатиях
+«Результат» сообщения «Выбери итог дня» стакаются. Исправить будущий flow не
+точечной заплаткой, а через правильный lifecycle, идемпотентность и тесты.
+```
+
+Evidence:
+- screenshot: `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-5e399b62-7fc0-4d21-8d00-10aaa6d38fd2.png`;
+- production callbacks: `task:report:206` дважды с одного message `4723`, `task:report:225` дважды с card `5094`, `task:report:244` трижды с alert `5828`;
+- production alert `114` получал `alert:ack:114` повторно 30.07 и 01.08, то есть кнопка осталась активной после первого acknowledgement;
+- текущий handler создает новый Telegram message на каждый `task:report`, а alert dismissal игнорирует ошибку `DeleteMessage` перед очисткой DB state.
+
+Нормализация:
+- [x] требование: переход `Результат → выбор оценки → ввод результата` использует одну редактируемую карточку и не создает новые status prompts на повторный callback;
+- [x] требование: `Понял` считается успешным только после удаления сообщения или явного визуального закрытия без активной клавиатуры;
+- [x] требование: при старом рассинхроне DB callback message ID остается достаточным, чтобы закрыть застрявший alert;
+- [x] требование: ошибки Telegram не маскируются, а DB acknowledgement записывается после успешного UI transition;
+- [x] валидация: integration tests для repeated callbacks, stale acknowledged alert и delete/edit failure; focused/full tests, lint, E2E Today alert flow.
+
+Конфликты:
+- S031 усиливает S029/REQ-052: одного снятия клавиатуры без общей семантики lifecycle недостаточно; Today alerts и generic dismiss должны пользоваться одним надежным механизмом.
+
 ### Итог дня после 20:00
 
 ID источника: `S030`

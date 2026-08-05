@@ -1,7 +1,7 @@
 # Карта Источников
 
 Проект: trackmate
-Обновлено: 2026-06-30
+Обновлено: 2026-08-05
 
 ## Приоритет Источников
 1. Текущая прямая инструкция Игоря.
@@ -45,6 +45,7 @@
 | S028 | user | 2026-06-30 | `.project-loop/intake/user-deltas.md` | принято | Production operation: after deploying the current head, verify and edit existing pinned/control topic messages to match the new style, keep routines empty, and adapt existing Goals messages to the source-link flow without deleting visible history. |
 | S029 | user | 2026-07-12 | `.project-loop/intake/user-deltas.md`; screenshot `/Users/igor/Downloads/IMG_7564.PNG` | принято | Production bug: callback `notice:dismiss` дошел для routine reminder, но сообщение не удалилось; проверить данные, устранить маскировку ошибки удаления, добавить надежный fallback и выкатить исправление. |
 | S030 | user | 2026-07-12 | `.project-loop/intake/user-deltas.md` | принято | После 20:00 кнопка Today создает отдельный `Итог дня`: оценки Хорошо/Средне/Плохо, единый жизненный цикл с задачей, отдельные метрики и Progress события, полная проверка и production deploy. |
+| S031 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-5e399b62-7fc0-4d21-8d00-10aaa6d38fd2.png` | принято | Production bug: `Понял` у Today-alert визуально не закрывает сообщение, повторные клики `Результат` создают несколько одинаковых `Выбери итог дня`; нужен единый редактируемый lifecycle, надежное закрытие и защита от повторных callbacks. |
 
 ## Конфликты
 | Источники | Решение | Дата |
