@@ -47,6 +47,7 @@
 ## Verification
 - Before finishing, run the narrowest relevant validation.
 - If code paths changed materially, run lint + tests relevant to touched files.
+- By default, run only the focused Telegram E2E scenario for the changed feature. Run the full Telegram E2E suite only when the user explicitly requests it.
 - For full Telegram E2E closure, record the run id and verify scenario logs,
   `pending_inputs=0`, unpublished progress events `0`, healthy Docker services,
   and recent `api`/`worker` logs.
