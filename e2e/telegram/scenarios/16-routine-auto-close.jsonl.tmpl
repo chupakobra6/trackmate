@@ -1,0 +1,13 @@
+# Точечно проверяет routine auto-close без полного Telegram E2E.
+# Пока сценарий ждет карточку, выставь через control API 08:00 следующего локального дня и вызови tick.
+# После появления карточки выставь 00:00 еще через день и снова вызови tick.
+{"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}
+{"id":"open_routine_setup","action":"click_button","button_text":"✏️ Настроить рутину","timeout_ms":60000}
+{"id":"wait_routine_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_routine_items","action":"send_text","text":"- вода auto-close e2e\n- чтение auto-close e2e"}
+{"id":"wait_routine_setup_cleanup","action":"assert_not_visible_text","text":"Пришли список рутин одним сообщением","timeout_ms":15000}
+{"id":"wait_routine_card","action":"assert_visible_text","text":"Отметь пункты за этот день","timeout_ms":180000}
+{"id":"wait_auto_close_alert","action":"assert_visible_text","text":"время вышло. Рутина","timeout_ms":180000}
+{"id":"ack_auto_close_alert","action":"click_button","button_text":"👀 Понял","message_text":"время вышло. Рутина","timeout_ms":60000}
+{"id":"assert_alert_closed","action":"assert_not_visible_text","text":"время вышло. Рутина","timeout_ms":15000}
+{"id":"assert_final_card_kept","action":"assert_visible_text","text":"❌ вода auto-close e2e","timeout_ms":60000}

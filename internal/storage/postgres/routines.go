@@ -85,8 +85,7 @@ ORDER BY rp.id ASC
 	return result, rows.Err()
 }
 
-func (q *Queries) ListOpenRoutineCheckinContexts(ctx context.Context) ([]RoutineCheckinContext, error) {
-	rows, err := q.db.Query(ctx, `
+const routineCheckinContextsQuery = `
 SELECT rc.id, rc.workspace_group_id, rc.participant_id, rc.owner_user_id, rc.checkin_date,
        rc.source_message_id, rc.source_message_thread_id, rc.card_message_id, rc.card_message_thread_id, rc.reminder_message_id, rc.auto_close_notice_message_id, rc.reflection_text,
        rc.created_at, rc.updated_at, rc.reminder_sent_at, rc.auto_close_notice_sent_at, rc.completed_at, rc.auto_failed_at,
@@ -95,6 +94,10 @@ SELECT rc.id, rc.workspace_group_id, rc.participant_id, rc.owner_user_id, rc.che
 FROM routine_checkins rc
 JOIN workspace_groups wg ON wg.id = rc.workspace_group_id
 JOIN participants p ON p.id = rc.participant_id
+`
+
+func (q *Queries) ListOpenRoutineCheckinContexts(ctx context.Context) ([]RoutineCheckinContext, error) {
+	rows, err := q.db.Query(ctx, routineCheckinContextsQuery+`
 WHERE rc.completed_at IS NULL
   AND p.is_active = true
 ORDER BY rc.checkin_date ASC, rc.id ASC
@@ -103,6 +106,40 @@ ORDER BY rc.checkin_date ASC, rc.id ASC
 		return nil, err
 	}
 	defer rows.Close()
+	return q.scanRoutineCheckinContexts(ctx, rows)
+}
+
+// ClaimPendingRoutineAutoCloseNoticeContext must run inside a transaction. The
+// row lock prevents concurrent worker ticks from sending the same notice.
+func (q *Queries) ClaimPendingRoutineAutoCloseNoticeContext(ctx context.Context) (RoutineCheckinContext, bool, error) {
+	rows, err := q.db.Query(ctx, routineCheckinContextsQuery+`
+WHERE rc.id = (
+    SELECT pending.id
+    FROM routine_checkins pending
+    WHERE pending.auto_failed_at IS NOT NULL
+      AND pending.auto_close_notice_message_id IS NULL
+      AND pending.auto_close_notice_sent_at IS NULL
+      AND pending.card_message_thread_id IS NOT NULL
+    ORDER BY pending.checkin_date ASC, pending.id ASC
+    FOR UPDATE SKIP LOCKED
+    LIMIT 1
+)
+`)
+	if err != nil {
+		return RoutineCheckinContext{}, false, err
+	}
+	defer rows.Close()
+	items, err := q.scanRoutineCheckinContexts(ctx, rows)
+	if err != nil {
+		return RoutineCheckinContext{}, false, err
+	}
+	if len(items) == 0 {
+		return RoutineCheckinContext{}, false, nil
+	}
+	return items[0], true, nil
+}
+
+func (q *Queries) scanRoutineCheckinContexts(ctx context.Context, rows pgx.Rows) ([]RoutineCheckinContext, error) {
 	var result []RoutineCheckinContext
 	for rows.Next() {
 		var item RoutineCheckinContext
@@ -135,13 +172,20 @@ ORDER BY rc.checkin_date ASC, rc.id ASC
 		item.Workspace.SetupStatus = domain.GroupSetupStatus(setupStatus)
 		item.Workspace.SetupMessageID = int64FromPgInt4(setupMessageID)
 		item.Participant.Username = textFromPg(username)
-		item.Checkin.Items, err = q.ListRoutineCheckinItems(ctx, item.Checkin.ID)
+		result = append(result, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	for index := range result {
+		items, err := q.ListRoutineCheckinItems(ctx, result[index].Checkin.ID)
 		if err != nil {
 			return nil, err
 		}
-		result = append(result, item)
+		result[index].Checkin.Items = items
 	}
-	return result, rows.Err()
+	return result, nil
 }
 
 func (q *Queries) GetOrCreateRoutineCheckin(ctx context.Context, plan RoutinePlan, checkinDate time.Time) (RoutineCheckin, error) {

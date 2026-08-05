@@ -1092,3 +1092,38 @@ Production evidence:
 Конфликты:
 - Production routine correction из S032 уже достигнута до текущей операции; повторная ручная правка была бы лишней.
 - Повторную доставку двухнедельных review prompts не менять без решения пользователя о желаемом сроке/частоте; текущий шаг чинит только recoverability setup prompts через явную кнопку.
+
+### Routine Auto-Close Alert Polish
+
+ID источника: `S034`
+
+Исходный ввод:
+
+```text
+Сообщение автозакрытия рутины не похоже на остальные алерты: оно не reply, не называет адресата, не дает понять, чья рутина закрыта, не содержит ссылки на исходную рутину и имеет сырой текст/форматирование. Довести фичу полностью и архитектурно.
+```
+
+Нормализация:
+- [x] сохранить точный screenshot/provenance и выделить root cause: auto-close удаляет card до отправки standalone notice;
+- [x] сохранять карточку и редактировать ее в финальное failed-state без inline-кнопок;
+- [x] отправлять единый auto-close alert reply к карточке, с кликабельным адресатом и ссылкой на source routine;
+- [x] убрать отдельный персональный auto-close copy, чтобы формат не менялся случайно между участниками;
+- [x] сделать доставку retryable после Telegram failure и идемпотентной после успеха;
+- [x] обновить docs и dedicated routine auto-close E2E expectations;
+- [x] выполнить formatter/PostgreSQL tests и только focused live Telegram E2E измененной фичи.
+
+Маршрутизация:
+- [x] source map `S034`;
+- [x] `REQ-057`, `VAL-011`, `STEP-033`;
+- [x] локальная реализация и review;
+- [x] validation, commit и handoff.
+
+Конфликты:
+- S034 заменяет только персональный variant routine auto-close из `REQ-045`; персональные routine reminder и daily alert остаются вне текущего scope.
+
+Проверка:
+- первый focused live прогон подтвердил новый reply-alert lifecycle и выявил слабое E2E-ожидание; ожидание карточки привязано к уникальному helper-тексту;
+- второй focused live прогон воспроизвел реальную гонку periodic/manual tick: сообщения `845` и `846` были отправлены одновременно;
+- доставка переведена на транзакционный claim `FOR UPDATE SKIP LOCKED`, добавлен PostgreSQL concurrency regression test;
+- финальный focused live прогон: единственный alert `851`, `Понял` удаляет alert, итоговая карточка `850` остается; `pending_never_sent=0`, error/warn logs чисты;
+- полный Telegram E2E намеренно не запускался по пользовательскому правилу.

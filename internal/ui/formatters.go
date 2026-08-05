@@ -230,15 +230,13 @@ func RoutineReminderText(checkin postgres.RoutineCheckin, displayName string, us
 	)
 }
 
-func RoutineAutoClosedText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64) string {
-	if domain.ShouldShowPersonalAlert(username, fmt.Sprintf("routine-auto-closed:%d", checkin.ID)) {
-		return messages.Format(
-			"routine.auto_closed.egor",
-			"date", checkin.CheckinDate.Format("02.01"),
-			"person", userLinkLabel(displayName, username, userID),
-		)
-	}
-	return messages.Format("routine.auto_closed", "date", checkin.CheckinDate.Format("02.01"))
+func RoutineAutoClosedText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64, routineLink string) string {
+	return messages.Format(
+		"routine.auto_closed",
+		"date", checkin.CheckinDate.Format("02.01"),
+		"person", userLinkLabel(displayName, username, userID),
+		"routine", routineLinkedWord("Рутина", routineLink),
+	)
 }
 
 func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string {

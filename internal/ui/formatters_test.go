@@ -454,8 +454,8 @@ func TestRoutineAlertsUseShortTrackmateStyle(t *testing.T) {
 		t.Fatalf("routine reminder kept old wording: %s", reminder)
 	}
 
-	autoClosed := RoutineAutoClosedText(checkin, "Игорь", "igor", 42)
-	for _, part := range []string{"⏰ <b>Рутина за 28.06 закрыта</b>", "\n\nВсё, что не отмечено, записано как невыполненное"} {
+	autoClosed := RoutineAutoClosedText(checkin, "Игорь", "igor", 42, "https://t.me/c/1/301?thread=13")
+	for _, part := range []string{`⏰ <a href="tg://user?id=42">Игорь</a>, время вышло. <a href="https://t.me/c/1/301?thread=13">Рутина</a> за 28.06 закрыта`, "\n\nНеотмеченные пункты засчитаны как невыполненные"} {
 		if !strings.Contains(autoClosed, part) {
 			t.Fatalf("routine auto-close notice missing %q: %s", part, autoClosed)
 		}
@@ -478,11 +478,14 @@ func TestPersonalRoutineAlertCopyForEgor(t *testing.T) {
 		ID:          3,
 		CheckinDate: time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC),
 	}
-	autoClosed := RoutineAutoClosedText(autoClosedCheckin, "Егор Ковалец", "whysoxxx", 77)
-	for _, part := range []string{`<a href="tg://user?id=77">Егор</a>`, "\n\nЕгор, рутина ушла в минус", "Не будь нищим"} {
+	autoClosed := RoutineAutoClosedText(autoClosedCheckin, "Егор Ковалец", "whysoxxx", 77, "https://t.me/c/1/302?thread=13")
+	for _, part := range []string{`<a href="tg://user?id=77">Егор</a>, время вышло`, `<a href="https://t.me/c/1/302?thread=13">Рутина</a> за 28.06 закрыта`, "Неотмеченные пункты засчитаны как невыполненные"} {
 		if !strings.Contains(autoClosed, part) {
-			t.Fatalf("personal routine auto-close missing %q: %s", part, autoClosed)
+			t.Fatalf("routine auto-close missing canonical copy %q: %s", part, autoClosed)
 		}
+	}
+	if strings.Contains(autoClosed, "рутина ушла в минус") || strings.Contains(autoClosed, "не будь нищим") {
+		t.Fatalf("routine auto-close must not use a random personal variant: %s", autoClosed)
 	}
 }
 

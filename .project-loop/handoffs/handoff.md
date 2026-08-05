@@ -7,7 +7,7 @@
 - Поддерживать текущий Trackmate и закрывать production-наблюдения локальными проверяемыми исправлениями до отдельного production approval.
 
 ## Текущий Шаг
-- active step: `STEP-032`
+- active step: `STEP-033`
 - status: `готово`
 
 ## Завершено
@@ -323,12 +323,12 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Production сейчас на commit `76db6c2`; STEP-031/STEP-032 локальны и требуют отдельного approval на deploy.
+- Production сейчас на commit `76db6c2`; STEP-031/STEP-032/STEP-033 локальны и требуют отдельного approval на deploy.
 - Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
 - User-visible text changes require explicit user request and before/after preview.
 
 ## Следующее Действие
-- Передать пользователю pipeline целей и отдельно согласовать желаемое поведение unanswered двухнедельных review prompts. Production deploy STEP-031/STEP-032 выполнять только после явного approval.
+- Передать пользователю pipeline целей и отдельно согласовать желаемое поведение unanswered двухнедельных review prompts. Production deploy STEP-031/STEP-032/STEP-033 выполнять только после явного approval.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
@@ -377,4 +377,16 @@
 - PostgreSQL tests покрывают Goals и Routine reuse/missing/transient paths. Полный DB-backed Go suite, lint, vet, diff check и Project Loop validation прошли.
 - Live test bot: первый Goals callback создал message `833`, повторный callback переиспользовал его без send; source message `834` сохранился, confirmation `835` отправлен один раз, `pending_inputs=0`, сервисы healthy, error log scan clean.
 - Текущая product semantics weekly reviews не менялась: unanswered pending очищается через 24 часа, та же review row повторно не отправляется; следующий двухнедельный review независим. Нужен выбор пользователя, если это следует изменить.
+- Production code не менялся; deploy остается за отдельным approval.
+
+### STEP-033: контекстный routine auto-close alert
+
+- Production read-only evidence по screenshot S034: check-in `978848` Егора за `2026-07-28`, card `5449`, source routine message `3854`; незавершенных legacy auto-close notices перед будущим deploy нет.
+- Root cause: transition удалял routine card до доставки standalone notice, поэтому сам уничтожал правильный reply context.
+- Теперь auto-close редактирует исходную card в итоговый failed-state без кнопок и сохраняет ее в истории; alert отвечает на эту card, кликабельно называет участника и словом `Рутина` ведет к исходному сообщению настройки.
+- Канонический текст: `⏰ Игорь, время вышло. Рутина за 08.08 закрыта` и `Неотмеченные пункты засчитаны как невыполненные`; отдельный случайный auto-close variant Егора удален.
+- Если card утрачена, alert отвечает на source routine; standalone используется только последним осмысленным fallback. Telegram failure оставляет доставку retryable, а уже доставленный/истекший notice не воскресает.
+- Первый focused live прогон подтвердил основной flow. Второй воспроизвел реальную гонку periodic/manual tick и два сообщения `845`/`846`; доставка исправлена транзакционным row claim `FOR UPDATE SKIP LOCKED`, concurrency regression test закрепляет отсутствие дубля.
+- Финальный focused live прогон: card `850` сохранена, отправлен единственный alert `851`, `Понял` удалил alert, card осталась; `pending_never_sent=0`, сервисы healthy, error/warn logs чисты.
+- Проверки: focused DB-backed Go packages, formatter/Telegram/storage tests, `make lint`, focused `go vet`, `git diff --check`, Project Loop validation. Полный Telegram E2E намеренно не запускался.
 - Production code не менялся; deploy остается за отдельным approval.

@@ -42,4 +42,10 @@ func TestTelegramErrorClassifiers(t *testing.T) {
 	if IsMissingEditTarget(&Error{Description: "request timeout"}) {
 		t.Fatal("transient edit failure must not be treated as a missing target")
 	}
+	if !IsMissingReplyTarget(&Error{Description: "Bad Request: message to be replied not found"}) {
+		t.Fatal("missing reply target was not classified")
+	}
+	if IsMissingReplyTarget(&Error{Description: "request timeout"}) {
+		t.Fatal("transient send failure must not be treated as a missing reply target")
+	}
 }

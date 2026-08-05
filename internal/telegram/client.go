@@ -371,6 +371,16 @@ func IsMissingEditTarget(err error) bool {
 		strings.Contains(text, "message_id_invalid")
 }
 
+func IsMissingReplyTarget(err error) bool {
+	if err == nil {
+		return false
+	}
+	text := strings.ToLower(err.Error())
+	return strings.Contains(text, "reply message not found") ||
+		strings.Contains(text, "message to be replied not found") ||
+		strings.Contains(text, "reply_to_message_id_invalid")
+}
+
 func IsTransientRequestError(err error) bool {
 	if err == nil {
 		return false

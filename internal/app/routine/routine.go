@@ -3,6 +3,7 @@ package routine
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -87,7 +88,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
 				return err
 			}
-			closed, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
+			_, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
 			if err != nil {
 				return err
 			}
@@ -99,22 +100,6 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 				if err := store.Queries().ClearRoutineCheckinReminderMessageID(ctx, item.Checkin.ID); err != nil {
 					return err
 				}
-			}
-			_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.CardMessageID)
-			notice, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
-				ChatID:          item.Workspace.ChatID,
-				MessageThreadID: *item.Checkin.CardMessageThreadID,
-				Text:            ui.RoutineAutoClosedText(closed, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
-				ReplyMarkup:     ui.DismissKeyboard(),
-			}))
-			if err != nil {
-				if logger != nil {
-					logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", item.Checkin.ID, "error", err)
-				}
-				return err
-			}
-			if err := store.Queries().SetRoutineCheckinAutoCloseNoticeMessageID(ctx, item.Checkin.ID, notice.MessageID, nowUTC); err != nil {
-				return err
 			}
 			refreshed[item.Workspace.ID] = item.Workspace
 			continue
@@ -143,10 +128,79 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			return err
 		}
 	}
+	for {
+		var item postgres.RoutineCheckinContext
+		var found bool
+		err := store.InTx(ctx, func(q *postgres.Queries) error {
+			var err error
+			item, found, err = q.ClaimPendingRoutineAutoCloseNoticeContext(ctx)
+			if err != nil || !found {
+				return err
+			}
+			return deliverRoutineAutoCloseNotice(ctx, q, tg, logger, item, nowUTC)
+		})
+		if err != nil {
+			return err
+		}
+		if !found {
+			break
+		}
+		refreshed[item.Workspace.ID] = item.Workspace
+	}
 	for _, workspace := range refreshed {
 		if err := RefreshLeaderboard(ctx, store.Queries(), tg, workspace, workspace.ChatID, nowUTC); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func deliverRoutineAutoCloseNotice(ctx context.Context, q *postgres.Queries, tg telegram.API, logger *slog.Logger, item postgres.RoutineCheckinContext, nowUTC time.Time) error {
+	checkin := item.Checkin
+	routineLink := routineSourceLink(item.Workspace.ChatID, checkin)
+	replyToMessageID := optionalInt64(checkin.CardMessageID)
+	if replyToMessageID != 0 {
+		err := tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
+			ChatID:      item.Workspace.ChatID,
+			MessageID:   replyToMessageID,
+			Text:        ui.FormatRoutineCheckinFinishedCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), routineLink, ""),
+			ReplyMarkup: ui.EmptyKeyboard(),
+		})
+		if err != nil && !telegram.IsNotModifiedError(err) {
+			if !telegram.IsMissingEditTarget(err) {
+				return fmt.Errorf("update auto-closed routine card %d: %w", checkin.ID, err)
+			}
+			if logger != nil {
+				logger.WarnContext(ctx, "routine_auto_close_card_missing", "checkin_id", checkin.ID, "message_id", replyToMessageID, "error", err)
+			}
+			replyToMessageID = optionalInt64(checkin.SourceMessageID)
+		}
+	}
+	if replyToMessageID == 0 {
+		replyToMessageID = optionalInt64(checkin.SourceMessageID)
+	}
+	request := telegram.ReplyMessage(telegram.SendMessageRequest{
+		ChatID:          item.Workspace.ChatID,
+		MessageThreadID: optionalInt64(checkin.CardMessageThreadID),
+		Text:            ui.RoutineAutoClosedText(checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID, routineLink),
+		ReplyMarkup:     ui.DismissKeyboard(),
+	}, replyToMessageID)
+	notice, err := tg.SendMessage(ctx, request)
+	if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {
+		if logger != nil {
+			logger.WarnContext(ctx, "routine_auto_close_reply_target_missing", "checkin_id", checkin.ID, "message_id", request.ReplyToMessageID, "error", err)
+		}
+		request.ReplyToMessageID = 0
+		notice, err = tg.SendMessage(ctx, request)
+	}
+	if err != nil {
+		if logger != nil {
+			logger.WarnContext(ctx, "routine_auto_close_notice_failed", "checkin_id", checkin.ID, "error", err)
+		}
+		return fmt.Errorf("send auto-close notice for routine %d: %w", checkin.ID, err)
+	}
+	if err := q.SetRoutineCheckinAutoCloseNoticeMessageID(ctx, checkin.ID, notice.MessageID, nowUTC); err != nil {
+		return fmt.Errorf("store auto-close notice for routine %d: %w", checkin.ID, err)
 	}
 	return nil
 }

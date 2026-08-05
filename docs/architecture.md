@@ -135,9 +135,13 @@ Routine results stay in `Рутины`. They do not create `progress_events`.
 
 If a routine card is still open at 20:00 local time on the check-in day,
 Trackmate sends a single reminder in `Рутины`. At 00:00 the next local day,
-missing items are marked as `failed`, the check-in card is deleted, a short
-auto-close notice is posted in `Рутины`, and the routine leaderboard is
-refreshed. Reminder and auto-close notices are temporary and are cleaned up after
+missing items are marked as `failed` and the existing check-in card is edited
+in place to its final state without buttons. A short auto-close alert names the
+participant, links the source routine, and is posted as a reply to that card.
+If the card was removed outside Trackmate, the source routine message becomes
+the reply fallback. Failed Telegram delivery remains eligible for a later
+worker retry; a delivered alert is not recreated after its temporary message
+is dismissed or cleaned up. Reminder and auto-close alerts are cleaned up after
 about 24 hours if the user does not dismiss them first.
 
 The Routines topic also keeps a leaderboard message with 7-day completion rate,
