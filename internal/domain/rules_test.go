@@ -224,6 +224,38 @@ func TestGoalWeeklyReviewDueEveryOtherSundayEvening(t *testing.T) {
 	}
 }
 
+func TestGoalWeeklyReviewLifecycleActionBoundaries(t *testing.T) {
+	requestedAt := time.Date(2026, 8, 9, 17, 0, 0, 0, time.UTC)
+	remindedAt := requestedAt.Add(GoalReviewReminderDelay)
+	respondedAt := requestedAt.Add(time.Hour)
+	skippedAt := requestedAt.Add(GoalReviewSkipAfter)
+
+	tests := []struct {
+		name       string
+		now        time.Time
+		remindedAt *time.Time
+		responded  *time.Time
+		skipped    *time.Time
+		want       GoalWeeklyReviewAction
+	}{
+		{name: "before reminder", now: requestedAt.Add(GoalReviewReminderDelay - time.Second), want: GoalWeeklyReviewNoAction},
+		{name: "at reminder", now: requestedAt.Add(GoalReviewReminderDelay), want: GoalWeeklyReviewRemind},
+		{name: "after one reminder", now: requestedAt.Add(48 * time.Hour), remindedAt: &remindedAt, want: GoalWeeklyReviewNoAction},
+		{name: "at skip without reminder", now: requestedAt.Add(GoalReviewSkipAfter), want: GoalWeeklyReviewSkip},
+		{name: "at skip after reminder", now: requestedAt.Add(GoalReviewSkipAfter), remindedAt: &remindedAt, want: GoalWeeklyReviewSkip},
+		{name: "already responded", now: requestedAt.Add(GoalReviewSkipAfter), responded: &respondedAt, want: GoalWeeklyReviewNoAction},
+		{name: "already skipped", now: requestedAt.Add(GoalReviewSkipAfter + time.Hour), skipped: &skippedAt, want: GoalWeeklyReviewNoAction},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GoalWeeklyReviewLifecycleAction(requestedAt, tt.remindedAt, tt.responded, tt.skipped, tt.now); got != tt.want {
+				t.Fatalf("action=%q want=%q", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGoalReviewCountdownCountsFutureReviewsAndDays(t *testing.T) {
 	days, reviews, err := GoalReviewCountdown(
 		time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),

@@ -1127,3 +1127,41 @@ ID источника: `S034`
 - доставка переведена на транзакционный claim `FOR UPDATE SKIP LOCKED`, добавлен PostgreSQL concurrency regression test;
 - финальный focused live прогон: единственный alert `851`, `Понял` удаляет alert, итоговая карточка `850` остается; `pending_never_sent=0`, error/warn logs чисты;
 - полный Telegram E2E намеренно не запускался по пользовательскому правилу.
+
+### Goal Review Retry And Skip Lifecycle
+
+ID источника: `S035`
+
+Исходный ввод:
+
+```text
+Если двухнедельный вопрос остался без ответа, через 24 часа он исчезает и именно этот вопрос больше не отправляется. Сделать один повтор через сутки, а через 72 часа закрывать его как пропущенный.
+```
+
+Нормализация:
+- [x] зафиксировать один повтор неотвеченного двухнедельного вопроса через 24 часа от первого запроса;
+- [x] зафиксировать общий дедлайн 72 часа от первого запроса, после которого review становится пропущенным;
+- [x] не отправлять второй и последующие повторы;
+- [x] передать `goal_weekly_review` из общего 24-часового pending cleanup в специализированный lifecycle;
+- [x] хранить время повтора и пропуска в review row, чтобы состояние переживало рестарт;
+- [x] не допускать одновременного weekly/final prompt и не трогать другие pending inputs в topic;
+- [x] обновить docs/E2E expectations и проверить только focused goals-review flow.
+
+Маршрутизация:
+- [x] source map `S035`;
+- [x] `REQ-058`, `VAL-012`, `STEP-034`;
+- [x] локальная реализация и review;
+- [x] validation, commit и handoff.
+
+Границы:
+- пользовательский текст вопросов не меняется;
+- production deploy требует отдельного approval;
+- полный Telegram E2E не запускается.
+
+Проверка:
+- domain boundaries `<24h`, `24h`, `48h`, `72h` покрыты unit test;
+- clean-schema PostgreSQL integration подтверждает один retry, сохранность pending до 72 часов, persisted skip, запрет late answer и отсутствие пересечения с final review;
+- отдельный test подтверждает, что чужой pending в topic не заменяется и не удаляется;
+- focused live: initial message `855` → единственный retry `856`; на 48-м часу retry/pending сохранены; на 72-м prompt удален, review `532` имеет `skipped_at=2026-08-12T17:00:00Z`, pending `0`;
+- внешний delete-event не пробудил runner action `wait`, поэтому template исправлен на прямой `assert_not_visible_text`; отдельная финальная проверка прошла;
+- полный Telegram E2E не запускался.

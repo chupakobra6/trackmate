@@ -203,7 +203,9 @@ type GoalWeeklyReview struct {
 	PromptMessageThreadID *int64
 	ResponseText          *string
 	RequestedAt           time.Time
+	ReminderSentAt        *time.Time
 	RespondedAt           *time.Time
+	SkippedAt             *time.Time
 }
 
 type GoalFinalReview struct {

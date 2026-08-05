@@ -1,0 +1,15 @@
+# Точечно проверяет неотвеченный двухнедельный вопрос: initial → один retry → skipped.
+# До запуска: reset workspace, clock 2026-08-09T16:59:00Z, затем настройка целей.
+# Перед wait_initial_review: clock 2026-08-09T17:00:00Z + POST /control/tick.
+# Перед wait_retry_review: clock 2026-08-10T17:00:00Z + POST /control/tick.
+# Перед assert_review_removed: clock 2026-08-12T17:00:00Z + POST /control/tick.
+{"id":"select_goals","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{GOALS_THREAD_ID}}}
+{"id":"open_goals_setup","action":"click_button","button_text":"✏️ Настроить цели","timeout_ms":60000}
+{"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}
+{"id":"send_goals","action":"send_text","text":"1. Работа\n— Результат: focused retry цели до 01.09.2026\n— Метрика: один проверяемый lifecycle\n— Шаг недели: дождаться вопроса\n— Зачем: проверить напоминание"}
+{"id":"wait_goals_saved","action":"assert_visible_text","text":"Вопросы по целям будут приходить раз в две недели","timeout_ms":90000}
+{"id":"wait_initial_review","action":"wait","timeout_ms":120000}
+{"id":"assert_initial_review","action":"assert_visible_text","text":"🎯 Вопросы по целям","timeout_ms":60000}
+{"id":"wait_retry_review","action":"wait","timeout_ms":120000}
+{"id":"assert_single_retry","action":"assert_visible_text","text":"🎯 Вопросы по целям","timeout_ms":60000}
+{"id":"assert_review_removed","action":"assert_not_visible_text","text":"🎯 Вопросы по целям","timeout_ms":60000}

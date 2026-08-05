@@ -194,11 +194,11 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil || !found || !cooldown.LastShownAt.Equal(nudgeAt) {
 		t.Fatalf("nudge cooldown found=%v cooldown=%+v err=%v", found, cooldown, err)
 	}
-	weekly, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC))
+	weekly, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC), time.Date(2026, 6, 21, 20, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := q.SetGoalWeeklyReviewPrompt(ctx, weekly.ID, 701, 14); err != nil {
+	if updated, err := q.SetGoalWeeklyReviewPrompt(ctx, weekly.ID, 701, 14, time.Date(2026, 6, 21, 20, 0, 0, 0, time.UTC)); err != nil || !updated {
 		t.Fatal(err)
 	}
 	weekly, ok, err = q.SubmitGoalWeeklyReview(ctx, weekly.ID, participant.UserID, "Сдвинулось: 6 откликов")

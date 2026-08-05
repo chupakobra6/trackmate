@@ -472,6 +472,18 @@ WHERE workspace_group_id = $1
 	return err
 }
 
+func (q *Queries) ClearGoalWeeklyReviewPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64, reviewID int64) error {
+	_, err := q.db.Exec(ctx, `
+DELETE FROM pending_inputs
+WHERE workspace_group_id = $1
+  AND user_id = $2
+  AND message_thread_id = $3
+  AND kind = $4
+  AND payload->>'review_id' = $5
+`, workspaceID, userID, threadID, string(domain.PendingGoalWeeklyReview), fmt.Sprint(reviewID))
+	return err
+}
+
 func (q *Queries) ListStalePendingInputContexts(ctx context.Context, cutoff time.Time, limit int) ([]PendingInputContext, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT pi.id, pi.workspace_group_id, pi.user_id, pi.message_thread_id, pi.kind, pi.payload, pi.created_at,
@@ -479,9 +491,10 @@ SELECT pi.id, pi.workspace_group_id, pi.user_id, pi.message_thread_id, pi.kind, 
 FROM pending_inputs pi
 JOIN workspace_groups wg ON wg.id = pi.workspace_group_id
 WHERE pi.created_at <= $1
+  AND pi.kind <> $3
 ORDER BY pi.created_at ASC
 LIMIT $2
-`, cutoff.UTC(), limit)
+`, cutoff.UTC(), limit, string(domain.PendingGoalWeeklyReview))
 	if err != nil {
 		return nil, err
 	}
@@ -513,9 +526,11 @@ LIMIT $2
 func (q *Queries) ClaimStalePendingInput(ctx context.Context, pendingID int64, cutoff time.Time) (PendingInput, bool, error) {
 	row := q.db.QueryRow(ctx, `
 DELETE FROM pending_inputs
-WHERE id = $1 AND created_at <= $2
+WHERE id = $1
+  AND created_at <= $2
+  AND kind <> $3
 RETURNING id, workspace_group_id, user_id, message_thread_id, kind, payload, created_at
-`, pendingID, cutoff.UTC())
+`, pendingID, cutoff.UTC(), string(domain.PendingGoalWeeklyReview))
 	pending, err := scanPending(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PendingInput{}, false, nil

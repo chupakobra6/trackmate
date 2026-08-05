@@ -156,26 +156,73 @@ ORDER BY gs.id ASC
 	return result, rows.Err()
 }
 
-func (q *Queries) GetOrCreateGoalWeeklyReview(ctx context.Context, goalSetID int64, weekStart time.Time) (GoalWeeklyReview, error) {
+func (q *Queries) GetOrCreateGoalWeeklyReview(ctx context.Context, goalSetID int64, weekStart time.Time, requestedAt time.Time) (GoalWeeklyReview, error) {
 	row := q.db.QueryRow(ctx, `
 INSERT INTO seasonal_goal_weekly_reviews (goal_set_id, review_week_start, requested_at)
-VALUES ($1, $2::date, now())
+VALUES ($1, $2::date, $3)
 ON CONFLICT (goal_set_id, review_week_start) DO UPDATE SET
     requested_at = seasonal_goal_weekly_reviews.requested_at
 RETURNING id, goal_set_id, review_week_start, prompt_message_id, prompt_message_thread_id,
-          response_text, requested_at, responded_at
-`, goalSetID, weekStart)
+	      response_text, requested_at, reminder_sent_at, responded_at, skipped_at
+`, goalSetID, weekStart, requestedAt.UTC())
 	return scanGoalWeeklyReview(row)
 }
 
-func (q *Queries) SetGoalWeeklyReviewPrompt(ctx context.Context, reviewID int64, messageID int64, threadID int64) error {
-	_, err := q.db.Exec(ctx, `
+func (q *Queries) GetOpenGoalWeeklyReview(ctx context.Context, goalSetID int64) (GoalWeeklyReview, bool, error) {
+	row := q.db.QueryRow(ctx, `
+SELECT id, goal_set_id, review_week_start, prompt_message_id, prompt_message_thread_id,
+       response_text, requested_at, reminder_sent_at, responded_at, skipped_at
+FROM seasonal_goal_weekly_reviews
+WHERE goal_set_id = $1
+  AND response_text IS NULL
+  AND skipped_at IS NULL
+ORDER BY requested_at ASC
+LIMIT 1
+`, goalSetID)
+	review, err := scanGoalWeeklyReview(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return GoalWeeklyReview{}, false, nil
+	}
+	return review, err == nil, err
+}
+
+func (q *Queries) SetGoalWeeklyReviewPrompt(ctx context.Context, reviewID int64, messageID int64, threadID int64, requestedAt time.Time) (bool, error) {
+	tag, err := q.db.Exec(ctx, `
 UPDATE seasonal_goal_weekly_reviews
 SET prompt_message_id = $2,
-    prompt_message_thread_id = $3
+    prompt_message_thread_id = $3,
+    requested_at = $4
 WHERE id = $1
-`, reviewID, messageID, threadID)
-	return err
+  AND response_text IS NULL
+  AND skipped_at IS NULL
+  AND prompt_message_id IS NULL
+`, reviewID, messageID, threadID, requestedAt.UTC())
+	return err == nil && tag.RowsAffected() == 1, err
+}
+
+func (q *Queries) SetGoalWeeklyReviewReminderPrompt(ctx context.Context, reviewID int64, messageID int64, threadID int64, remindedAt time.Time) (bool, error) {
+	tag, err := q.db.Exec(ctx, `
+UPDATE seasonal_goal_weekly_reviews
+SET prompt_message_id = $2,
+    prompt_message_thread_id = $3,
+    reminder_sent_at = $4
+WHERE id = $1
+  AND response_text IS NULL
+  AND skipped_at IS NULL
+  AND reminder_sent_at IS NULL
+`, reviewID, messageID, threadID, remindedAt.UTC())
+	return err == nil && tag.RowsAffected() == 1, err
+}
+
+func (q *Queries) MarkGoalWeeklyReviewSkipped(ctx context.Context, reviewID int64, skippedAt time.Time) (bool, error) {
+	tag, err := q.db.Exec(ctx, `
+UPDATE seasonal_goal_weekly_reviews
+SET skipped_at = $2
+WHERE id = $1
+  AND response_text IS NULL
+  AND skipped_at IS NULL
+`, reviewID, skippedAt.UTC())
+	return err == nil && tag.RowsAffected() == 1, err
 }
 
 func (q *Queries) SubmitGoalWeeklyReview(ctx context.Context, reviewID int64, ownerUserID int64, responseHTML string) (GoalWeeklyReview, bool, error) {
@@ -187,8 +234,9 @@ FROM seasonal_goal_sets gs
 WHERE gwr.goal_set_id = gs.id
   AND gwr.id = $1
   AND gs.owner_user_id = $2
+  AND gwr.skipped_at IS NULL
 RETURNING gwr.id, gwr.goal_set_id, gwr.review_week_start, gwr.prompt_message_id, gwr.prompt_message_thread_id,
-          gwr.response_text, gwr.requested_at, gwr.responded_at
+	      gwr.response_text, gwr.requested_at, gwr.reminder_sent_at, gwr.responded_at, gwr.skipped_at
 `, reviewID, ownerUserID, responseHTML)
 	review, err := scanGoalWeeklyReview(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -281,17 +329,19 @@ func scanGoalWeeklyReview(row pgx.Row) (GoalWeeklyReview, error) {
 	var review GoalWeeklyReview
 	var promptID, promptThreadID pgtype.Int4
 	var response pgtype.Text
-	var respondedAt pgtype.Timestamptz
+	var reminderSentAt, respondedAt, skippedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&review.ID, &review.GoalSetID, &review.ReviewWeekStart, &promptID, &promptThreadID,
-		&response, &review.RequestedAt, &respondedAt,
+		&response, &review.RequestedAt, &reminderSentAt, &respondedAt, &skippedAt,
 	); err != nil {
 		return GoalWeeklyReview{}, err
 	}
 	review.PromptMessageID = int64FromPgInt4(promptID)
 	review.PromptMessageThreadID = int64FromPgInt4(promptThreadID)
 	review.ResponseText = textFromPg(response)
+	review.ReminderSentAt = timeFromPg(reminderSentAt)
 	review.RespondedAt = timeFromPg(respondedAt)
+	review.SkippedAt = timeFromPg(skippedAt)
 	return review, nil
 }
 

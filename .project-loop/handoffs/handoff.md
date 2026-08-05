@@ -7,7 +7,7 @@
 - Поддерживать текущий Trackmate и закрывать production-наблюдения локальными проверяемыми исправлениями до отдельного production approval.
 
 ## Текущий Шаг
-- active step: `STEP-033`
+- active step: `STEP-034`
 - status: `готово`
 
 ## Завершено
@@ -323,12 +323,12 @@
 - Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
 
 ## Риски И Блокеры
-- Production сейчас на commit `76db6c2`; STEP-031/STEP-032/STEP-033 локальны и требуют отдельного approval на deploy.
+- Production сейчас на commit `76db6c2`; STEP-031/STEP-032/STEP-033/STEP-034 локальны и требуют отдельного approval на deploy.
 - Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
 - User-visible text changes require explicit user request and before/after preview.
 
 ## Следующее Действие
-- Передать пользователю pipeline целей и отдельно согласовать желаемое поведение unanswered двухнедельных review prompts. Production deploy STEP-031/STEP-032/STEP-033 выполнять только после явного approval.
+- Передать пользователю готовый STEP-034. Production deploy STEP-031..STEP-034 выполнять только после явного approval.
 
 ## Обновленные Источники Правды
 - `requirements/source-map.md`
@@ -390,3 +390,15 @@
 - Финальный focused live прогон: card `850` сохранена, отправлен единственный alert `851`, `Понял` удалил alert, card осталась; `pending_never_sent=0`, сервисы healthy, error/warn logs чисты.
 - Проверки: focused DB-backed Go packages, formatter/Telegram/storage tests, `make lint`, focused `go vet`, `git diff --check`, Project Loop validation. Полный Telegram E2E намеренно не запускался.
 - Production code не менялся; deploy остается за отдельным approval.
+
+### STEP-034: retry/skip lifecycle вопросов по целям
+
+- Root cause исчезающего вопроса: generic pending cleanup удалял prompt через 24 часа, а weekly dispatcher создавал review только в очередной двухнедельный слот и больше не возвращался к существующей row.
+- `goal_weekly_review` теперь имеет собственный persisted lifecycle: `requested_at` фиксирует успешную первую доставку, `reminder_sent_at` — единственный retry через 24 часа, `skipped_at` — окончательное закрытие через 72 часа.
+- Generic stale cleanup больше не владеет weekly-review pending. Первый prompt заменяется одним новым сообщением; retry остается доступным для ответа до общего 72-часового дедлайна.
+- На дедлайне prompt удаляется, только matching pending очищается, late answer отклоняется. Другой pending в `Целях` не перезаписывается и не удаляется. Final review ждет, пока открытый weekly review не отвечен или не пропущен.
+- Additive migration `202608050001_goal_review_retry_lifecycle.sql` применена локально; clean-schema tests проверяют схему и lifecycle.
+- Focused live: initial `855` (`requested_at=2026-08-09T17:00:00Z`), retry `856` (`reminder_sent_at=2026-08-10T17:00:00Z`), на 48-м часу message/pending сохранены, на 72-м prompt удален и review `532` получил `skipped_at=2026-08-12T17:00:00Z`; pending/open reviews `0`.
+- Первый E2E template использовал `wait` для внешнего delete-event; runner не проснулся, хотя snapshot уже показывал удаление. Template заменен на прямой `assert_not_visible_text`, финальная проверка прошла.
+- Проверки: focused DB-backed packages, `make test`, `make lint`, focused `go vet`, local migration/readback, Project Loop validation, Docker health/log scan. Полный Telegram E2E намеренно не запускался.
+- Пользовательские тексты не менялись. Production code не менялся; deploy остается за отдельным approval.

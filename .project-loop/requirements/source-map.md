@@ -49,6 +49,7 @@
 | S032 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-b3037db0-81f8-44f5-bc4b-d16263c3e9b3.png` | принято | Production data correction: миссклик по первому пункту рутины Егора за 04.08 должен считаться `done`, причина должна исчезнуть, итоговая карточка и статистика должны совпадать. |
 | S033 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-922835fb-8c84-49bc-8052-db329d55d465.png` | принято | Разобрать user flow целей и возможное исчезновение prompt: объяснить setup/двухнедельные вопросы/финал и сделать setup prompt восстанавливаемым без дублей. |
 | S034 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-16fbfc7f-e4f6-4372-ba3d-b9a043a4a3ac.png` | принято | Довести routine auto-close до общего alert-контракта: понятный адресат, reply к конкретной карточке, ссылка на исходную рутину, единое форматирование/copy и отсутствие сырого standalone notice. |
+| S035 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Подтвержден lifecycle двухнедельного вопроса по целям: один повтор через 24 часа, затем закрытие как пропущенного через 72 часа без дальнейших повторов. |
 
 ## Конфликты
 | Источники | Решение | Дата |
@@ -66,3 +67,4 @@
 | S009/S016 vs S022 | S022 заменяет вечернюю рутину: карточка теперь приходит в 08:00 следующего дня за предыдущую дату; reminder в 20:00, auto-close в 00:00, auto-close notice остается временным на сутки. | 2026-06-29 |
 | S015/S016/S022 vs S034 | S034 заменяет удаление routine card при auto-close: карточка остается как финальный результат и reply target; временными остаются reminder, reason prompts и auto-close alert. | 2026-08-05 |
 | S023/REQ-045 vs S034 | S034 заменяет персональный вариант routine auto-close единым alert-copy; персональные варианты reminder/daily alert остаются, но автозакрытие всегда показывает адресата, ссылку и тот же формат. | 2026-08-05 |
+| S009/S033 vs S035 | Общий cleanup pending через 24 часа больше не владеет `goal_weekly_review`: специализированный lifecycle удаляет первый prompt перед единственным повтором через 24 часа и окончательно закрывает повтор как пропущенный через 72 часа от первого запроса. | 2026-08-05 |

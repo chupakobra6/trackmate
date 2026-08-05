@@ -168,9 +168,12 @@ Every second Sunday after 20:00 local time, the worker sends one goals review
 prompt in `Цели` and stores the response as `goal_weekly_review`. On and after
 the period end date, the worker sends a final review prompt with buttons
 `done|partial|failed`; after the button, the user writes one final summary.
-Like every pending input, an unanswered review prompt is cleaned up after 24
-hours. The current product does not resend that same review row; the next
-scheduled two-week review is independent.
+An unanswered two-week review has its own persisted lifecycle: after 24 hours
+the first prompt is removed and sent once again; 72 hours after the first
+successful delivery, the retry is removed and the review is stored as skipped.
+The generic pending-input cleanup does not own these prompts, so the retry stays
+answerable until the shared 72-hour deadline. A final period review waits until
+an open two-week review is answered or skipped.
 
 Today can show a rare deterministic goal nudge when a participant already has
 seasonal goals for the current period. Nudges are pseudo-random by seed, but

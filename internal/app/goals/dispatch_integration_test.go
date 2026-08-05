@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appgoals "github.com/igor/trackmate/internal/app/goals"
+	apppending "github.com/igor/trackmate/internal/app/pending"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/testsupport"
@@ -60,11 +61,218 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := appgoals.DispatchFinalReviews(ctx, store, fake, time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)); err != nil {
+	finalAt := time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, finalAt); err != nil {
+		t.Fatal(err)
+	}
+	if err := appgoals.DispatchFinalReviews(ctx, store, fake, finalAt); err != nil {
 		t.Fatal(err)
 	}
 	if !fake.hasSentToThread(40, "Итог периода") {
 		t.Fatalf("final review was not sent to goals topic: %+v", fake.sent)
+	}
+}
+
+func TestWeeklyReviewRetriesOnceAndSkipsAfter72Hours(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000557, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 40, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &fakeTelegram{nextMessageID: 4000}
+	requestedAt := time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)
+	setGoalTestClock(t, q, requestedAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, requestedAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 1 {
+		t.Fatalf("initial prompts=%d want=1 sent=%+v", got, fake.sent)
+	}
+	initialPromptID := fake.sentMessageIDs[0]
+
+	beforeReminder := requestedAt.Add(domain.GoalReviewReminderDelay - time.Second)
+	setGoalTestClock(t, q, beforeReminder)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, beforeReminder); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 1 {
+		t.Fatalf("prompt repeated before 24h: %d", got)
+	}
+
+	reminderAt := requestedAt.Add(domain.GoalReviewReminderDelay)
+	setGoalTestClock(t, q, reminderAt)
+	if err := apppending.CleanupStaleInputs(ctx, store, fake, reminderAt); err != nil {
+		t.Fatal(err)
+	}
+	if fake.wasDeleted(initialPromptID) {
+		t.Fatal("generic cleanup must not own weekly review prompts")
+	}
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, reminderAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 2 {
+		t.Fatalf("prompts after 24h=%d want=2 sent=%+v", got, fake.sent)
+	}
+	if !fake.wasDeleted(initialPromptID) {
+		t.Fatalf("initial prompt %d was not removed before retry: %+v", initialPromptID, fake.deleted)
+	}
+	retryPromptID := fake.sentMessageIDs[1]
+	review, found, err := q.GetOpenGoalWeeklyReview(ctx, goalSet.ID)
+	if err != nil || !found || review.ReminderSentAt == nil || review.SkippedAt != nil {
+		t.Fatalf("open reminded review found=%v review=%+v err=%v", found, review, err)
+	}
+
+	after48Hours := requestedAt.Add(48 * time.Hour)
+	setGoalTestClock(t, q, after48Hours)
+	if err := apppending.CleanupStaleInputs(ctx, store, fake, after48Hours); err != nil {
+		t.Fatal(err)
+	}
+	if fake.wasDeleted(retryPromptID) {
+		t.Fatal("retry prompt must remain answerable until the 72h deadline")
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
+		t.Fatalf("retry pending must survive 48h found=%v pending=%+v err=%v", found, pending, err)
+	}
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, after48Hours); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 2 {
+		t.Fatalf("second retry was sent: %d", got)
+	}
+
+	beforeSkip := requestedAt.Add(domain.GoalReviewSkipAfter - time.Second)
+	setGoalTestClock(t, q, beforeSkip)
+	if err := appgoals.DispatchFinalReviews(ctx, store, fake, beforeSkip); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Итог периода"); got != 0 {
+		t.Fatalf("final review overlapped open weekly review: %d", got)
+	}
+
+	skipAt := requestedAt.Add(domain.GoalReviewSkipAfter)
+	setGoalTestClock(t, q, skipAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, skipAt); err != nil {
+		t.Fatal(err)
+	}
+	if !fake.wasDeleted(retryPromptID) {
+		t.Fatalf("retry prompt %d was not removed at 72h: %+v", retryPromptID, fake.deleted)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || found {
+		t.Fatalf("weekly pending must be closed at 72h found=%v err=%v", found, err)
+	}
+	if _, found, err := q.GetOpenGoalWeeklyReview(ctx, goalSet.ID); err != nil || found {
+		t.Fatalf("weekly review must be persisted as skipped found=%v err=%v", found, err)
+	}
+	var skippedAt time.Time
+	if err := store.Pool().QueryRow(ctx, `SELECT skipped_at FROM seasonal_goal_weekly_reviews WHERE goal_set_id = $1`, goalSet.ID).Scan(&skippedAt); err != nil {
+		t.Fatal(err)
+	}
+	if !skippedAt.Equal(skipAt) {
+		t.Fatalf("skipped_at=%s want=%s", skippedAt, skipAt)
+	}
+	if _, saved, err := q.SubmitGoalWeeklyReview(ctx, review.ID, participant.UserID, "late answer"); err != nil || saved {
+		t.Fatalf("skipped review accepted a late answer saved=%v err=%v", saved, err)
+	}
+	if err := appgoals.DispatchFinalReviews(ctx, store, fake, skipAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Итог периода"); got != 1 {
+		t.Fatalf("final review was not released after weekly skip: %d", got)
+	}
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, skipAt.Add(time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 2 {
+		t.Fatalf("skipped review was sent again: %d", got)
+	}
+}
+
+func TestWeeklyReviewDoesNotReplaceAnotherGoalsPending(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000558, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 40, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	}
+	if _, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат: предложение о работе", nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &fakeTelegram{nextMessageID: 5000}
+	requestedAt := time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)
+	setGoalTestClock(t, q, requestedAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, requestedAt); err != nil {
+		t.Fatal(err)
+	}
+	initialPromptID := fake.sentMessageIDs[0]
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 40, domain.PendingSeasonalGoals, map[string]any{"prompt_message_id": 9001}); err != nil {
+		t.Fatal(err)
+	}
+
+	reminderAt := requestedAt.Add(domain.GoalReviewReminderDelay)
+	setGoalTestClock(t, q, reminderAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, reminderAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Вопросы по целям"); got != 1 || fake.wasDeleted(initialPromptID) {
+		t.Fatalf("weekly review replaced another pending sent=%d deleted=%+v", got, fake.deleted)
+	}
+
+	skipAt := requestedAt.Add(domain.GoalReviewSkipAfter)
+	setGoalTestClock(t, q, skipAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, skipAt); err != nil {
+		t.Fatal(err)
+	}
+	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingSeasonalGoals {
+		t.Fatalf("another pending was changed found=%v pending=%+v err=%v", found, pending, err)
+	}
+	if !fake.wasDeleted(initialPromptID) {
+		t.Fatalf("expired weekly prompt was not removed: %+v", fake.deleted)
+	}
+}
+
+func setGoalTestClock(t *testing.T, q interface {
+	SetClockOverride(context.Context, *time.Time) error
+}, now time.Time) {
+	t.Helper()
+	if err := q.SetClockOverride(context.Background(), &now); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -78,8 +286,10 @@ func (f *fakeTelegram) hasSentToThread(threadID int64, text string) bool {
 }
 
 type fakeTelegram struct {
-	nextMessageID int64
-	sent          []telegram.SendMessageRequest
+	nextMessageID  int64
+	sent           []telegram.SendMessageRequest
+	sentMessageIDs []int64
+	deleted        []int64
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -91,12 +301,14 @@ func (f *fakeTelegram) AnswerCallbackQuery(context.Context, telegram.AnswerCallb
 func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessageRequest) (telegram.Message, error) {
 	f.nextMessageID++
 	f.sent = append(f.sent, request)
+	f.sentMessageIDs = append(f.sentMessageIDs, f.nextMessageID)
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
 func (f *fakeTelegram) EditMessageText(context.Context, telegram.EditMessageTextRequest) error {
 	return nil
 }
-func (f *fakeTelegram) DeleteMessage(context.Context, int64, int64) error {
+func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
+	f.deleted = append(f.deleted, messageID)
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {
@@ -116,4 +328,23 @@ func (f *fakeTelegram) CreateForumTopic(context.Context, telegram.CreateForumTop
 }
 func (f *fakeTelegram) EditForumTopic(context.Context, telegram.EditForumTopicRequest) error {
 	return nil
+}
+
+func (f *fakeTelegram) countSent(text string) int {
+	count := 0
+	for _, sent := range f.sent {
+		if strings.Contains(sent.Text, text) {
+			count++
+		}
+	}
+	return count
+}
+
+func (f *fakeTelegram) wasDeleted(messageID int64) bool {
+	for _, deleted := range f.deleted {
+		if deleted == messageID {
+			return true
+		}
+	}
+	return false
 }

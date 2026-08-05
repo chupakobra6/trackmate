@@ -19,10 +19,20 @@ const (
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
 	GoalReviewIntervalDays  = 14
+	GoalReviewReminderDelay = 24 * time.Hour
+	GoalReviewSkipAfter     = 72 * time.Hour
 	GoalNudgePercent        = 10
 	GoalNudgeCooldown       = 72 * time.Hour
 	PersonalAlertPercent    = 30
 	PendingInputMaxAge      = 24 * time.Hour
+)
+
+type GoalWeeklyReviewAction string
+
+const (
+	GoalWeeklyReviewNoAction GoalWeeklyReviewAction = "none"
+	GoalWeeklyReviewRemind   GoalWeeklyReviewAction = "remind"
+	GoalWeeklyReviewSkip     GoalWeeklyReviewAction = "skip"
 )
 
 type DailyTaskTransition struct {
@@ -241,6 +251,19 @@ func GoalWeeklyReviewDue(periodStartsOn time.Time, workspaceTimezone string, now
 	}
 	weekStart := localDate.AddDate(0, 0, -int((localNow.Weekday()+6)%7))
 	return weekStart, true, nil
+}
+
+func GoalWeeklyReviewLifecycleAction(requestedAt time.Time, reminderSentAt *time.Time, respondedAt *time.Time, skippedAt *time.Time, nowUTC time.Time) GoalWeeklyReviewAction {
+	if respondedAt != nil || skippedAt != nil || nowUTC.Before(requestedAt.Add(GoalReviewReminderDelay)) {
+		return GoalWeeklyReviewNoAction
+	}
+	if !nowUTC.Before(requestedAt.Add(GoalReviewSkipAfter)) {
+		return GoalWeeklyReviewSkip
+	}
+	if reminderSentAt == nil {
+		return GoalWeeklyReviewRemind
+	}
+	return GoalWeeklyReviewNoAction
 }
 
 func GoalReviewCountdown(periodStartsOn time.Time, periodEndsOn time.Time, workspaceTimezone string, nowUTC time.Time) (int, int, error) {
