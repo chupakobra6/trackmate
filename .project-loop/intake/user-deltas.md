@@ -1251,12 +1251,12 @@ ID источника: `S038`
 - [x] подтвердить owner callback data у обоих routine alerts;
 - [x] подтвердить foreign-user denial без Telegram/DB mutations;
 - [x] повторить DB-backed check без full Telegram E2E;
-- [ ] push main;
-- [ ] production backup, deploy и post-deploy health/DB/log checks;
-- [ ] сохранить deploy evidence в handoff.
+- [x] push main;
+- [x] production backup, deploy и post-deploy health/DB/log checks;
+- [x] сохранить deploy evidence в handoff.
 
 Маршрутизация:
 - [x] source map `S038`;
 - [x] `REQ-062`, `VAL-015`, `STEP-037`;
 - [x] focused verification;
-- [ ] push, deploy и handoff.
+- [x] push, deploy и handoff.
