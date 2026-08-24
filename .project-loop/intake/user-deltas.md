@@ -1233,3 +1233,30 @@ ID источника: `S037`
 - [x] `REQ-061`, `CON-008`, `VAL-014`, `STEP-036`;
 - [x] реализация, self-review и validation;
 - [x] local commit и handoff.
+
+### Routine Callback Verification And Production Deploy
+
+ID источника: `S038`
+
+Приложение:
+- `/tmp/codex-remote-attachments/019fd147-99c6-7710-87e1-cd21544940da/C4E49C9C-22A9-458A-B232-168FAE132EF7/1-Фото-1.jpg`
+
+Исходный ввод:
+
+```text
+Отдельно проверить, что чужой участник больше не может нажать `Понял` и снять routine reminder или routine auto-close alert. Если исправлено — push и production deploy.
+```
+
+Нормализация:
+- [x] подтвердить owner callback data у обоих routine alerts;
+- [x] подтвердить foreign-user denial без Telegram/DB mutations;
+- [x] повторить DB-backed check без full Telegram E2E;
+- [ ] push main;
+- [ ] production backup, deploy и post-deploy health/DB/log checks;
+- [ ] сохранить deploy evidence в handoff.
+
+Маршрутизация:
+- [x] source map `S038`;
+- [x] `REQ-062`, `VAL-015`, `STEP-037`;
+- [x] focused verification;
+- [ ] push, deploy и handoff.

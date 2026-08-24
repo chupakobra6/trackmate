@@ -3,31 +3,29 @@
 Проект: trackmate
 Обновлено: 2026-08-24
 
-## Завершенный Шаг
-- id: `STEP-036`
-- status: `готово`
-- objective: Запретить чужим участникам нажимать персональные callback-кнопки через единый deny-by-default access gate.
-- requirement IDs: `REQ-061`, `VAL-014`
-- source IDs: `S037`
+## Активный Шаг
+- id: `STEP-037`
+- status: `в работе`
+- objective: Подтвердить owner protection для routine reminder и auto-close, затем безопасно развернуть callback fix.
+- requirement IDs: `REQ-062`, `VAL-015`
+- source IDs: `S038`
 
-## Owned Paths
-- `internal/domain/callback.go`
-- `internal/ui/keyboards.go`
-- `internal/bot/callback_authorization.go`, callback router/callers и tests
-- `internal/app/routine/routine.go`
-- `internal/messages/messages.md`
-- matching architecture/E2E contract docs
-- `.project-loop/`
+## Проверка
+- PostgreSQL `TestRunCheckinTransitionsRemindsAndAutoCloses`: оба routine dismiss callbacks содержат `notice:dismiss:42`.
+- PostgreSQL `TestPersonalCallbacksRejectOtherParticipantsWithoutMutation`: user `43` не может выполнить `notice:dismiss:42`, Telegram/DB не меняются.
+- DB-backed `make check`, `git diff --check`, Project Loop validation.
+- Полный Telegram E2E не запускать.
 
-## Валидация
-- domain/UI parser tests: pass;
-- focused DB-backed callback authorization tests: pass;
-- `TRACKMATE_TEST_DATABASE_URL=... make check`: pass;
-- `git diff --check` и Project Loop validation: pass;
-- полный Telegram E2E и production deploy не выполнялись.
+## Deploy Gate
+- push only after focused checks pass;
+- read-only production preflight;
+- `make docker-db-backup-stop` and archive verification;
+- `git pull --ff-only`, `docker compose up -d --build`;
+- verify production commit, services, migrations, stale claims, advisory waiters and recent logs.
 
-## Итог
-- Все callbacks проходят один access gate; неизвестные и новые kinds по умолчанию запрещены.
-- Task/alert/routine/goal проверяют владельца и workspace до mutating handler.
-- Stateless notices используют `notice:dismiss:<owner_user_id>`; старый безадресный callback больше не принимается.
-- Чужой клик показывает `Эту кнопку может нажать только адресат` и не меняет Telegram/БД.
+## Pre-Deploy Evidence
+- `TestRunCheckinTransitionsRemindsAndAutoCloses`: pass; reminder и auto-close имеют `notice:dismiss:42`.
+- Foreign user regression на exact `notice:dismiss:42`: pass; ноль Telegram/DB mutations.
+- Authorized notice dismiss: pass.
+- DB-backed `make check`: pass.
+- Production preflight: `/opt/trackmate` clean на `a9ad102`, services healthy, Docker context `default`.

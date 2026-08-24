@@ -4,40 +4,30 @@
 Обновлено: 2026-08-24
 
 ## Цель
-- Персональные Telegram callback-кнопки может выполнить только их адресат; новые callback kinds закрыты deny-by-default до явной политики доступа.
+- Подтвердить защиту routine reminder/auto-close от чужого `Понял` и развернуть общий callback fix в production.
 
-## Завершенный Шаг
-- step: `STEP-036`
-- status: `готово`
-- requirements: `REQ-061`, `VAL-014`
-- source: `S037`
+## Активный Шаг
+- step: `STEP-037`
+- status: `в работе`
+- requirements: `REQ-062`, `VAL-015`
+- source: `S038`
 
-## Реализация
-- `internal/bot/callback_authorization.go` стал единым access gate перед dispatch.
-- Public self-scoped controls, admin setup и persisted owner callbacks имеют явные ветви; default запрещает неизвестный kind.
-- Task/alert/routine/goal callbacks сверяют immutable owner и workspace callback-message до mutating handler.
-- `DismissKeyboard(ownerUserID)` компиляционно требует адресата; callback имеет вид `notice:dismiss:<owner_user_id>`.
-- Старый ownerless `notice:dismiss` намеренно не поддерживается: его владельца достоверно определить нельзя, поэтому он получает stale answer и ничего не удаляет.
-- Чужой клик получает `Эту кнопку может нажать только адресат`; подпись кнопки `👀 Понял` и нормальный owner-flow не менялись.
-- Инвариант сохранен в `AGENTS.md` и `docs/architecture.md`; E2E comments указывают границу single-user live scenario и multi-user PostgreSQL regression.
+## Подтверждено До Deploy
+- Routine transition integration генерирует `notice:dismiss:42` и для reminder, и для auto-close alert.
+- Bot authorization regression нажимает exact callback от user `43`: callback answer сообщает `только адресат`, Telegram send/edit/delete/markup не вызываются, БД не меняется.
+- Owner user `42` по-прежнему закрывает notice обычным lifecycle.
+- Ownerless legacy `notice:dismiss` отклоняется без удаления.
+- DB-backed `make check` прошел; полный Telegram E2E намеренно не запускался.
 
-## Проверка
-- `TRACKMATE_TEST_DATABASE_URL=... go test ./internal/bot -run 'Test(PersonalCallbacksRejectOtherParticipantsWithoutMutation|OwnedCallbackRejectsResourceFromAnotherWorkspace|NoticeDismiss)' -count=1 -v`: pass.
-- DB-backed regression проверил task report/status, alert ack, routine item, goal final и notice dismiss: ноль Telegram send/edit/delete/markup mutations; task/alert/routine/goal DB state не изменен.
-- Cross-workspace callback того же владельца: stale answer, ноль mutations.
-- `TRACKMATE_TEST_DATABASE_URL=... make check`: pass.
-- `git diff --check`: pass.
-- `loopctl.py validate`: pass.
-- Полный Telegram E2E не запускался по project rule; production/push не выполнялись.
-
-## Review
-- Все `CallbackKind` из parser/dispatch имеют явную ветвь access gate.
-- Все вызовы `DismissKeyboard` передают доменного владельца или автора пользовательского ввода.
-- Handler/storage owner conditions сохранены как второй барьер вокруг записей.
-- Residual: уже отправленные старой версией ownerless dismiss-кнопки после будущего deploy станут безопасно неактивными; добавлять неаутентифицируемый compatibility path нельзя.
+## Production Preflight
+- target: `inferno-nl:/opt/trackmate`
+- production commit: `a9ad102`
+- worktree: clean, `main...origin/main`
+- Docker context: `default`
+- `api`, `worker`, `postgres`: healthy до deploy.
 
 ## Следующее Действие
-- По отдельному запросу: push/deploy текущего local commit и focused smoke владельца + второго участника на тестовом/production Telegram без полного E2E.
+- Закоммитить Project Loop delta, push `main`, выполнить `make docker-db-backup-stop`, pull/build/start и post-deploy DB/health/log checks.
 
 ## Обновленные Источники Правды
 - `.project-loop/requirements/source-map.md`
@@ -46,5 +36,3 @@
 - `.project-loop/plan/current-step.md`
 - `.project-loop/intake/user-deltas.md`
 - `.project-loop/handoffs/handoff.md`
-- `AGENTS.md`
-- `docs/architecture.md`

@@ -52,6 +52,7 @@
 | S035 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Подтвержден lifecycle двухнедельного вопроса по целям: один повтор через 24 часа, затем закрытие как пропущенного через 72 часа без дальнейших повторов. |
 | S036 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Архитектурно уменьшить точки отказа вокруг Telegram cursor, конкурентной обработки, PostgreSQL advisory lock и delivery claims без изменения UI; применить tooling-review/session-learnings/repo-polish, проверить только затронутые flows и развернуть в production. |
 | S037 | user | 2026-08-24 | `.project-loop/intake/user-deltas.md`; screenshot `/tmp/codex-remote-attachments/019fd147-99c6-7710-87e1-cd21544940da/41D8F377-6604-4B8F-B4CD-808E6387DC74/1-Фото-1.jpg` | принято | Проверить, может ли чужой участник нажать персональную callback-кнопку (`Понял` у алерта), и закрыть класс ошибки единым правилом авторизации для всех текущих и будущих callback-кнопок. |
+| S038 | user | 2026-08-24 | `.project-loop/intake/user-deltas.md`; screenshot `/tmp/codex-remote-attachments/019fd147-99c6-7710-87e1-cd21544940da/C4E49C9C-22A9-458A-B232-168FAE132EF7/1-Фото-1.jpg` | принято | Отдельно подтвердить, что общий callback fix защищает routine reminder и routine auto-close alert от чужого `Понял`; после focused проверки разрешены push и production deploy. |
 
 ## Конфликты
 | Источники | Решение | Дата |
@@ -70,3 +71,4 @@
 | S015/S016/S022 vs S034 | S034 заменяет удаление routine card при auto-close: карточка остается как финальный результат и reply target; временными остаются reminder, reason prompts и auto-close alert. | 2026-08-05 |
 | S023/REQ-045 vs S034 | S034 заменяет персональный вариант routine auto-close единым alert-copy; персональные варианты reminder/daily alert остаются, но автозакрытие всегда показывает адресата, ссылку и тот же формат. | 2026-08-05 |
 | S009/S033 vs S035 | Общий cleanup pending через 24 часа больше не владеет `goal_weekly_review`: специализированный lifecycle удаляет первый prompt перед единственным повтором через 24 часа и окончательно закрывает повтор как пропущенный через 72 часа от первого запроса. | 2026-08-05 |
+| S037/CON-008 vs S038 | S038 подтверждает routine-specific приемку общего callback fix и дает отдельное явное разрешение на push/deploy после focused проверки. | 2026-08-24 |
