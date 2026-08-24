@@ -117,7 +117,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			ChatID:           item.Workspace.ChatID,
 			MessageThreadID:  *item.Checkin.CardMessageThreadID,
 			Text:             ui.RoutineReminderText(item.Checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
-			ReplyMarkup:      ui.DismissKeyboard(),
+			ReplyMarkup:      ui.DismissKeyboard(item.Checkin.OwnerUserID),
 			ReplyToMessageID: *item.Checkin.CardMessageID,
 		}))
 		if err != nil {
@@ -185,7 +185,7 @@ func deliverRoutineAutoCloseNotice(ctx context.Context, q *postgres.Queries, tg 
 		ChatID:          item.Workspace.ChatID,
 		MessageThreadID: optionalInt64(checkin.CardMessageThreadID),
 		Text:            ui.RoutineAutoClosedText(checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID, routineLink),
-		ReplyMarkup:     ui.DismissKeyboard(),
+		ReplyMarkup:     ui.DismissKeyboard(checkin.OwnerUserID),
 	}, replyToMessageID)
 	notice, err := tg.SendMessage(ctx, request)
 	if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {

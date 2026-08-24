@@ -1,7 +1,7 @@
 # Карта Источников
 
 Проект: trackmate
-Обновлено: 2026-08-05
+Обновлено: 2026-08-24
 
 ## Приоритет Источников
 1. Текущая прямая инструкция Игоря.
@@ -51,6 +51,7 @@
 | S034 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md`; screenshot `/var/folders/70/xq5yx2813j1c27f2xf1mjkxw0000gn/T/codex-clipboard-16fbfc7f-e4f6-4372-ba3d-b9a043a4a3ac.png` | принято | Довести routine auto-close до общего alert-контракта: понятный адресат, reply к конкретной карточке, ссылка на исходную рутину, единое форматирование/copy и отсутствие сырого standalone notice. |
 | S035 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Подтвержден lifecycle двухнедельного вопроса по целям: один повтор через 24 часа, затем закрытие как пропущенного через 72 часа без дальнейших повторов. |
 | S036 | user | 2026-08-05 | `.project-loop/intake/user-deltas.md` | принято | Архитектурно уменьшить точки отказа вокруг Telegram cursor, конкурентной обработки, PostgreSQL advisory lock и delivery claims без изменения UI; применить tooling-review/session-learnings/repo-polish, проверить только затронутые flows и развернуть в production. |
+| S037 | user | 2026-08-24 | `.project-loop/intake/user-deltas.md`; screenshot `/tmp/codex-remote-attachments/019fd147-99c6-7710-87e1-cd21544940da/41D8F377-6604-4B8F-B4CD-808E6387DC74/1-Фото-1.jpg` | принято | Проверить, может ли чужой участник нажать персональную callback-кнопку (`Понял` у алерта), и закрыть класс ошибки единым правилом авторизации для всех текущих и будущих callback-кнопок. |
 
 ## Конфликты
 | Источники | Решение | Дата |

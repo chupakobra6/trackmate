@@ -1,7 +1,7 @@
 # Чеклист Требований
 
 Проект: trackmate
-Обновлено: 2026-08-05
+Обновлено: 2026-08-24
 
 ## Значения Статусов
 Используй `кандидат`, `принято`, `в работе`, `готово`, `отложено`, `заблокировано` или `отклонено`.
@@ -69,6 +69,7 @@
 | REQ-058 | `готово` | S035 | Сделать один повтор двухнедельного вопроса по целям и закрывать его пропущенным. | Первый prompt остается активным до 24 часов; затем удаляется и отправляется ровно один повтор с новым pending; через 72 часа от первого запроса повтор удаляется, pending очищается и review получает persisted `skipped_at`; отвеченный или пропущенный review больше не отправляется, а final review ждет завершения weekly lifecycle. | migration `202608050001`; `internal/domain`, `internal/app/goals`, `internal/app/pending`, PostgreSQL integration; focused live messages `855`/`856`, review `532` |
 | REQ-059 | `готово` | S036 | Устранить loss/stuck failure modes в Telegram polling и worker delivery. | Telegram offset сдвигается только после успешной обработки update; worker advisory lock удерживается одной PostgreSQL session; alert/progress claims восстанавливаются по persisted lease после crash; send-then-persist ошибки worker flows не оставляют бесконтрольные сообщения. | `ee07db3`; unit + clean-schema PostgreSQL concurrency tests; focused live alert/worker smoke |
 | REQ-060 | `готово` | S036 | Безопасно развернуть накопленные исправления в production. | До deploy снят проверенный logical backup; production обновлен на текущий commit; миграции применены; `api`/`worker`/`postgres` healthy; нет stuck claims, неожиданных advisory locks и новых error logs. | backup `trackmate_20260805T113344Z.dump`; production `ee07db3`; migrations `202608050001..2`; post-deploy DB/log/health checks |
+| REQ-061 | `готово` | S037 | Запретить чужим участникам выполнять персональные callback-действия и сделать правило общим для всех callbacks. | Каждый распознанный callback до handler проходит явную deny-by-default политику; task/alert/routine/goal сверяются с владельцем и workspace callback-message; временный `Понял` содержит адресата; чужой, устаревший или cross-workspace callback не мутирует БД/Telegram и получает понятный callback answer. | `internal/bot/callback_authorization.go`; addressed dismiss callbacks; DB-backed regression tests; architecture/AGENTS invariant |
 
 ## Ограничения
 | ID | Статус | Источник | Ограничение | Доказательства |
@@ -80,6 +81,7 @@
 | CON-005 | `принято` | S004 | Не удалять E2E сообщения после текущего live-прогона. |  |
 | CON-006 | `принято` | S009 | При автоматической отмене pending input Trackmate работает молча: не отправляет новых пользовательских сообщений и не отвечает на callback текстом. |  |
 | CON-007 | `принято` | S036 | Не запускать полный Telegram E2E для локальных правок; проверять только измененные feature flows и релевантные DB/Go контракты. | `AGENTS.md`; focused scenario evidence |
+| CON-008 | `принято` | S037 | Не менять production без отдельного явного запроса в текущей задаче. | Локальная реализация, focused tests и local commit; push/deploy не выполняются. |
 
 ## Обязательная Валидация
 | ID | Статус | Источник | Валидация | Доказательства |
@@ -97,6 +99,7 @@
 | VAL-011 | `готово` | S034 | Точечно проверить routine auto-close без полного Telegram E2E. | Formatter показывает адресата/source-link и единый copy; PostgreSQL worker test подтверждает сохраненную итоговую карточку, reply target, dismiss keyboard, retry после Telegram failure и отсутствие дубля после успешной доставки; live запускается только focused routine auto-close scenario с проверкой финальной истории. | focused Go tests + lint/vet; concurrency regression with `FOR UPDATE SKIP LOCKED`; focused live scenario pass: one alert `851`, dismiss pass, card `850` retained, `pending_never_sent=0` |
 | VAL-012 | `готово` | S035 | Точечно проверить lifecycle weekly goals review. | Domain boundary tests покрывают `<24h`, `24h`, `<72h`, `72h`; PostgreSQL integration подтверждает единственный retry, сохраненный pending до общего дедлайна, persisted skip, отсутствие повторной отправки после skip и блокировку final review до закрытия weekly review; запускается только focused Telegram scenario измененной фичи. | focused DB-backed tests + `make test`/lint/vet; local migration pass; live initial `855`, retry `856`, 48h retained, 72h removed/skipped, pending `0`; full Telegram E2E not run |
 | VAL-013 | `готово` | S036 | Проверить concurrency/delivery hardening без полного Telegram E2E. | Unit test фиксирует success-based Telegram offset; PostgreSQL tests проверяют same-session advisory lock, конкурирующий tick и reclaim устаревших alert/progress claims; additive migration проходит на clean schema; затем focused packages, full Go suite, lint/vet и только затронутые live scenarios. | DB-backed `make check`; migration/readback; focused alert message `860`; local/prod health, queues and logs clean; full Telegram E2E not run |
+| VAL-014 | `готово` | S037 | Регрессионно проверить авторизацию callback-кнопок без полного Telegram E2E. | Parser отклоняет безадресный dismiss; UI всегда кодирует owner; table-driven policy покрывает все callback kinds; PostgreSQL integration доказывает, что чужой task/alert/routine/goal/notice callback и callback из другого workspace не меняют сообщение или доменное состояние; focused packages и `make check` проходят. | focused DB-backed callback tests: pass; `TRACKMATE_TEST_DATABASE_URL=... make check`: pass; `git diff --check`: pass; full Telegram E2E not run |
 
 ## Границы Объема
 | ID | Статус | Источник | Граница | Примечания |

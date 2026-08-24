@@ -48,6 +48,7 @@
 - Advance the Telegram polling offset only after the update handler succeeds. Do not put updates behind an unacknowledged in-memory queue.
 - Session-level PostgreSQL advisory locks must be schema-namespaced and acquired/released through the same pinned `pgxpool.Conn`; never acquire or unlock them directly through the pool.
 - Persisted `dispatching`/`publishing` states must carry a reclaimable lease timestamp. Terminal transitions must verify that the row is still claimed, and send-then-persist failures should remove the just-sent Telegram message when safe.
+- Every callback kind must pass the central deny-by-default access gate before dispatch. Personal callbacks must bind to an owner and, for persisted entities, to the callback message workspace; do not add handler-only authorization or ownerless dismiss buttons.
 
 ## Verification
 - Before finishing, run the narrowest relevant validation.

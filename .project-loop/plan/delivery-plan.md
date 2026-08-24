@@ -41,6 +41,7 @@
 | STEP-033 | `готово` | REQ-057,VAL-011 | Довести routine auto-close до общего reply-alert lifecycle. | Сохранена и финализируется конкретная routine card; alert отвечает на нее, называет участника и ссылается на source routine; транзакционный row claim исключает stacking при конкурентных тиках. | focused packages + lint/vet: pass; PostgreSQL concurrency regression: pass; focused live scenario: one alert `851`, dismiss pass, card `850` retained; full Telegram E2E not run |
 | STEP-034 | `готово` | REQ-058,VAL-012 | Добавить persisted retry/skip lifecycle двухнедельного вопроса по целям. | Weekly review выведен из generic stale cleanup; `reminder_sent_at`/`skipped_at` сохраняют lifecycle; чужой pending остается нетронутым, final review ждет weekly closure. | focused/full Go checks: pass; local migration: pass; focused live initial `855` → retry `856` → removed/skipped at 72h; full Telegram E2E not run |
 | STEP-035 | `готово` | REQ-059,REQ-060,VAL-013 | Упростить delivery concurrency, убрать loss/stuck contracts и развернуть исправления. | Удалить ненужный async dispatcher; Telegram offset подтверждается после success; worker lock живет на одной DB session; alert/progress claims имеют persisted recovery lease; worker deliveries компенсируют failed persistence; focused validation и production deploy проходят с backup. | commit `ee07db3`; DB-backed `make check`; focused live alert `860`; backup `trackmate_20260805T113344Z.dump`; production healthy, migrations/stale claims/logs verified |
+| STEP-036 | `готово` | REQ-061,VAL-014 | Ввести единый deny-by-default callback access gate и закрыть чужие клики по персональным кнопкам. | Перед dispatch каждый callback получает явную public/admin/owner policy; entity callbacks сверяют owner и workspace; stateless dismiss требует owner в callback data; старый безадресный dismiss становится невалидным; focused DB-backed tests проверяют отсутствие Telegram/DB mutations. | focused callback tests + DB state assertions: pass; DB-backed `make check`: pass; Project Loop validation: pass; full Telegram E2E/deploy not run |
 
 ## Примечания По Порядку
 - Шаги достаточно маленькие для цикла: реализация, ревью, исправление, проверка, коммит, handoff.
@@ -48,4 +49,4 @@
 - Для существенной работы используются пары `STEP-N` / `STEP-NR`.
 - Человекочитаемые проектные артефакты пишутся на русском.
 - Имена файлов описательные; ID источников хранятся в карте источников и чеклисте.
-- Текущий запрос Игоря дает явное разрешение на непрерывную реализацию и production deploy STEP-035 после focused validation и backup.
+- STEP-036 выполняется локально; production deploy требует отдельного явного запроса.

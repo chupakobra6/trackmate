@@ -74,6 +74,25 @@ Materials is deleted from runtime and schema. The bot does not parse
 `material:*` callbacks as product actions, does not store material rows, and does
 not publish material progress.
 
+## Callback Access
+
+Every parsed inline-button callback passes one access gate before its handler.
+The gate is deny-by-default: adding a parser/handler branch without an explicit
+access policy leaves the new callback unusable rather than public.
+
+- Setup repair and the Today/Routine/Goals control buttons are public because
+  they create or resume state for the participant who pressed them.
+- Group setup remains administrator-only.
+- Task, alert, routine-item, and goal-final callbacks load their persisted
+  entity, verify its owner, and verify that its workspace is the chat containing
+  the pressed button.
+- Stateless temporary notices encode their owner in
+  `notice:dismiss:<owner_user_id>`. Ownerless `notice:dismiss` data is invalid.
+
+An unauthorized, missing-entity, or cross-workspace callback returns a short
+callback answer and does not call a mutating handler. Handler/storage owner
+conditions remain a second guard around domain writes.
+
 ## Today Flow
 
 `today:add` is local-time aware. Before 20:00 it creates one pending
@@ -110,6 +129,10 @@ fallback. An alert is acknowledged and detached from its Telegram message in
 the database only after one of those UI transitions succeeds. The callback
 message ID is retained as a recovery path for alerts affected by older versions
 that cleared the stored message ID too early.
+
+Only the task owner may acknowledge a persisted task alert. Other temporary
+notices use the owner encoded in their dismiss callback, so another participant
+cannot hide someone else's reminder or confirmation.
 
 Wrong-topic daily task/report input is ignored without consuming pending state.
 

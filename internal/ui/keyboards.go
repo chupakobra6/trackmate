@@ -89,8 +89,8 @@ func AlertKeyboard(taskID int64, alertID int64) *telegram.InlineKeyboardMarkup {
 	}}
 }
 
-func DismissKeyboard() *telegram.InlineKeyboardMarkup {
+func DismissKeyboard(ownerUserID int64) *telegram.InlineKeyboardMarkup {
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
-		{{Text: messages.Text("button.dismiss"), CallbackData: "notice:dismiss"}},
+		{{Text: messages.Text("button.dismiss"), CallbackData: fmt.Sprintf("notice:dismiss:%d", ownerUserID)}},
 	}}
 }

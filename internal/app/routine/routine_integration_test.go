@@ -119,6 +119,9 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Жду ответы до полуночи") || strings.Contains(fake.sent[0].Text, "12:00") || fake.sent[0].ReplyToMessageID != 2100 || fake.sent[0].ReplyMarkup == nil || fake.sent[0].DisableNotification {
 		t.Fatalf("unexpected reminder send: %+v", fake.sent)
 	}
+	if got := fake.sent[0].ReplyMarkup.InlineKeyboard[0][0].CallbackData; got != "notice:dismiss:42" {
+		t.Fatalf("routine reminder dismiss callback = %q", got)
+	}
 	reminded, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
 	if err != nil || !found || reminded.ReminderSentAt == nil || reminded.ReminderMessageID == nil {
 		t.Fatalf("reminder was not stored found=%v checkin=%+v err=%v", found, reminded, err)
@@ -180,6 +183,9 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	}
 	if lastNotice.ReplyToMessageID != 2100 || lastNotice.ReplyMarkup == nil || lastNotice.DisableNotification {
 		t.Fatalf("auto-close notice must ping as a reply to its routine card: %+v", lastNotice)
+	}
+	if got := lastNotice.ReplyMarkup.InlineKeyboard[0][0].CallbackData; got != "notice:dismiss:42" {
+		t.Fatalf("routine auto-close dismiss callback = %q", got)
 	}
 	closedWithNotice, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
 	if err != nil || !found || closedWithNotice.AutoCloseNoticeMessageID == nil || *closedWithNotice.AutoCloseNoticeMessageID != 3002 || closedWithNotice.AutoCloseNoticeSentAt == nil {

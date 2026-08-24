@@ -1,4 +1,5 @@
 # Точечно проверяет routine auto-close без полного Telegram E2E.
+# Сценарий запускается с сессией адресата; запрет чужого `Понял` покрыт PostgreSQL integration test.
 # Пока сценарий ждет карточку, выставь через control API 08:00 следующего локального дня и вызови tick.
 # После появления карточки выставь 00:00 еще через день и снова вызови tick.
 {"id":"select_routine","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{ROUTINE_THREAD_ID}}}

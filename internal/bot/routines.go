@@ -70,7 +70,7 @@ func (s *Service) consumeRoutinePlan(ctx context.Context, workspace postgres.Wor
 			ChatID:          message.Chat.ID,
 			MessageThreadID: message.MessageThreadID,
 			Text:            text,
-			ReplyMarkup:     ui.DismissKeyboard(),
+			ReplyMarkup:     ui.DismissKeyboard(message.From.ID),
 		}))
 		return err
 	})

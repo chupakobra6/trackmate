@@ -1,420 +1,50 @@
 # Handoff
 
 Проект: trackmate
-Обновлено: 2026-08-05
+Обновлено: 2026-08-24
 
 ## Цель
-- Поддерживать текущий Trackmate и закрывать production-наблюдения локальными проверяемыми исправлениями до отдельного production approval.
+- Персональные Telegram callback-кнопки может выполнить только их адресат; новые callback kinds закрыты deny-by-default до явной политики доступа.
 
-## Текущий Шаг
-- active step: `STEP-034`
+## Завершенный Шаг
+- step: `STEP-036`
 - status: `готово`
+- requirements: `REQ-061`, `VAL-014`
+- source: `S037`
 
-## Завершено
-- `.project-loop/` инициализирован.
-- Raw-инпут сохранен в `.project-loop/intake/raw/2026-06-23-trackmate-routines-goals.md`.
-- Требования, ограничения, валидация и delivery plan нормализованы.
-- Локально реализованы `Рутины`, `Цели`, обновление `Сегодня`, additive migration, tests, docs и E2E templates.
-- Учтена review delta S003:
-  - leaderboard показывает 7-day completion rate, current streak и число пунктов; сортировка идет по completion rate, затем streak;
-  - вставки про цели работают только при активных целях и имеют ограничение 72 часа на пользователя;
-  - routine/goals вынесены из `internal/bot/service.go` в `internal/bot/routines.go`, `internal/bot/goals.go`, `internal/app/routine`, `internal/app/goals`;
-  - Docker локально доступен, агент может запускать `docker compose` для тестов.
-- Выполнен live E2E S004 на тестовом боте `@yaminotoubot` в группе `тестирование trackmate v2`.
-- Оставлены видимые Telegram-примеры без cleanup/delete:
-  - `Сегодня` topic `10`: pinned intro, Today cards, deterministic goal nudge, overdue alert;
-  - `Прогресс` topic `11`: закрытые задачи, edited progress event, auto-fail event;
-  - `Рутины` topic `339`: pinned intro, routine setup, check-in card, reason/reflection, leaderboard;
-  - `Цели` topic `340`: pinned intro, saved goals, weekly review, final period review.
-- Найдено и исправлено во время live E2E:
-  - time-based E2E waits для уже видимых карточек заменены на `assert_visible_text`;
-  - final review целей теперь сравнивает `EndsOn` как локальную календарную дату workspace, а не UTC instant.
-- Закрыт STEP-004 по текстам:
-  - пользовательские сообщения Today/Routine/Goals/Progress/alerts стали лаконичнее и ровнее по отступам;
-  - видимые термины заменены: check-in -> проверка, leaderboard -> таблица, review -> обзор/итог периода, streak/стрик -> серия, report -> итог;
-  - кнопка ежедневной задачи стала `🏁 Подвести итог`;
-  - E2E-шаблоны обновлены под новые видимые тексты.
-- Закрыт STEP-005 по внешнему ревью текстов S006:
-  - `цель-задача дня` заменено на `задача дня` в пользовательских текстах;
-  - карточки `Сегодня`/`Прогресс` стали компактнее: `План:` и `Итог:` идут сразу перед цитатой;
-  - вставки про цели смягчены без слов `провал` и `двигает тебя`;
-  - `Рутины: таблица` заменено на `Таблица рутин`;
-  - шаблон целей структурирован маркерами, при этом конфликтующий пример `оффер Go/backend` не возвращен.
-- Закрыт STEP-006 по финальному ревью текстов S007:
-  - закрепы `Сегодня`, `Рутины`, `Цели`, `Прогресс` приведены к спокойному стилю старых топиков;
-  - видимые списки переведены с `•` на длинное тире `—`;
-  - `Цели` описаны как долгосрочные цели на сезон, а prompt объясняет поля формата без частного примера;
-  - недельный обзор целей и итог периода переписаны на конкретные вопросы;
-  - parser рутины принимает `—` в пользовательском списке.
-- Production `v1.1` выкачен на VPS `inferno-nl` в `/opt/trackmate`: commit/tag `c97c222`/`v1.1`, backup `/opt/trackmate/backups/trackmate_20260623T023521Z.dump`, миграции до `202606230003`, `api`/`worker`/`postgres` healthy, анонс `Trackmate 1.1` опубликован в `Прогресс` message `3280`.
-- Закрыт STEP-009 по UX после production:
-  - незаконченные setup-черновики `routine_plan`/`seasonal_goals` теперь сбрасываются при переходе в другой setup-топик;
-  - старый prompt Trackmate и wrong-topic сообщение пользователя удаляются для таких черновиков;
-  - цели сохраняются с единым коротким ответом без отдельной карточки с полным текстом целей;
-  - старые goal card messages удаляются при следующем сохранении целей;
-  - в текстах рутины явно указано, что ежедневная карточка приходит после 09:00.
-- Закрыт STEP-010 по S009:
-  - `pending_inputs` теперь topic-scoped: явный `message_thread_id`, уникальность `workspace/user/thread`, сообщения и callbacks ищут pending только в текущей теме;
-  - поведение S008 со сбросом setup-черновиков между `Рутины` и `Цели` заменено: чужой топик не сбрасывается, wrong-topic сообщения игнорируются;
-  - worker тихо чистит pending старше 24 часов и удаляет сохраненные prompt/user message IDs без сообщений в чат;
-  - рутина приходит после 20:00 локального времени; если список сохранен до 20:00, первая карточка может прийти в тот же день;
-  - для незакрытой рутины worker отправляет напоминание после конца дня и в 12:00 следующего дня закрывает неотмеченные пункты как `failed`;
-  - автозакрытие рутины остается в `Рутины`, не создает `progress_events`, обновляет карточку и таблицу рутин.
-- Закрыт STEP-011 по S010:
-  - объяснение production-семантики: текущая дата в карточке рутины означает дату проверки рутины, поэтому `24.06` — это рутина за 24 июня, не за 23 июня;
-  - карточка рутины теперь пишет `Рутина за DD.MM` и сразу под заголовком `Отметь, как прошел этот день`;
-  - prompt причины получил такой же заголовок и пояснение, чтобы дата не терялась при ответах `Нет`/`Частично`;
-  - production не трогался в этом шаге.
-- После approval STEP-009..STEP-011 выкачены на production: VPS `/opt/trackmate` сейчас на `9a58215`, миграция `202606240001` применена, `api`/`worker`/`postgres` healthy.
-- Закрыт STEP-012 по S011:
-  - production проверен read-only: logs 2026-06-24 17:00 UTC показали routine cards `3373`/`3374`, затем callbacks по `3373` и edit в reason prompt;
-  - причина разного вида со скриншота: `FormatRoutineReasonPrompt` строил текст отдельно, без автора и без обычного формата `N/M: пункт?`;
-  - reason prompt теперь переиспользует обычную карточку рутины, сохраняет автора и формат вопроса, добавляя только `Что помешало?`;
-  - первый emoji routine header/control заменен с `🔁` на `🌿`;
-  - production deploy не выполнялся в STEP-012.
-- Закрыт STEP-013 по S012:
-  - production проверен read-only: текущий prod на `9a58215`, logs 2026-06-24 17:00 UTC подтверждают, что старый flow редактировал основную карточку для причины;
-  - `Нет`/`Частично` теперь сразу отмечают пункт в основной карточке и отправляют отдельный временный reason prompt reply к карточке;
-  - после ответа пользователя Trackmate удаляет reason prompt и ответ пользователя, сохраняет причину и двигает основную карточку дальше;
-  - после последнего пункта routine check-in закрывается сразу, обновляет карточку и таблицу рутин, без routine final reflection;
-  - active `routine_reflection` path удален из bot/domain/storage API; историческое поле `reflection_text` в схеме не трогалось;
-  - цели не менялись, production deploy не выполнялся.
-- Закрыт STEP-014 по S013:
-  - production incident по Егору восстановлен без новых сообщений в чат: `daily_tasks.id=160` теперь `done`, `report_status=done`, `report_text=Голосовое сообщение`, `report_message_id=3386`, `failed_at=NULL`;
-  - неверный auto-fail `progress_events.id=183` удален из БД, новую публикацию в `Прогресс` не создавали;
-  - карточка задачи `3361` в `Сегодня` отредактирована в фактическое состояние `выполнена`;
-  - production backup перед правкой: `/opt/trackmate/backups/trackmate_manual_fix_20260629T093903Z.dump`;
-  - root cause подтвержден логами: `task:status:160:done` 2026-06-24 19:33 UTC упал на `duplicate key value violates unique constraint "uq_pending_inputs_workspace_group_id"`;
-  - production schema исправлена вручную: старый constraint `uq_pending_inputs_workspace_group_id` удален, остался `ux_pending_inputs_workspace_user_thread`;
-  - старые Telegram messages `3385` и `3404` удалить не удалось: Bot API вернул `Bad Request: message can't be deleted`;
-  - локально добавлена миграция `202606290001_drop_legacy_pending_input_unique.sql`, production deploy кода не выполнялся.
-- Закрыт STEP-015 по S014:
-  - все пользовательские тексты, подписи кнопок, callback-ответы, media labels и названия сезонов вынесены в `internal/messages/messages.md`;
-  - добавлен `internal/messages` с `go:embed`-импортом и тестами загрузки/шаблонов;
-  - production Go-код больше не содержит русских user-facing string literals вне каталога сообщений;
-  - prompt рутины упрощен: пример только через дефисы `-`, без текста про максимум;
-  - routine parser теперь принимает только пункты с `-` или `—`, номера/буллеты/свободные строки отклоняет;
-  - основная карточка рутины больше не показывает `1/N: пункт?`, а только дату, пояснение и список статусов;
-  - служебные notice/problem messages получили общий `notice:dismiss` и кнопку `👀 Понял`;
-  - routine reminders/auto-close notices отправляются с `Понял`, а старое напоминание удаляется при автозакрытии/ручном закрытии;
-  - при успешном сохранении рутины/целей удаляются сохраненные ошибочные user messages и текущий setup input, prompt редактируется в короткое подтверждение с `Понял`;
-  - production deploy не выполнялся.
-- Закрыт STEP-016 по S015:
-  - routine setup больше не оставляет confirmation-сообщение: после успешного ввода удаляются prompt Trackmate, пользовательский список и сохраненные ошибочные user messages;
-  - routine parser снова принимает нумерацию `1.`/`2)` как префикс пункта, порядок номеров не проверяется;
-  - prompt рутины остается с примером на дефисах и коротко пишет, что нумерацию тоже поймет;
-  - после полного ответа на daily routine карточка удаляется, таблица рутин обновляется;
-  - auto-close рутины удаляет карточку, напоминание и pending reason prompt/user messages без отдельного `Время вышло` notice;
-  - production deploy не выполнялся.
-- Закрыт STEP-017 по S016:
-  - routine reminder переписан в короткий стиль: `Рутина за DD.MM`, `Закрой до 12:00`, `Неотмеченные пункты станут невыполненными`;
-  - reminder использует кнопку `👀 Понял`, удаляется при ручном закрытии рутины и чистится worker cleanup после TTL около суток;
-  - auto-close notice возвращен как временный alert: `Рутина за DD.MM закрыта`, `Неотмеченные пункты стали невыполненными`;
-  - добавлена additive migration `202606290002_routine_notice_ttl.sql` с nullable-полями `auto_close_notice_message_id` и `auto_close_notice_sent_at`;
-  - worker теперь чистит expired routine reminder и auto-close notice messages после `RunCheckinTransitions`;
-  - production deploy не выполнялся.
-- Закрыт STEP-018 по S017:
-  - production-БД проверена по task `160`/message `3386`: task уже был `done`, `report_status=done`, `report_text=Голосовое сообщение`, `failed_at=NULL`;
-  - missing piece: для `daily_task_id=160` не было `progress_events.daily_task.closed`, поэтому история `Прогресс` была неполной;
-  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_progress_fix_20260629T111509Z.dump`;
-  - попытка отредактировать старое message `3404` в корректный done-progress не прошла: Bot API вернул `Bad Request: message to edit not found`;
-  - создан `progress_events.id=192` с `event_type=daily_task.closed`, `status=done`, `report_html=Голосовое сообщение`, `created_at=2026-06-24 19:35:27.83718+00`;
-  - worker штатно опубликовал event в `Прогресс`: Telegram message `3649`, `publish_status=published`;
-  - локальный код и production deploy не трогались.
-- Закрыт STEP-019 по S018:
-  - production logs 2026-06-26 08:49-08:55 MSK подтвердили root cause жалобы Егора: `today:add` падал на legacy constraint `uq_pending_inputs_workspace_group_id`;
-  - production schema сейчас исправлена: legacy constraint отсутствует, rollback probe успешно создает два pending inputs одного пользователя в разных топиках;
-  - сообщения жалобы в общем чате `3464` и `3465` удалены через Telegram Harvest main profile, повторный dump их не находит;
-  - задача Егора за 2026-06-26 уже восстановлена как `daily_tasks.id=172`, status `partial`, task message `3467`;
-  - voice `3386` расшифрован через Harvest/Vosk; сырой ASR шумный, поэтому сохранена вычитанная смысловая сводка;
-  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_voice_transcript_20260629T121722Z.dump`;
-  - `daily_tasks.id=160`, `progress_events.id=192`, visible Today message `3361` и Progress message `3649` обновлены без новых Telegram posts;
-  - локальный код и production deploy не трогались.
-- Закрыт STEP-020 по S019:
-  - production Today topic проверен Harvest dump-ом: duplicate prompts из скрина уже отсутствовали, но оставались service confirmations `✅ Итог сохранен`;
-  - перед правкой снят backup `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`;
-  - `progress_events.id=193` и `194` были `published` без `published_message_id`, из-за чего восстановленные итоги не были видны в `Прогресс`;
-  - events `193`/`194` возвращены в `pending`, worker штатно отправил messages `3653` и `3654` в topic `Прогресс`;
-  - через Telegram Harvest удалены service confirmations `3351,3356,3364,3394,3399,3437,3448,3485,3491,3519,3530,3541,3572`;
-  - финальный dump `Сегодня` не содержит `Напиши главную задачу` и `Итог сохранен`; в `Сегодня` нет pending inputs;
-  - progress outbox clean: pending/publishing/failed = 0; локальный код и production deploy не трогались.
-- Закрыт STEP-021 по S020:
-  - скрин с prompts `Напиши главную задачу` соответствует 2026-06-28 22:25 MSK; logs показали старый `today:add` failure на `uq_pending_inputs_workspace_group_id`;
-  - актуальный Harvest dump `Сегодня`/all-chat больше не содержит prompts `3556`/`3558` и messages `3557`/`3559`/`3560`;
-  - перед этим Егор написал message `3555` в `Чат`: `сегодня я отсыпался, поэтому без задач`, поэтому задача за 2026-06-28 не восстанавливалась;
-  - отчет Игоря `3542` уже засчитан: task `169`, status `partial`, progress message `3543`;
-  - 2026-06-29 утром сообщения Игоря `3642`/`3643`/`3647`/`3648` были в topic `Чат`, не в `Сегодня`, и не являются задачей дня;
-  - production сейчас работает: свежий `today:add` Ярика создал task `171` и card `3652`; `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0;
-  - новых DB/Telegram правок и deploy не выполнялось.
-- Закрыт STEP-022 по S021:
-  - скрин из общего topic `Чат` соответствует 2026-06-26: Ярик писал Игорю в 06:17 MSK, Егор жаловался в 08:54 MSK, Ярик писал `БРО ГДЕ ЗАДАЧА ВТОРОЙ ДЕНЬ` в 14:18 MSK;
-  - задача Ярика за 2026-06-26 была принята: source message `3456`, Trackmate card `3457`, progress message `3487`;
-  - жалоба Егора была реальным старым failure на `uq_pending_inputs_workspace_group_id`; она уже закрыта в предыдущих шагах: task `172`, progress message `3653`, complaint messages `3464`/`3465` удалены;
-  - реплика Ярика про `второй день` относилась к Игорю: Игорь добавил задачу через минуту, source message `3476`, card `3477`, progress message `3493`;
-  - пользовательские реплики Ярика в общем чате не удалялись, потому что это не bot noise и не сломанный pending prompt;
-  - current production healthy: `api`/`worker`/`postgres` healthy, progress outbox clean, Today pending inputs = 0; новых DB/Telegram правок и deploy не выполнялось.
-- Закрыт STEP-023 по S022:
-  - routine timing локально заменен: карточка за дату `D` приходит в 08:00 `D+1`, reminder в 20:00 `D+1`, auto-close в 00:00 `D+2`;
-  - routine reminder стал коротким ping-сообщением: `Рутина за DD.MM`, имя участника ссылкой, `Отметь до полуночи`;
-  - auto-close notice остается временным, уведомляет пользователя и чистится через TTL около суток или кнопку `Понял`;
-  - перед сохранением нового списка routine создается snapshot check-in за последний прошедший день по старому списку, чтобы открытая/наступившая проверка не поменяла пункты задним числом;
-  - добавлены helper-уровни Telegram сообщений: `SilentMessage`, `RegularMessage`, `ReplyMessage`, `PingMessage`; Progress и routine cards тихие, missed-task/routine alerts уведомляют;
-  - `Прогресс` теперь показывает имя как ссылку на пользователя, а действие результата и простой media label итога ведут на исходное сообщение отчета;
-  - production deploy не выполнялся.
-- Закрыт STEP-024 по S023:
-  - добавлен персональный алерт для Егора: target = username на `w` плюс display name с `Егор`;
-  - шанс 30% считается детерминированно через FNV от `username + seed события`, поэтому retry одного и того же alert не меняет текст;
-  - персональная ветка подключена к routine reminder, routine auto-close notice и daily missed-task alerts;
-  - daily worker теперь загружает participant для alert text formatter;
-  - новые видимые тексты лежат в `internal/messages/messages.md`, обычные пользователи продолжают получать прежние формулировки;
-  - production deploy не выполнялся.
-- Закрыт STEP-025 по S024:
-  - обзор целей теперь приходит раз в две недели по воскресеньям после 20:00, привязка идет от даты старта периода;
-  - `Цели` больше не удаляют пользовательское сообщение со списком целей при сохранении: его `source_message_id/source_message_thread_id` сохраняются для ссылок;
-  - обзор и финальный prompt целей больше не вставляют полный текст целей, а показывают ссылку `Цели: открыть список`;
-  - обзор показывает `До итога: N дней · M проверок`, где проверки считаются как будущие двухнедельные обзоры до финального пинга;
-  - вопросы обзора целей упрощены: без лишнего `сезонным`, с горизонтом `последние/следующие две недели`;
-  - future todo зафиксирован как `REQ-047`: отдельно отревьювить вопросы и случайные вставки в Today/Goals/Routine;
-  - production deploy не выполнялся.
-- Закрыт STEP-026 по S025:
-  - topic isolation оставлена как в S009: pending inputs разных топиков не сбрасывают и не блокируют друг друга;
-  - после ввода целей Trackmate удаляет старый prompt, но оставляет пользовательское сообщение как источник для ссылок;
-  - подтверждение теперь отправляется новым тихим сообщением ниже ввода, не reply и без полной вставки текста целей;
-  - слово `Цели` в подтверждении ведет на исходное сообщение пользователя;
-  - production deploy не выполнялся.
-- Закрыт production operation S027:
-  - перед сбросом снят backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`;
-  - в основной группе `Haru` сброшены сохраненные рутины и статистика рутин: `routine_plans=0`, `routine_checkins=0`, `routine_checkin_items=0`, routine pending inputs `0`;
-  - таблица рутин message `3285` отредактирована в пустое состояние;
-  - active routine card ids `3655`, `3656`, `3657` уже отсутствовали в Telegram (`message to delete not found`);
-  - `api`, `worker`, `postgres` снова running после операции;
-  - важно для следующего update message: попросить участников заново настроить рутины.
-- Закрыт STEP-027 по S026/REQ-049:
-  - полный live E2E текущего локального head выполнен на тестовом Telegram-боте, run id `s030-015143`;
-  - сценарии `00`, `01..11`, split `12`, split `13`, `14` прошли после исправлений;
-  - найден и исправлен реальный bug: `pending_inputs.created_at` создавался через `now()` Postgres, а worker чистил stale inputs по управляемым часам E2E; теперь pending использует `CurrentNow`;
-  - routine reason prompt теперь отправляется отдельным root-сообщением в topic, чтобы Telegram topic history и E2E видели его как обычное сообщение, а не nested reply;
-  - weekly/final цели получили fallback-сообщение, если edit prompt не прошел, чтобы сохраненный ответ не пропадал визуально;
-  - `/control/tick` больше не возвращает ложное `ok`, если worker lock занят: control endpoint ждет реальный tick или отдает ошибку;
-  - E2E reset чистит `goal_nudge_cooldowns`, чтобы deterministic goal-nudge не подавлялся старым cooldown;
-  - сценарий `09-progress-topic-event` проверяет видимый текст в `Прогресс`, а не ждет новое изменение после уже опубликованного события;
-  - production deploy не выполнялся.
-- Закрыта production operation по deploy текущего head:
-  - локальный `main` запушен в `origin`, VPS `/opt/trackmate` обновлен `9a58215 -> 21e771d`;
-  - перед deploy снят backup `/opt/trackmate/backups/trackmate_20260630T203342Z.dump`;
-  - `git pull --ff-only`, `docker compose up -d --build`, migrations applied;
-  - `api`, `worker`, `postgres` healthy, `migrate` exited `0`;
-  - schema verification: `topickey=goals,progress,routine,today`, `pending_inputs=0`, material tables absent.
-- Закрыта production operation S028:
-  - перед DB-правкой снят backup `/opt/trackmate/backups/trackmate_20260630T204857Z.dump`;
-  - existing topic messages отредактированы через Bot API без новых posts: `Сегодня` control `8`, `Прогресс` intro `10`, `Рутины` control/table `3284`/`3285`, `Цели` control `3287`, old Goals confirmations `3331`/`3690`;
-  - legacy goal card `3327` и old weekly prompt `3552` уже отсутствовали в Telegram (`message to edit not found`);
-  - production goal sets теперь используют source messages: Игорь `3332`, Ярослав `3691`; `card_message_id` очищен;
-  - основная группа: `routine_plans=0`, `routine_checkins=0`, `pending_inputs=0`;
-  - Harvest dumps after edit: `/tmp/trackmate-haru-today-after.jsonl`, `/tmp/trackmate-haru-progress-after.jsonl`, `/tmp/trackmate-haru-routine-after.jsonl`, `/tmp/trackmate-haru-goals-after.jsonl`;
-  - `api`, `worker`, `postgres` healthy, recent logs без `error|panic|failed|duplicate|constraint`.
-
-## Измененные Файлы
-- `.project-loop/`
-- `internal/`, `migrations/`, `docs/`, `e2e/telegram/`
+## Реализация
+- `internal/bot/callback_authorization.go` стал единым access gate перед dispatch.
+- Public self-scoped controls, admin setup и persisted owner callbacks имеют явные ветви; default запрещает неизвестный kind.
+- Task/alert/routine/goal callbacks сверяют immutable owner и workspace callback-message до mutating handler.
+- `DismissKeyboard(ownerUserID)` компиляционно требует адресата; callback имеет вид `notice:dismiss:<owner_user_id>`.
+- Старый ownerless `notice:dismiss` намеренно не поддерживается: его владельца достоверно определить нельзя, поэтому он получает stale answer и ничего не удаляет.
+- Чужой клик получает `Эту кнопку может нажать только адресат`; подпись кнопки `👀 Понял` и нормальный owner-flow не менялись.
+- Инвариант сохранен в `AGENTS.md` и `docs/architecture.md`; E2E comments указывают границу single-user live scenario и multi-user PostgreSQL regression.
 
 ## Проверка
-- `make docker-up`: pass; `api`, `worker`, `postgres` healthy.
-- `go test ./...`: pass.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./... -cover`: pass. Key package coverage: `internal/app/goals` 65.3%, `internal/app/routine` 59.6%, `internal/storage/postgres` 58.6%, `internal/worker` 56.1%, `internal/domain` 67.7%.
-- `make lint`: pass.
-- `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make test`: pass.
-- `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
-- `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-024 validation: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/worker`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-025 validation: `go test ./internal/domain ./internal/ui ./internal/storage/postgres ./internal/app/goals ./internal/bot ./internal/worker`: pass; `make docker-up`: pass; `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass; `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./...`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-026 validation: `go test ./internal/bot ./internal/ui ./internal/messages ./internal/app/goals ./internal/storage/postgres`: pass; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- S027 production reset validation: backup `/opt/trackmate/backups/trackmate_before_routine_reset_20260629T192912Z.dump`: pass; Telegram leaderboard edit message `3285`: ok; prod SQL `routine_reset_verify|0|0|0|0`: pass; `docker compose ps`: `api`/`worker`/`postgres` running.
-- STEP-027 validation: `make docker-up`: pass; `docker compose ps`: `api`/`worker`/`postgres` healthy; live E2E run `s030-015143`: scenarios `00`, `01..11`, split `12`, split `13`, `14` pass; log scan found no `timeout`, `error`, `panic`; DB summary after final scenario: `pending_inputs=0`, unpublished progress `0`; `go test ./...`: pass; `make test`: pass; `make lint`: pass; `git diff --check`: pass; `loopctl.py validate`: pass.
-- `telegram-bot-e2e-test-tool make doctor`: pass.
-- `telegram-bot-e2e-test-tool make test`: pass.
-- Live scenarios passed after fixes: `00` setup, `01..11` Today/Progress/alerts, split `12` Routine, split `13` Goals weekly/final, `14` вставка про цели.
-- Final visible-state evidence: `tmp/e2e-live-logs/98-dump-review-state.log`.
-- STEP-004 правка текстов: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine`: pass.
-- STEP-004 правка текстов: `make test`: pass.
-- STEP-004 правка текстов: `make lint`: pass.
-- STEP-005 внешнее ревью текстов: `go test ./internal/ui ./internal/bot ./internal/app/goals ./internal/app/routine ./internal/storage/postgres`: pass.
-- STEP-005 внешнее ревью текстов: `make test`: pass.
-- STEP-005 внешнее ревью текстов: `make lint`: pass.
-- STEP-006 финальное ревью текстов: `go test ./internal/ui ./internal/domain ./internal/bot ./internal/app/goals ./internal/app/routine`: pass.
-- STEP-006 финальное ревью текстов: `make test`: pass.
-- STEP-006 финальное ревью текстов: `make lint`: pass.
-- STEP-006 финальное ревью текстов: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-009 UX после production: `go test ./internal/bot ./internal/ui ./internal/storage/postgres ./internal/domain ./internal/app/routine ./internal/app/goals`: pass.
-- STEP-009 UX после production: `make test`: pass.
-- STEP-009 UX после production: `make lint`: pass.
-- STEP-009 UX после production: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-010 topic-scoped pending/routine flow: `go test ./internal/domain ./internal/storage/postgres ./internal/app/pending ./internal/app/routine ./internal/app/goals ./internal/worker ./internal/bot ./internal/ui`: pass.
-- STEP-010: `go test ./... -count=1`: pass.
-- STEP-010: `make test`: pass.
-- STEP-010: `make lint`: pass.
-- STEP-010 DB-backed integration tests and migration dry-run: blocked locally because PostgreSQL was not listening on `localhost:5432` and `make docker-up` could not connect to Docker daemon.
-- STEP-011 routine date copy: `go test ./internal/ui ./internal/bot ./internal/app/routine`: pass.
-- STEP-011: `make lint`: pass.
-- STEP-011: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-011: `git diff --check`: pass.
-- STEP-012 production read-only check: VPS `/opt/trackmate` at `9a58215`, docker compose healthy; DB/logs around 2026-06-24 20:00 MSK inspected.
-- STEP-012: `go test ./internal/ui ./internal/bot`: pass.
-- STEP-012: `go test ./... -count=1`: pass.
-- STEP-012: `make lint`: pass.
-- STEP-012: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-013 production read-only check: VPS `/opt/trackmate` at `9a58215`, docker compose healthy; logs around 2026-06-24 20:00 MSK inspected.
-- STEP-013: `go test ./internal/ui ./internal/bot ./internal/app/routine ./internal/storage/postgres`: pass.
-- STEP-013: `go test ./... -count=1`: pass.
-- STEP-013: `make lint`: pass.
-- STEP-013: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-014 production verification: task `160` fixed; legacy pending constraint removed; `api`/`worker`/`postgres` healthy.
-- STEP-014: `TRACKMATE_TEST_DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' go test ./internal/storage/postgres ./internal/bot ./internal/app/pending`: pass.
-- STEP-014: `git diff --check`: pass.
-- STEP-014: `make test`: pass.
-- STEP-014: `make lint`: pass.
-- STEP-014: `TRACKMATE__DATABASE_URL='postgres://postgres:postgres@localhost:5432/trackmate?sslmode=disable' make migrate`: pass.
-- STEP-014: `loopctl.py validate /Users/igor/projects/trackmate`: pass.
-- STEP-015 message catalog/routine input: `go test ./internal/messages ./internal/domain ./internal/ui ./internal/telegram ./internal/app/goals ./internal/app/routine ./internal/bot ./internal/worker`: pass.
-- STEP-015: `make test`: pass.
-- STEP-015: `make lint`: pass.
-- STEP-015: `git diff --check`: pass.
-- STEP-015: `loopctl.py validate .`: pass.
-- STEP-016 routine cleanup/numbering: `go test ./internal/domain ./internal/ui ./internal/bot ./internal/app/routine ./internal/messages`: pass.
-- STEP-016: `make test`: pass.
-- STEP-016: `make lint`: pass.
-- STEP-016: `git diff --check`: pass.
-- STEP-016: `loopctl.py validate .`: pass.
-- STEP-017 routine alerts TTL/copy: `go test ./internal/storage/postgres ./internal/app/routine ./internal/ui ./internal/domain`: pass.
-- STEP-017: `go test ./internal/bot ./internal/worker ./internal/messages`: pass.
-- STEP-017: `make test`: pass.
-- STEP-017: `make lint`: pass.
-- STEP-017: `git diff --check`: pass.
-- STEP-017: `loopctl.py validate .`: pass.
-- STEP-018 production SQL verification: task `160` done/report `3386`, alerts acknowledged with no message ids, progress event `192` published as message `3649`.
-- STEP-018 worker log verification: `telegram_send_message_completed` for message `3649` in thread `7`.
-- STEP-018: `loopctl.py validate .`: pass.
-- STEP-019 production log verification: old pending unique constraint was root cause for message `3467` not saving on 2026-06-26.
-- STEP-019 production schema verification: rollback probe accepts same user pending inputs in two different topics.
-- STEP-019 Harvest cleanup verification: messages `3464`/`3465` deleted and absent from follow-up dump.
-- STEP-019 DB/message verification: task `160`, task `172`, progress `192`, messages `3361`/`3649` checked after edits.
-- STEP-020 production backup: `/opt/trackmate/backups/trackmate_manual_today_cleanup_20260629T122958Z.dump`.
-- STEP-020 worker/db verification: events `193`/`194` published as messages `3653`/`3654`.
-- STEP-020 Harvest verification: Today final dump has no `Напиши главную задачу` or `Итог сохранен`; Progress final dump includes `3653` and `3654`.
-- STEP-020 service health: `api`, `worker`, `postgres` healthy; progress outbox pending/publishing/failed = 0; Today pending input count = 0.
-- STEP-021 production logs: 2026-06-28 19:25 UTC shows old constraint failure for messages `3556`/`3558`; 2026-06-29 logs show no current Today failure.
-- STEP-021 Harvest dumps: current `Сегодня` has no screenshot prompts; `Чат` contains Igor's morning discussion messages, not Today task input.
-- STEP-021 SQL verification: task `169`/progress `3543` exists for Igor's report; no Igor task exists for 2026-06-29; task `171`/card `3652` proves current Today flow works.
-- STEP-022 Harvest dumps: current `Чат` has Yaroslav messages `3454`, `3471`, `3472`; Egor complaint messages `3464`/`3465` are already deleted.
-- STEP-022 Today/log verification: Yaroslav task `3456`/`3457` succeeded, Egor old failure restored as task `172`, Igor task `3476`/`3477` succeeded after Yaroslav's complaint.
-- STEP-022 SQL/service verification: progress messages `3487`, `3493`, `3653` exist; `api`, `worker`, `postgres` healthy; progress outbox clean; Today pending inputs = 0.
-- STEP-023 focused tests: `go test ./internal/domain ./internal/ui ./internal/app/routine ./internal/app/progress ./internal/worker ./internal/bot ./internal/storage/postgres`: pass.
-- STEP-023 broad tests: `go test ./...`: pass.
-- STEP-023 make validation: `make test`: pass; `make lint`: pass.
+- `TRACKMATE_TEST_DATABASE_URL=... go test ./internal/bot -run 'Test(PersonalCallbacksRejectOtherParticipantsWithoutMutation|OwnedCallbackRejectsResourceFromAnotherWorkspace|NoticeDismiss)' -count=1 -v`: pass.
+- DB-backed regression проверил task report/status, alert ack, routine item, goal final и notice dismiss: ноль Telegram send/edit/delete/markup mutations; task/alert/routine/goal DB state не изменен.
+- Cross-workspace callback того же владельца: stale answer, ноль mutations.
+- `TRACKMATE_TEST_DATABASE_URL=... make check`: pass.
+- `git diff --check`: pass.
+- `loopctl.py validate`: pass.
+- Полный Telegram E2E не запускался по project rule; production/push не выполнялись.
 
-## Агенты
-- Subagents отсутствуют.
-
-## Аудит Промптов
-- Создается при изменении prompts.
-
-## Пользовательские Дельты
-- Отдельный user-deltas stream создается для существенных свежих корректировок, решений или изменений области.
-
-## Риски И Блокеры
-- Production сейчас на commit `ee07db3`; STEP-031..STEP-035 развернуты, обе миграции `202608050001..2` применены.
-- Manual production edits S014/S018/S019/S020/S027/S028 закрыты с backup/evidence; при будущих ревизиях сверять историю с handoff, чтобы не повторить ручные правки.
-- User-visible text changes require explicit user request and before/after preview.
-- В production сохранен активный pending `seasonal_goals` от 2026-08-05 09:38 UTC; не считать его stuck cleanup без проверки пользовательского контекста.
+## Review
+- Все `CallbackKind` из parser/dispatch имеют явную ветвь access gate.
+- Все вызовы `DismissKeyboard` передают доменного владельца или автора пользовательского ввода.
+- Handler/storage owner conditions сохранены как второй барьер вокруг записей.
+- Residual: уже отправленные старой версией ownerless dismiss-кнопки после будущего deploy станут безопасно неактивными; добавлять неаутентифицируемый compatibility path нельзя.
 
 ## Следующее Действие
-- Передать пользователю завершенный STEP-035; новых обязательных действий нет.
+- По отдельному запросу: push/deploy текущего local commit и focused smoke владельца + второго участника на тестовом/production Telegram без полного E2E.
 
 ## Обновленные Источники Правды
-- `requirements/source-map.md`
-- `requirements/checklist.md`
-- `plan/delivery-plan.md`
-- `plan/current-step.md`
-
-### STEP-029: исправление кнопки `Понял`
-
-- Production callback `update_id=270887046` для reminder message `4479` дошел как `notice:dismiss`; потерянного update не было.
-- Рутина Игоря за `2026-07-09` корректно завершена, данные не повреждены; `pending_inputs=0`.
-- Root cause: Telegram error `message can't be deleted` ошибочно считался отсутствующим сообщением, а handler игнорировал delete errors.
-- Теперь delete error логируется; если удалить сообщение нельзя, Trackmate снимает inline-клавиатуру через `editMessageReplyMarkup`.
-- Пользовательские тексты не менялись.
-- Проверки: focused tests, `make test`, `make lint`, Project Loop validation, local Docker health.
-- Production backup: `/opt/trackmate/backups/trackmate_20260712T115219Z.dump`.
-- Production deploy: commit `2a25305`; `api`, `worker`, `postgres` healthy; migrations applied; `pending_inputs=0`.
-
-### STEP-030: итог дня после 20:00
-
-- Production: commit `848042d`; миграция `202607120001` применена.
-- После 20:00 кнопка `➕ Добавить задачу` при отсутствии записи создает отдельный итог дня с оценками `✅ Хорошо`, `🔸 Средне`, `❌ Плохо`. До 20:00 и при уже созданной записи остается обычный путь задачи.
-- Итог использует состояния `active → awaiting_report → done/partial/failed`, но отдельный тип данных и события Progress; итог не входит в метрики обычных задач.
-- Закрытая Today/Progress запись показывает `Игорь подвёл итог хорошего/среднего/плохого дня` без отдельной строки оценки. Автопровал редактирует карточку в `❌ Игорь не подвёл итог дня` и снимает кнопки.
-- Локально: PostgreSQL integration, `go test ./... -count=1`, `make test`, `make lint`, `go vet ./...`, `git diff --check` и Docker health: pass.
-- Live Telegram E2E: нормальный flow с редактированием исходного сообщения и auto-fail flow: pass; тестовая группа очищена после проверки.
-- Production backup: `/opt/trackmate/backups/trackmate_20260712T203143Z.dump`. После развёртывания `api`, `worker`, `postgres` healthy; миграция, enum, счётчики, пустой Progress outbox и логи проверены. Сегодня/Прогресс control-сообщения `8`/`10` обновлены через Bot API и подтверждены по тексту.
-
-### STEP-031: единый lifecycle Today alert/report
-
-- Production logs подтвердили две независимые причины: `task:report` отправлял новый status prompt на каждый callback, а alert ack игнорировал delete error и очищал Telegram message ID в БД раньше времени.
-- `task:report` теперь редактирует исходную карточку/alert в `Выбери итог дня`; повторная доставка callback безопасно повторяет edit того же message ID и не отправляет новых сообщений.
-- Alert/notice dismissal централизован: delete → явный tombstone `👀 Уведомление закрыто` без кнопок → удаление одной клавиатуры как последний fallback.
-- Alert подтверждается в БД только после успешного Telegram transition. Callback message ID закрывает старые alerts, у которых прежний код уже очистил stored message ID.
-- Unit и clean-schema PostgreSQL integration покрывают тройной replay, старый null message ID, undeletable message и полный Telegram failure с сохранением retryable DB state.
-- Полный DB-backed `go test ./... -count=1`, `make lint`, `git diff --check`, Project Loop validation: pass.
-- Live test bot: alert message `828` удален кнопкой `Понял`; report flow прошел на одном message `827` (`task card → status chooser → report prompt → closed card`); финально `pending_inputs=0`, unpublished progress `0`, open alerts `0`, сервисы healthy, error log scan clean.
-- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
-
-### STEP-032: recoverable setup prompts Goals/Routine
-
-- Production routine check-in `1220772` Егора за `2026-08-04` уже имел первый пункт `done`, пустую причину и все семь выполненных пунктов; Telegram message `6010` уже показывал полное выполнение. Лишняя production mutation не выполнялась.
-- Production Goals mismatch подтвержден: callback создал setup prompt `6037`, pending input `739` сохранил его ID, но свежий MTProto dump сообщения не содержал.
-- Goals и Routine теперь используют один lifecycle: существующий prompt проверяется и переиспользуется; только подтвержденный Telegram missing target создает одну замену; transient edit failure не создает дубль и сохраняет retryable pending state.
-- Participant upsert сериализует конкурентные configure callbacks одного пользователя внутри транзакции; два callback не могут одновременно решить, что prompt отсутствует.
-- PostgreSQL tests покрывают Goals и Routine reuse/missing/transient paths. Полный DB-backed Go suite, lint, vet, diff check и Project Loop validation прошли.
-- Live test bot: первый Goals callback создал message `833`, повторный callback переиспользовал его без send; source message `834` сохранился, confirmation `835` отправлен один раз, `pending_inputs=0`, сервисы healthy, error log scan clean.
-- Текущая product semantics weekly reviews не менялась: unanswered pending очищается через 24 часа, та же review row повторно не отправляется; следующий двухнедельный review независим. Нужен выбор пользователя, если это следует изменить.
-- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
-
-### STEP-033: контекстный routine auto-close alert
-
-- Production read-only evidence по screenshot S034: check-in `978848` Егора за `2026-07-28`, card `5449`, source routine message `3854`; незавершенных legacy auto-close notices перед будущим deploy нет.
-- Root cause: transition удалял routine card до доставки standalone notice, поэтому сам уничтожал правильный reply context.
-- Теперь auto-close редактирует исходную card в итоговый failed-state без кнопок и сохраняет ее в истории; alert отвечает на эту card, кликабельно называет участника и словом `Рутина` ведет к исходному сообщению настройки.
-- Канонический текст: `⏰ Игорь, время вышло. Рутина за 08.08 закрыта` и `Неотмеченные пункты засчитаны как невыполненные`; отдельный случайный auto-close variant Егора удален.
-- Если card утрачена, alert отвечает на source routine; standalone используется только последним осмысленным fallback. Telegram failure оставляет доставку retryable, а уже доставленный/истекший notice не воскресает.
-- Первый focused live прогон подтвердил основной flow. Второй воспроизвел реальную гонку periodic/manual tick и два сообщения `845`/`846`; доставка исправлена транзакционным row claim `FOR UPDATE SKIP LOCKED`, concurrency regression test закрепляет отсутствие дубля.
-- Финальный focused live прогон: card `850` сохранена, отправлен единственный alert `851`, `Понял` удалил alert, card осталась; `pending_never_sent=0`, сервисы healthy, error/warn logs чисты.
-- Проверки: focused DB-backed Go packages, formatter/Telegram/storage tests, `make lint`, focused `go vet`, `git diff --check`, Project Loop validation. Полный Telegram E2E намеренно не запускался.
-- Развернуто в production вместе со STEP-035 на commit `ee07db3`.
-
-### STEP-034: retry/skip lifecycle вопросов по целям
-
-- Root cause исчезающего вопроса: generic pending cleanup удалял prompt через 24 часа, а weekly dispatcher создавал review только в очередной двухнедельный слот и больше не возвращался к существующей row.
-- `goal_weekly_review` теперь имеет собственный persisted lifecycle: `requested_at` фиксирует успешную первую доставку, `reminder_sent_at` — единственный retry через 24 часа, `skipped_at` — окончательное закрытие через 72 часа.
-- Generic stale cleanup больше не владеет weekly-review pending. Первый prompt заменяется одним новым сообщением; retry остается доступным для ответа до общего 72-часового дедлайна.
-- На дедлайне prompt удаляется, только matching pending очищается, late answer отклоняется. Другой pending в `Целях` не перезаписывается и не удаляется. Final review ждет, пока открытый weekly review не отвечен или не пропущен.
-- Additive migration `202608050001_goal_review_retry_lifecycle.sql` применена локально; clean-schema tests проверяют схему и lifecycle.
-- Focused live: initial `855` (`requested_at=2026-08-09T17:00:00Z`), retry `856` (`reminder_sent_at=2026-08-10T17:00:00Z`), на 48-м часу message/pending сохранены, на 72-м prompt удален и review `532` получил `skipped_at=2026-08-12T17:00:00Z`; pending/open reviews `0`.
-- Первый E2E template использовал `wait` для внешнего delete-event; runner не проснулся, хотя snapshot уже показывал удаление. Template заменен на прямой `assert_not_visible_text`, финальная проверка прошла.
-- Проверки: focused DB-backed packages, `make test`, `make lint`, focused `go vet`, local migration/readback, Project Loop validation, Docker health/log scan. Полный Telegram E2E намеренно не запускался.
-- Пользовательские тексты не менялись. Развернуто в production вместе со STEP-035 на commit `ee07db3`.
-
-### STEP-035: delivery concurrency hardening и production deploy
-
-- Tooling review выделил три независимые первопричины: Telegram offset подтверждал update до async handler; session advisory lock acquire/unlock выполнялись через произвольные pool connections; `dispatching`/`publishing` не имели persisted lease и после crash могли остаться навсегда.
-- Async mailbox dispatcher удален. API обрабатывает полученный prefix последовательно и двигает offset только после успешного handler; ошибка сохраняет текущий update для retry с backoff.
-- Worker advisory lock теперь schema-namespaced, держит один pinned `pgxpool.Conn` и освобождается bounded background context; failed unlock закрывает session вместо возврата потенциально locked connection в pool.
-- Migration `202608050002_delivery_claim_leases.sql` добавила alert/progress claim timestamps и индексы. Fresh claim не переиспользуется, expired/legacy claim восстанавливается через 5 минут, terminal/requeue transition проверяет владение состоянием.
-- Worker send-then-persist paths в Today alerts, Progress, Routine и Goals делают bounded compensation: удаляют только что отправленное сообщение, прежде чем requeue/return.
-- Session learnings закреплены в `AGENTS.md` и architecture/operations; repo polish добавил `make vet` и единый `make check`.
-- Локально: additive migration/readback, clean-schema PostgreSQL concurrency tests, DB-backed `make check`, `git diff --check`, Project Loop validation и Docker health/log scan прошли.
-- Focused live без full E2E: task `134` → один alert `21`/message `860`; lease очищен, `👀 Понял` удалил alert; test DB/history очищены, clock override снят, stale claims/open progress/pending inputs `0`.
-- Commit `ee07db3` опубликован в `main`. Production backup `/opt/trackmate/backups/trackmate_20260805T113344Z.dump` проверен checksum и `pg_restore --list`.
-- Production обновлен `76db6c2 → ee07db3`: `api`/`worker`/`postgres` healthy; migrations `202608050001`/`202608050002` applied; alerts `127 sent`, progress `268 published`, stale claims `0`, idle transactions `0`, advisory waiters `0`, error/warn scan чистый.
-- Один свежий `seasonal_goals` pending сохранен как активный. Два исторических sent/unacknowledged alerts за май не мутировались: они не входят в claim queue и не могут stack-аться; новый callback lifecycle закроет их, если пользователь нажмет старую кнопку.
-- Пользовательские тексты/кнопки/расписания не менялись. Полный Telegram E2E намеренно не запускался.
+- `.project-loop/requirements/source-map.md`
+- `.project-loop/requirements/checklist.md`
+- `.project-loop/plan/delivery-plan.md`
+- `.project-loop/plan/current-step.md`
+- `.project-loop/intake/user-deltas.md`
+- `.project-loop/handoffs/handoff.md`
+- `AGENTS.md`
+- `docs/architecture.md`

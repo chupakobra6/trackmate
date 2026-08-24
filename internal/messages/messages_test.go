@@ -9,6 +9,9 @@ func TestTextLoadsCatalog(t *testing.T) {
 	if got := Text("button.dismiss"); got != "👀 Понял" {
 		t.Fatalf("button.dismiss = %q", got)
 	}
+	if got := Text("callback.owner_only"); got != "Эту кнопку может нажать только адресат" {
+		t.Fatalf("callback.owner_only = %q", got)
+	}
 	if !strings.Contains(Text("routine.plan.prompt"), "— зарядка") {
 		t.Fatalf("routine prompt should show dash example: %s", Text("routine.plan.prompt"))
 	}

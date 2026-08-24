@@ -420,6 +420,9 @@ func TestRoutinePlanSaveKeepsUserListAndSendsDismissibleConfirmation(t *testing.
 		!confirmation.DisableNotification {
 		t.Fatalf("routine save confirmation should be silent, dismissible, and linked: %+v", confirmation)
 	}
+	if got := confirmation.ReplyMarkup.InlineKeyboard[0][0].CallbackData; got != "notice:dismiss:42" {
+		t.Fatalf("routine confirmation dismiss callback = %q", got)
+	}
 	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
 	if err != nil {
 		t.Fatal(err)
@@ -894,6 +897,9 @@ func TestSeasonalGoalsSaveUsesConciseConfirmationWithoutEcho(t *testing.T) {
 	if !confirmation.DisableNotification {
 		t.Fatalf("goals confirmation should be silent: %+v", confirmation)
 	}
+	if confirmation.ReplyMarkup == nil || confirmation.ReplyMarkup.InlineKeyboard[0][0].CallbackData != "notice:dismiss:42" {
+		t.Fatalf("goals confirmation dismiss callback must belong to its author: %+v", confirmation.ReplyMarkup)
+	}
 	for _, part := range []string{`<a href="https://t.me/c/1234567890/301?thread=14">Цели на сезон</a> сохранены`, "Вопросы по целям будут приходить"} {
 		if !strings.Contains(confirmation.Text, part) {
 			t.Fatalf("confirmation missing %q: %s", part, confirmation.Text)
@@ -1066,7 +1072,7 @@ func TestNoticeDismissDeletesMessage(t *testing.T) {
 	answer, err := service.HandleUpdate(context.Background(), telegram.Update{Callback: &telegram.CallbackQuery{
 		ID:   "notice-dismiss",
 		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
-		Data: "notice:dismiss",
+		Data: "notice:dismiss:42",
 		Message: &telegram.Message{
 			MessageID:       777,
 			MessageThreadID: 13,
@@ -1093,7 +1099,7 @@ func TestNoticeDismissReplacesMessageWhenTelegramCannotDeleteIt(t *testing.T) {
 	answer, err := service.HandleUpdate(context.Background(), telegram.Update{Callback: &telegram.CallbackQuery{
 		ID:   "notice-dismiss-fallback",
 		From: telegram.User{ID: 42, Username: "igor", FirstName: "Игорь"},
-		Data: "notice:dismiss",
+		Data: "notice:dismiss:42",
 		Message: &telegram.Message{
 			MessageID:       777,
 			MessageThreadID: 13,

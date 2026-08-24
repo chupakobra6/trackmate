@@ -33,6 +33,7 @@ type Callback struct {
 	RoutineItemStatus RoutineItemStatus
 	GoalSetID         int64
 	GoalFinalStatus   GoalFinalStatus
+	NoticeOwnerUserID int64
 	Raw               string
 }
 
@@ -51,8 +52,6 @@ func ParseCallback(raw string) (Callback, error) {
 		return Callback{Kind: CallbackRoutineConfigure, Raw: raw}, nil
 	case "goals:configure":
 		return Callback{Kind: CallbackGoalsConfigure, Raw: raw}, nil
-	case "notice:dismiss":
-		return Callback{Kind: CallbackNoticeDismiss, Raw: raw}, nil
 	}
 
 	parts := strings.Split(raw, ":")
@@ -106,6 +105,12 @@ func ParseCallback(raw string) (Callback, error) {
 			return Callback{Kind: CallbackUnknown, Raw: raw}, fmt.Errorf("unknown goal final status %q", parts[3])
 		}
 		return Callback{Kind: CallbackGoalFinalStatus, GoalSetID: id, GoalFinalStatus: status, Raw: raw}, nil
+	case len(parts) == 3 && parts[0] == "notice" && parts[1] == "dismiss":
+		ownerUserID, err := parsePositiveID(parts[2])
+		if err != nil {
+			return Callback{Kind: CallbackUnknown, Raw: raw}, err
+		}
+		return Callback{Kind: CallbackNoticeDismiss, NoticeOwnerUserID: ownerUserID, Raw: raw}, nil
 	default:
 		return Callback{Kind: CallbackUnknown, Raw: raw}, fmt.Errorf("unknown callback")
 	}

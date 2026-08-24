@@ -150,6 +150,10 @@ func (s *Service) handleCallback(ctx context.Context, callback telegram.Callback
 	if err != nil {
 		return CallbackAnswer{Text: messages.Text("callback.stale_button")}, nil
 	}
+	answer, allowed, err := s.authorizeCallback(ctx, callback, parsed)
+	if err != nil || !allowed {
+		return answer, err
+	}
 	switch parsed.Kind {
 	case domain.CallbackSetupCheck:
 		return CallbackAnswer{}, s.upsertSetupMessage(ctx, callback.Message.Chat.ID, callback.Message.Chat.Title, callback.Message, "")
@@ -232,13 +236,6 @@ func (s *Service) upsertSetupMessage(ctx context.Context, chatID int64, chatTitl
 
 func (s *Service) handleSetupStart(ctx context.Context, callback telegram.CallbackQuery) (CallbackAnswer, error) {
 	chat := callback.Message.Chat
-	isAdmin, err := s.Setup.IsGroupAdmin(ctx, chat.ID, callback.From.ID)
-	if err != nil {
-		return CallbackAnswer{}, err
-	}
-	if !isAdmin {
-		return CallbackAnswer{Text: messages.Text("callback.setup.admin_only")}, nil
-	}
 	prerequisites, err := s.Setup.CheckPrerequisites(ctx, chat.ID)
 	if err != nil {
 		return CallbackAnswer{}, err
@@ -446,7 +443,7 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 				ChatID:              message.Chat.ID,
 				MessageThreadID:     message.MessageThreadID,
 				Text:                text,
-				ReplyMarkup:         ui.DismissKeyboard(),
+				ReplyMarkup:         ui.DismissKeyboard(user.ID),
 				DisableNotification: true,
 			})
 			return nil
@@ -498,10 +495,10 @@ func (s *Service) consumeDailyReport(ctx context.Context, workspace postgres.Wor
 		isTodayCardPrompt := found && promptMessageID != 0 && promptMessageID == optionalInt64(task.TodayCardMessageID)
 		if !submitted {
 			text := dailyReportRejectedText(isSummary, found && !task.Status.IsOpen())
-			if !isTodayCardPrompt && !s.editMessageSafe(ctx, message.Chat.ID, promptMessageID, text, ui.DismissKeyboard()) {
-				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
+			if !isTodayCardPrompt && !s.editMessageSafe(ctx, message.Chat.ID, promptMessageID, text, ui.DismissKeyboard(message.From.ID)) {
+				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
 			} else if isTodayCardPrompt {
-				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(), DisableNotification: true})
+				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
 			}
 			return nil
 		}

@@ -51,11 +51,19 @@ func TestParseGoalFinalCallback(t *testing.T) {
 }
 
 func TestParseNoticeDismissCallback(t *testing.T) {
-	got, err := ParseCallback("notice:dismiss")
+	got, err := ParseCallback("notice:dismiss:42")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Kind != CallbackNoticeDismiss {
+	if got.Kind != CallbackNoticeDismiss || got.NoticeOwnerUserID != 42 {
 		t.Fatalf("unexpected callback: %+v", got)
+	}
+}
+
+func TestParseNoticeDismissRejectsMissingOwner(t *testing.T) {
+	for _, raw := range []string{"notice:dismiss", "notice:dismiss:0", "notice:dismiss:not-a-user"} {
+		if got, err := ParseCallback(raw); err == nil || got.Kind != CallbackUnknown {
+			t.Fatalf("%q: callback=%+v err=%v", raw, got, err)
+		}
 	}
 }

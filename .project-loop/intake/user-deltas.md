@@ -1205,3 +1205,31 @@ ID источника: `S036`
 - focused live alert/worker smoke: task `134`, alert `21`/message `860`, один send, очищенный lease, успешный `Понял`; test workspace/messages очищены;
 - production backup `/opt/trackmate/backups/trackmate_20260805T113344Z.dump` прошёл checksum и `pg_restore --list`;
 - production `ee07db3`: обе миграции applied, сервисы healthy, stale claims `0`, idle transactions `0`, error/warn scan чистый; активный `seasonal_goals` pending не тронут.
+
+### Callback Ownership Security
+
+ID источника: `S037`
+
+Приложение:
+- `/tmp/codex-remote-attachments/019fd147-99c6-7710-87e1-cd21544940da/41D8F377-6604-4B8F-B4CD-808E6387DC74/1-Фото-1.jpg`
+
+Исходный ввод:
+
+```text
+Проверить, может ли любой участник нажать кнопку `Понял` у персонального алерта о невыполненной задаче. Исправить не один случай, а общий класс ошибки, чтобы новые callback-кнопки не оставались без авторизации.
+```
+
+Нормализация:
+- [x] аудит всех callback kinds и всех мест генерации inline keyboard;
+- [x] единый deny-by-default access gate перед callback dispatch;
+- [x] owner и workspace checks для task/alert/routine/goal callbacks;
+- [x] обязательный owner в callback data для stateless dismiss notices;
+- [x] чужой callback не удаляет/не редактирует сообщение и не меняет БД;
+- [x] focused tests вместо полного Telegram E2E;
+- [x] production не менять без отдельного запроса.
+
+Маршрутизация:
+- [x] source map `S037`;
+- [x] `REQ-061`, `CON-008`, `VAL-014`, `STEP-036`;
+- [x] реализация, self-review и validation;
+- [x] local commit и handoff.
