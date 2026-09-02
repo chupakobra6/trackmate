@@ -48,7 +48,8 @@ and leaves application services stopped after success. This prevents the old
 polling process from writing new data after the final dump.
 
 Backups are written under `backups/` by default. That directory is ignored by
-git.
+git. The backup script uses `umask 077`, so new dump, metadata, and checksum
+files are readable only by the account that creates them.
 
 ## Restore
 

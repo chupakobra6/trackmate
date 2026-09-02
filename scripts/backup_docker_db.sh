@@ -1,6 +1,9 @@
 #!/usr/bin/env sh
 set -eu
 
+# Database dumps and their metadata can contain sensitive production data.
+umask 077
+
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 cd "$REPO_ROOT"
