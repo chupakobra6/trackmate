@@ -1347,7 +1347,7 @@ ID источника: `S042`
 - [x] вынести единый лимит и safety margin в код вместо отдельных magic durations;
 - [x] все scheduled cleanup выполнять до safe deadline либо переводить просроченное сообщение в inert state без worker block;
 - [x] добавить regression-аудит таймеров/удалений и постоянный Trackmate invariant;
-- [ ] пройти DB-backed checks, commit, push, deploy и production verification.
+- [x] пройти DB-backed checks, commit, push, deploy и production verification.
 
 Уточнение факта:
 - официальный Bot API ограничивает обычное `deleteMessage` возрастом строго меньше 48 часов;
@@ -1357,7 +1357,7 @@ ID источника: `S042`
 - [x] source map `S042`,`S043`;
 - [x] `REQ-069..REQ-070`, `CON-010`, `VAL-018`, `STEP-040`;
 - [x] code/test/rule audit;
-- [ ] production delivery и handoff.
+- [x] production delivery и handoff.
 
 Локальные доказательства:
 - официальный источник подтверждает hard limit `<48h`;
@@ -1365,3 +1365,10 @@ ID источника: `S042`
 - scheduled app cleanup проходит через `internal/app/messagecleanup`, а architecture test запрещает новые прямые вызовы;
 - `GoalNudgeCooldown=72h` классифицирован как unrelated и оставлен без изменений;
 - focused tests, fresh `go test ./... -count=1`, `make check`, `git diff --check` и Project Loop validation прошли.
+
+Production-доказательства:
+- code commit `c1e126d` включён в local, `origin/main` и `/opt/trackmate`;
+- cutover backup `/opt/trackmate/backups/trackmate_20260903T230430Z.dump` прошёл checksum и `pg_restore --list`;
+- `api`, `worker`, `postgres` healthy, migrate завершён успешно;
+- unpublished progress, outstanding alerts, stale claims, stale generic pending, stale routine notices, weekly past safe deadline и advisory waiters равны `0`;
+- в свежих production logs нет `error`, `panic`, `fatal`, `message can't be deleted` или `deleteMessage` failures.

@@ -4,30 +4,38 @@
 Обновлено: 2026-09-04
 
 ## Цель
-- Проверить жалобу на 39 сообщений в `Прогрессе`, не удалить корректную историю и сохранить preventive production workflow.
+- Проверить все удаления Telegram-сообщений, устранить граничные timed deletes и гарантировать, что delete failure не блокирует worker.
 
 ## Завершенный Шаг
-- step: `STEP-039`
+- step: `STEP-040`
 - status: `готово`
-- requirements: `REQ-067`, `REQ-068`, `VAL-017`
-- sources: `S040`, `S041`
+- requirements: `REQ-069`, `REQ-070`, `VAL-018`
+- sources: `S042`, `S043`
 
-## Вывод
-- Восстановление goals worker действительно раскрыло backlog, но новых карточек было `17`, а не `39`.
-- Production DB даёт точное разложение пользовательского числа: `22` progress events были опубликованы 7–25 августа, `17` — 3 сентября после снятия worker wedge; итого `39`.
-- Новые events `304..320` соответствуют отдельным daily tasks за 26.08–03.09 и Telegram messages `7250..7266`.
-- Duplicate `(daily_task_id,event_type)` = `0`; duplicate message IDs = `0`; missing task/source links = `0`.
-- Harvest подтвердил 17 отдельных пользовательских карточек. Это корректная история, поэтому Telegram cleanup не выполнялся.
+## Контракт
+- По официальному Bot API обычное сообщение можно удалить только в возрасте строго меньше `48h`.
+- Trackmate планирует удаление не позже `47h`, сохраняя час запаса.
+- Weekly deadline `71h` считается от первого prompt: retry через `24h`, затем `47h` до cleanup.
+- `GoalNudgeCooldown=72h` не относится к удалениям и не менялся.
 
-## Prevention И Production
-- Root cause backlog уже устранён в `7059d88`: недоступное удаление weekly goal prompt больше не блокирует worker stages.
-- `AGENTS.md` закрепляет standing checks → commit → push → deploy → live verification и изоляцию worker failures.
-- Глобальный `/Users/igor/.codex/AGENTS.md` требует root-cause fix, regression/invariant, bounded recovery и post-deploy queue/log/live-state checks.
-- Rules commit `37c1136` находится локально, в `origin/main` и production checkout; services healthy.
-- Текущий progress outbox пуст, свежего повторного backlog нет.
+## Реализация И Prevention
+- `internal/domain` содержит один источник delete limit, margin и target age.
+- `internal/app/messagecleanup` выполняет age-aware best-effort delete и inert fallback без worker block.
+- Pending, routine notices и weekly goals cleanup переведены на общий контракт.
+- Architecture regression test запрещает обход контракта в application code; единственное исключение — компенсация сообщения, отправленного в том же вызове.
+- Интерактивные `internal/bot` call sites проаудированы: они user-triggered/immediate и не блокируют worker при delete error.
+- `AGENTS.md` закрепляет Telegram invariant и каноническую production backup-команду.
+
+## Проверки И Production
+- focused tests, fresh `go test ./... -count=1`, `make check`, `git diff --check`, Project Loop validation: pass.
+- code commit `c1e126d` включён в local, `origin/main` и `/opt/trackmate`.
+- backup `/opt/trackmate/backups/trackmate_20260903T230430Z.dump` проверен checksum и `pg_restore --list`.
+- `api`, `worker`, `postgres` healthy; migrate завершён успешно.
+- unpublished progress, outstanding alerts, stale claims, stale generic pending, stale routine notices, weekly past safe deadline и advisory waiters: `0`.
+- fresh production error/delete-failure scan: clean.
 
 ## Остаточный Риск
-- После будущего длительного outage корректный backlog по-прежнему публикуется отдельными карточками. Coalesced summary — отдельное продуктовое изменение, не необходимое для исправления этого инцидента.
+- Telegram может отказать в удалении и до 48 часов по другим правилам Bot API или transient причинам; в worker-owned flows это теперь приводит к inert fallback/безопасному завершению, а не к повторному loop.
 
 ## Следующее Действие
-- Нет обязательного действия. Не удалять messages `7250..7266`; при отдельном запросе спроектировать summary-mode для большого backlog.
+- Нет обязательного действия.

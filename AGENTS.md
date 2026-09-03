@@ -20,6 +20,7 @@
 - Run local API: `make api`
 - Run local worker: `make worker`
 - Run local Docker stack: `make docker-up`
+- Create a production cutover backup: `make docker-db-backup-stop`; use the Make target because the underlying shell script is intentionally invoked through `sh` and is not executable.
 - Run lint: `make lint`
 - Run tests: `make test`
 - Run a focused test first when possible, then broader checks if needed.
