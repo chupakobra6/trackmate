@@ -804,6 +804,10 @@ func TestConfigureGoalsDoesNotTouchUnfinishedRoutineDraft(t *testing.T) {
 	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
 		t.Fatal(err)
 	}
+	autumnNow := time.Date(2026, 9, 4, 12, 0, 0, 0, time.UTC)
+	if err := q.SetClockOverride(ctx, &autumnNow); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := q.UpsertPendingInput(ctx, workspace.ID, 42, 13, domain.PendingRoutinePlan, map[string]any{
 		"thread_id":         13,
 		"prompt_message_id": 100,
@@ -838,7 +842,7 @@ func TestConfigureGoalsDoesNotTouchUnfinishedRoutineDraft(t *testing.T) {
 	if err != nil || !found || goalsPending.Kind != domain.PendingSeasonalGoals || goalsPending.Payload["thread_id"] != float64(14) {
 		t.Fatalf("unexpected goals pending found=%v pending=%+v err=%v", found, goalsPending, err)
 	}
-	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли цели на сезон") {
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Пришли цели на сезон") || !strings.Contains(fake.sent[0].Text, "Осень 2026") || !strings.Contains(fake.sent[0].Text, "01.12.2026") {
 		t.Fatalf("expected one goals prompt, got %+v", fake.sent)
 	}
 }
@@ -1061,6 +1065,171 @@ func TestGoalWeeklyReviewSendsFallbackWhenPromptEditFails(t *testing.T) {
 	}
 	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Ответы по целям сохранены") || !fake.sent[0].DisableNotification {
 		t.Fatalf("expected silent fallback confirmation, got %+v", fake.sent)
+	}
+}
+
+func TestGoalFinalReviewAccumulatesMessagesUntilExplicitCompletion(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 14, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	owner, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, owner.ID, owner.UserID, period, "1. Работа", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	final, err := q.GetOrCreateGoalFinalReview(ctx, goalSet.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalFinalReviewPrompt(ctx, final.ID, 702, 14); err != nil {
+		t.Fatal(err)
+	}
+	callbackMessage := &telegram.Message{
+		MessageID:       702,
+		MessageThreadID: 14,
+		Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID: "goal-status", From: telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"},
+		Data: fmt.Sprintf("goals:final:%d:partial", goalSet.ID), Message: callbackMessage,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	answer, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID: "goal-empty-complete", From: telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"},
+		Data: fmt.Sprintf("goals:final:%d:complete", goalSet.ID), Message: callbackMessage,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(answer.Text, "хотя бы одно сообщение") {
+		t.Fatalf("empty completion answer=%q", answer.Text)
+	}
+
+	firstText := strings.Repeat("Первый результат. ", 180)
+	for _, input := range []telegram.Message{
+		{MessageID: 801, MessageThreadID: 14, DateUnix: time.Now().Unix(), From: &telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"}, Chat: callbackMessage.Chat, Text: firstText},
+		{MessageID: 802, MessageThreadID: 14, DateUnix: time.Now().Unix(), From: &telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"}, Chat: callbackMessage.Chat, Text: "Вторую цель переношу на осень."},
+	} {
+		if _, err := service.HandleUpdate(ctx, telegram.Update{Message: &input}); err != nil {
+			t.Fatal(err)
+		}
+		if _, found, err := q.GetPendingInput(ctx, workspace.ID, owner.UserID, 14); err != nil || !found {
+			t.Fatalf("final pending closed before explicit completion found=%v err=%v", found, err)
+		}
+	}
+	if edit, found := fake.findEdit(702); !found || !strings.Contains(edit.Text, "Сохранено частей:</b> 2") || edit.ReplyMarkup == nil || edit.ReplyMarkup.InlineKeyboard[0][0].CallbackData != fmt.Sprintf("goals:final:%d:complete", goalSet.ID) {
+		t.Fatalf("draft card mismatch found=%v edit=%+v", found, edit)
+	}
+
+	answer, err = service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID: "goal-complete", From: telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"},
+		Data: fmt.Sprintf("goals:final:%d:complete", goalSet.ID), Message: callbackMessage,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if answer.Text != "" {
+		t.Fatalf("completion answer=%q", answer.Text)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, owner.UserID, 14); err != nil || found {
+		t.Fatalf("final pending remained after completion found=%v err=%v", found, err)
+	}
+	var completedAt *time.Time
+	var partCount int
+	if err := store.Pool().QueryRow(ctx, `SELECT completed_at, cardinality(summary_message_ids) FROM seasonal_goal_final_reviews WHERE goal_set_id = $1`, goalSet.ID).Scan(&completedAt, &partCount); err != nil {
+		t.Fatal(err)
+	}
+	if completedAt == nil || partCount != 2 {
+		t.Fatalf("completed_at=%v part_count=%d", completedAt, partCount)
+	}
+	edit, found := fake.findEdit(702)
+	if !found || !strings.Contains(edit.Text, "часть 1") || !strings.Contains(edit.Text, "часть 2") || !strings.Contains(edit.Text, "/801?thread=14") || !strings.Contains(edit.Text, "/802?thread=14") {
+		t.Fatalf("final card mismatch found=%v edit=%+v", found, edit)
+	}
+	if strings.Contains(edit.Text, "Первый результат") || len(edit.Text) >= 4096 {
+		t.Fatalf("final card should link instead of echoing long content: len=%d text=%s", len(edit.Text), edit.Text)
+	}
+}
+
+func TestGoalFinalStatusFallsBackToNewPromptWhenEditFails(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	fake := newFakeTelegram()
+	fake.editErrors = map[int64]error{702: errors.New("message to edit not found")}
+	service := bot.NewService(store, fake, logging.New("ERROR"), "UTC", 99)
+	ctx := context.Background()
+	q := store.Queries()
+	workspace, err := q.GetOrCreateWorkspace(ctx, -1001234567890, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period, err := domain.CurrentGoalPeriod("UTC", time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, owner.ID, owner.UserID, period, "1. Работа", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	final, err := q.GetOrCreateGoalFinalReview(ctx, goalSet.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := q.SetGoalFinalReviewPrompt(ctx, final.ID, 702, 14); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.HandleUpdate(ctx, telegram.Update{Callback: &telegram.CallbackQuery{
+		ID:   "goal-status-fallback",
+		From: telegram.User{ID: owner.UserID, Username: "igor", FirstName: "Игорь"},
+		Data: fmt.Sprintf("goals:final:%d:partial", goalSet.ID),
+		Message: &telegram.Message{
+			MessageID:       702,
+			MessageThreadID: 14,
+			Chat:            telegram.Chat{ID: workspace.ChatID, Type: "supergroup", Title: "Group", IsForum: true},
+		},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 1 || !strings.Contains(fake.sent[0].Text, "Опиши конкретные результаты") || fake.sent[0].ReplyMarkup == nil {
+		t.Fatalf("fallback final prompt mismatch: %+v", fake.sent)
+	}
+	pending, found, err := q.GetPendingInput(ctx, workspace.ID, owner.UserID, 14)
+	pendingPromptID, _ := pending.Payload["prompt_message_id"].(float64)
+	if err != nil || !found || int64(pendingPromptID) != 1001 {
+		t.Fatalf("fallback pending found=%v pending=%+v err=%v", found, pending, err)
+	}
+	var promptMessageID int64
+	if err := store.Pool().QueryRow(ctx, `SELECT prompt_message_id FROM seasonal_goal_final_reviews WHERE goal_set_id = $1`, goalSet.ID).Scan(&promptMessageID); err != nil {
+		t.Fatal(err)
+	}
+	if promptMessageID != 1001 {
+		t.Fatalf("final prompt_message_id=%d want=1001", promptMessageID)
+	}
+	if len(fake.replyMarkupEdits) != 1 || fake.replyMarkupEdits[0].MessageID != 702 {
+		t.Fatalf("old status keyboard was not removed: %+v", fake.replyMarkupEdits)
 	}
 }
 

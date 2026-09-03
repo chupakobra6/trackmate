@@ -484,6 +484,18 @@ WHERE workspace_group_id = $1
 	return err
 }
 
+func (q *Queries) ClearGoalFinalReviewPendingInput(ctx context.Context, workspaceID int64, userID int64, threadID int64, goalSetID int64) error {
+	_, err := q.db.Exec(ctx, `
+DELETE FROM pending_inputs
+WHERE workspace_group_id = $1
+  AND user_id = $2
+  AND message_thread_id = $3
+  AND kind = $4
+  AND payload->>'goal_set_id' = $5
+`, workspaceID, userID, threadID, string(domain.PendingGoalFinalReflection), fmt.Sprint(goalSetID))
+	return err
+}
+
 func (q *Queries) ListStalePendingInputContexts(ctx context.Context, cutoff time.Time, limit int) ([]PendingInputContext, error) {
 	rows, err := q.db.Query(ctx, `
 SELECT pi.id, pi.workspace_group_id, pi.user_id, pi.message_thread_id, pi.kind, pi.payload, pi.created_at,
@@ -491,10 +503,10 @@ SELECT pi.id, pi.workspace_group_id, pi.user_id, pi.message_thread_id, pi.kind, 
 FROM pending_inputs pi
 JOIN workspace_groups wg ON wg.id = pi.workspace_group_id
 WHERE pi.created_at <= $1
-  AND pi.kind <> $3
+  AND pi.kind NOT IN ($3, $4)
 ORDER BY pi.created_at ASC
 LIMIT $2
-`, cutoff.UTC(), limit, string(domain.PendingGoalWeeklyReview))
+`, cutoff.UTC(), limit, string(domain.PendingGoalWeeklyReview), string(domain.PendingGoalFinalReflection))
 	if err != nil {
 		return nil, err
 	}

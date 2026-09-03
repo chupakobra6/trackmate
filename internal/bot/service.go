@@ -175,6 +175,8 @@ func (s *Service) handleCallback(ctx context.Context, callback telegram.Callback
 		return s.handleGoalsConfigure(ctx, callback)
 	case domain.CallbackGoalFinalStatus:
 		return s.handleGoalFinalStatus(ctx, callback, parsed.GoalSetID, parsed.GoalFinalStatus)
+	case domain.CallbackGoalFinalComplete:
+		return s.handleGoalFinalComplete(ctx, callback, parsed.GoalSetID)
 	case domain.CallbackNoticeDismiss:
 		return s.handleNoticeDismiss(ctx, callback)
 	default:

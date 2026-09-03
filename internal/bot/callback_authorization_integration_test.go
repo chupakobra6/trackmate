@@ -83,6 +83,7 @@ func TestPersonalCallbacksRejectOtherParticipantsWithoutMutation(t *testing.T) {
 		{name: "alert acknowledgement", data: fmt.Sprintf("alert:ack:%d", alert.ID), message: 701, threadID: 10},
 		{name: "routine item", data: fmt.Sprintf("routine:item:%d:0:done", checkin.ID), message: 801, threadID: 13},
 		{name: "goal final status", data: fmt.Sprintf("goals:final:%d:done", goalSet.ID), message: 901, threadID: 14},
+		{name: "goal final completion", data: fmt.Sprintf("goals:final:%d:complete", goalSet.ID), message: 902, threadID: 14},
 		{name: "notice dismissal", data: "notice:dismiss:42", message: 1001, threadID: 13},
 	}
 

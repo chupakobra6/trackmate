@@ -36,8 +36,18 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	finalPending, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 15, domain.PendingGoalFinalReflection, map[string]any{
+		"prompt_message_id": 400,
+		"goal_set_id":       1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Date(2026, 6, 24, 20, 0, 0, 0, time.UTC)
 	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $2 WHERE id = $1`, stale.ID, now.Add(-25*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $2 WHERE id = $1`, finalPending.ID, now.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 
@@ -50,6 +60,9 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	}
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 14); err != nil || !found {
 		t.Fatalf("fresh pending should remain found=%v err=%v", found, err)
+	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 15); err != nil || !found {
+		t.Fatalf("final goal pending should wait for explicit completion found=%v err=%v", found, err)
 	}
 	for _, messageID := range []int64{100, 201, 202} {
 		if !fake.wasDeleted(messageID) {

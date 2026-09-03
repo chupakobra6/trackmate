@@ -201,8 +201,8 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if updated, err := q.SetGoalWeeklyReviewPrompt(ctx, weekly.ID, 701, 14, time.Date(2026, 6, 21, 20, 0, 0, 0, time.UTC)); err != nil || !updated {
 		t.Fatal(err)
 	}
-	weekly, ok, err = q.SubmitGoalWeeklyReview(ctx, weekly.ID, participant.UserID, "Сдвинулось: 6 откликов")
-	if err != nil || !ok || weekly.ResponseText == nil {
+	weekly, ok, err = q.SubmitGoalWeeklyReview(ctx, weekly.ID, participant.UserID, "Сдвинулось: 6 откликов", 801, 14)
+	if err != nil || !ok || weekly.ResponseText == nil || weekly.ResponseMessageID == nil || *weekly.ResponseMessageID != 801 {
 		t.Fatalf("weekly submit ok=%v review=%+v err=%v", ok, weekly, err)
 	}
 	final, err := q.GetOrCreateGoalFinalReview(ctx, goalSet.ID)
@@ -215,9 +215,21 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if _, ok, err := q.SetGoalFinalReviewStatus(ctx, goalSet.ID, participant.UserID, domain.GoalFinalPartial); err != nil || !ok {
 		t.Fatalf("final status ok=%v err=%v", ok, err)
 	}
-	final, ok, err = q.CompleteGoalFinalReview(ctx, goalSet.ID, participant.UserID, "Получилось частично")
+	final, ok, err = q.AppendGoalFinalReviewSummaryPart(ctx, goalSet.ID, participant.UserID, 802, "Получилось частично")
+	if err != nil || !ok || final.CompletedAt != nil || len(final.SummaryMessageIDs) != 1 {
+		t.Fatalf("final first part ok=%v review=%+v err=%v", ok, final, err)
+	}
+	final, ok, err = q.AppendGoalFinalReviewSummaryPart(ctx, goalSet.ID, participant.UserID, 803, "Остальное переношу")
+	if err != nil || !ok || len(final.SummaryMessageIDs) != 2 || final.SummaryText == nil || *final.SummaryText != "Получилось частично\n\nОстальное переношу" {
+		t.Fatalf("final second part ok=%v review=%+v err=%v", ok, final, err)
+	}
+	final, ok, err = q.AppendGoalFinalReviewSummaryPart(ctx, goalSet.ID, participant.UserID, 803, "Остальное переношу")
+	if err != nil || !ok || len(final.SummaryMessageIDs) != 2 {
+		t.Fatalf("final duplicate part ok=%v review=%+v err=%v", ok, final, err)
+	}
+	final, ok, err = q.FinalizeGoalFinalReview(ctx, goalSet.ID, participant.UserID)
 	if err != nil || !ok || final.CompletedAt == nil {
-		t.Fatalf("final complete ok=%v review=%+v err=%v", ok, final, err)
+		t.Fatalf("final finalize ok=%v review=%+v err=%v", ok, final, err)
 	}
 
 	assertNoTable(t, store, "material_batches")

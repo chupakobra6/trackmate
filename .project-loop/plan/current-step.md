@@ -1,29 +1,30 @@
 # Текущий Шаг
 
 Проект: trackmate
-Обновлено: 2026-08-24
+Обновлено: 2026-09-04
 
-## Завершенный Шаг
-- id: `STEP-037`
-- status: `готово`
-- objective: Подтвердить owner protection для routine reminder и auto-close, затем безопасно развернуть callback fix.
-- requirement IDs: `REQ-062`, `VAL-015`
-- source IDs: `S038`
+## Активный Шаг
+- id: `STEP-038`
+- status: `в работе`
+- objective: Исправить goals lifecycle на границе сезонов и восстановить летние production-итоги.
+- requirement IDs: `REQ-063..REQ-066`, `VAL-016`
+- source IDs: `S039`
 
-## Валидация
-- Routine reminder и auto-close callback data: `notice:dismiss:42`, focused PostgreSQL test pass.
-- Foreign user `43` на exact callback владельца `42`: no Telegram/DB mutations, callback answer owner-only.
-- Authorized owner dismiss и legacy ownerless rejection: pass.
-- DB-backed `make check`: pass; full Telegram E2E не запускался.
+## Подтвержденная Причина
+- `summer-2026` корректно хранит `period_ends_on=2026-09-01`.
+- weekly retry `6688`, отправленный 24.08, на 72-м часе больше не удалялся Telegram из-за 48-hour limit.
+- `advanceWeeklyReview` возвращал error до `skipped_at`, поэтом final review и все последующие worker deliveries не выполнялись.
+- Итоги Игоря/Ярослава из `7207`/`7225` поэтому поглотили старые weekly pending; вторая часть Игоря `7208` не была сохранена.
 
-## Production
-- pushed head: `ec6c31b` (`03a4c78` содержит product code).
-- backup: `/opt/trackmate/backups/trackmate_20260824T114142Z.dump`; checksum и `pg_restore --list` pass.
-- production updated `a9ad102 -> ec6c31b`; `api`, `worker`, `postgres` healthy.
-- schema version `202608050002`; stale alert/progress claims `0`; unpublished progress `0`; idle transactions `0`; advisory waiters `0`; suspicious fresh logs `0`.
-- один активный old-version routine auto-close notice `6641` точечно получил addressed callback `notice:dismiss:1747674822`.
+## План Поставки
+1. Сделать weekly cleanup неблокирующим и попадающим в Telegram delete window.
+2. Закрепить calendar-date границы для всех timezone.
+3. Добавить накопление нескольких final messages и явное завершение.
+4. Пройти focused tests, DB-backed `make check`, migration и focused Telegram E2E.
+5. Сделать focused commit, production backup, deploy, восстановление итогов и проверку очередей/логов.
 
-## Итог
-- Чужой участник больше не может снять ни routine reminder, ни routine auto-close alert.
-- Владелец продолжает закрывать свой alert кнопкой `👀 Понял`.
-- Уже существовавший активный routine alert также приведен к новому защищенному контракту.
+## Текущая Валидация
+- DB-backed `make check`: pass.
+- additive migration `202609040001` применена на локальной PostgreSQL, новые колонки прочитаны обратно.
+- focused Goals Telegram E2E не стартовал: сохраненная MTProto-сессия runner требует повторного login; ни один шаг сценария не выполнялся.
+- exact multi-message/status/finish/source-link path покрыт PostgreSQL bot integration test.

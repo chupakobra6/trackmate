@@ -126,33 +126,43 @@ func advanceWeeklyReview(ctx context.Context, store *postgres.Store, tg telegram
 		if found && !pendingBelongsToWeeklyReview(pending, review.ID) {
 			return nil
 		}
-		if review.PromptMessageID != nil {
-			if err := tg.DeleteMessage(ctx, item.Workspace.ChatID, *review.PromptMessageID); err != nil {
-				return err
-			}
+		previousPromptID := review.PromptMessageID
+		if err := sendWeeklyReviewPrompt(ctx, store, tg, item, goalsTopic, review, nowUTC, true); err != nil {
+			return err
 		}
-		if found {
-			if err := store.Queries().ClearGoalWeeklyReviewPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID, review.ID); err != nil {
-				return err
-			}
+		if previousPromptID != nil {
+			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *previousPromptID)
 		}
-		return sendWeeklyReviewPrompt(ctx, store, tg, item, goalsTopic, review, nowUTC, true)
+		return nil
 	case domain.GoalWeeklyReviewSkip:
-		if review.PromptMessageID != nil {
-			if err := tg.DeleteMessage(ctx, item.Workspace.ChatID, *review.PromptMessageID); err != nil {
-				return err
-			}
-		}
-		return store.InTx(ctx, func(q *postgres.Queries) error {
+		if err := store.InTx(ctx, func(q *postgres.Queries) error {
 			skipped, err := q.MarkGoalWeeklyReviewSkipped(ctx, review.ID, nowUTC)
 			if err != nil || !skipped {
 				return err
 			}
 			return q.ClearGoalWeeklyReviewPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID, review.ID)
-		})
+		}); err != nil {
+			return err
+		}
+		if review.PromptMessageID != nil {
+			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *review.PromptMessageID)
+		}
+		return nil
 	default:
 		return nil
 	}
+}
+
+func closeWeeklyReviewPrompt(ctx context.Context, tg telegram.API, chatID int64, messageID int64) {
+	if err := tg.DeleteMessage(ctx, chatID, messageID); err == nil {
+		return
+	}
+	_ = tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
+		ChatID:      chatID,
+		MessageID:   messageID,
+		Text:        messages.Text("goals.weekly.closed"),
+		ReplyMarkup: ui.EmptyKeyboard(),
+	})
 }
 
 func sendWeeklyReviewPrompt(ctx context.Context, store *postgres.Store, tg telegram.API, item postgres.SeasonalGoalSetContext, goalsTopic postgres.TopicBinding, review postgres.GoalWeeklyReview, nowUTC time.Time, reminder bool) error {
@@ -283,7 +293,7 @@ func nowBeforeLocalDate(nowUTC time.Time, timezoneName string, date time.Time) b
 	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
-	dateYear, dateMonth, dateDay := date.In(location).Date()
+	dateYear, dateMonth, dateDay := date.Date()
 	targetDate := time.Date(dateYear, dateMonth, dateDay, 0, 0, 0, 0, location)
 	return localDate.Before(targetDate)
 }

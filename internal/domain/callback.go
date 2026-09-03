@@ -9,18 +9,19 @@ import (
 type CallbackKind string
 
 const (
-	CallbackUnknown          CallbackKind = "unknown"
-	CallbackSetupCheck       CallbackKind = "setup_check"
-	CallbackSetupStart       CallbackKind = "setup_start"
-	CallbackTodayAdd         CallbackKind = "today_add"
-	CallbackTaskReport       CallbackKind = "task_report"
-	CallbackTaskStatus       CallbackKind = "task_status"
-	CallbackAlertAck         CallbackKind = "alert_ack"
-	CallbackRoutineConfigure CallbackKind = "routine_configure"
-	CallbackRoutineItem      CallbackKind = "routine_item"
-	CallbackGoalsConfigure   CallbackKind = "goals_configure"
-	CallbackGoalFinalStatus  CallbackKind = "goal_final_status"
-	CallbackNoticeDismiss    CallbackKind = "notice_dismiss"
+	CallbackUnknown           CallbackKind = "unknown"
+	CallbackSetupCheck        CallbackKind = "setup_check"
+	CallbackSetupStart        CallbackKind = "setup_start"
+	CallbackTodayAdd          CallbackKind = "today_add"
+	CallbackTaskReport        CallbackKind = "task_report"
+	CallbackTaskStatus        CallbackKind = "task_status"
+	CallbackAlertAck          CallbackKind = "alert_ack"
+	CallbackRoutineConfigure  CallbackKind = "routine_configure"
+	CallbackRoutineItem       CallbackKind = "routine_item"
+	CallbackGoalsConfigure    CallbackKind = "goals_configure"
+	CallbackGoalFinalStatus   CallbackKind = "goal_final_status"
+	CallbackGoalFinalComplete CallbackKind = "goal_final_complete"
+	CallbackNoticeDismiss     CallbackKind = "notice_dismiss"
 )
 
 type Callback struct {
@@ -99,6 +100,9 @@ func ParseCallback(raw string) (Callback, error) {
 		id, err := parsePositiveID(parts[2])
 		if err != nil {
 			return Callback{Kind: CallbackUnknown, Raw: raw}, err
+		}
+		if parts[3] == "complete" {
+			return Callback{Kind: CallbackGoalFinalComplete, GoalSetID: id, Raw: raw}, nil
 		}
 		status := GoalFinalStatus(parts[3])
 		if !status.IsValid() {

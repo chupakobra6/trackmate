@@ -371,11 +371,21 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 		"progress": ProgressIntroText,
 		"routine":  RoutineControlText,
 		"goals":    GoalsControlText,
-		"prompt":   SeasonalGoalsPrompt(),
+		"prompt": SeasonalGoalsPrompt(domain.GoalPeriod{
+			Title:  "Лето 2026",
+			EndsOn: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		}),
 	} {
 		if strings.Contains(text, "•") {
 			t.Fatalf("%s text should use dashes instead of bullet markers: %s", name, text)
 		}
+	}
+	autumnPrompt := SeasonalGoalsPrompt(domain.GoalPeriod{
+		Title:  "Осень 2026",
+		EndsOn: time.Date(2026, 12, 1, 0, 0, 0, 0, time.UTC),
+	})
+	if !strings.Contains(autumnPrompt, "Текущий период: <b>Осень 2026</b> (до <b>01.12.2026</b>)") {
+		t.Fatalf("seasonal goals prompt did not render its period: %s", autumnPrompt)
 	}
 
 	goalSet := postgres.SeasonalGoalSet{PeriodTitle: "Лето 2026", GoalsText: "1. Работа"}
@@ -413,13 +423,29 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 
 	final := FormatGoalFinalReflectionPrompt(goalSet, domain.GoalFinalPartial)
 	for _, part := range []string{
-		"Опиши конкретные результаты по целям:",
+		"Опиши конкретные результаты одним или несколькими сообщениями:",
 		"— Что именно удалось довести до конца",
 		"— Что осталось невыполненным и почему",
 		"— Какие выводы и задачи переносишь на следующий сезон",
 	} {
 		if !strings.Contains(final, part) {
 			t.Fatalf("final reflection prompt missing %q: %s", part, final)
+		}
+	}
+	draft := FormatGoalFinalReflectionDraft(goalSet, domain.GoalFinalPartial, 2)
+	if !strings.Contains(draft, "Сохранено частей:</b> 2") || !strings.Contains(draft, "Завершить итог") {
+		t.Fatalf("final draft should show accumulated parts and completion hint: %s", draft)
+	}
+	status := domain.GoalFinalPartial
+	messageThreadID := int64(40)
+	savedFinal := FormatGoalFinalReviewSaved(goalSet, postgres.GoalFinalReview{
+		Status:                &status,
+		PromptMessageThreadID: &messageThreadID,
+		SummaryMessageIDs:     []int64{801, 802},
+	}, -1000000000001)
+	for _, part := range []string{"часть 1", "часть 2", "https://t.me/c/0000000001/801?thread=40", "https://t.me/c/0000000001/802?thread=40"} {
+		if !strings.Contains(savedFinal, part) {
+			t.Fatalf("saved final missing %q: %s", part, savedFinal)
 		}
 	}
 	if strings.Contains(final, "Напиши короткий вывод") || strings.Contains(final, "•") {

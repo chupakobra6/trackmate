@@ -196,16 +196,18 @@ type SeasonalGoalSetContext struct {
 }
 
 type GoalWeeklyReview struct {
-	ID                    int64
-	GoalSetID             int64
-	ReviewWeekStart       time.Time
-	PromptMessageID       *int64
-	PromptMessageThreadID *int64
-	ResponseText          *string
-	RequestedAt           time.Time
-	ReminderSentAt        *time.Time
-	RespondedAt           *time.Time
-	SkippedAt             *time.Time
+	ID                      int64
+	GoalSetID               int64
+	ReviewWeekStart         time.Time
+	PromptMessageID         *int64
+	PromptMessageThreadID   *int64
+	ResponseText            *string
+	ResponseMessageID       *int64
+	ResponseMessageThreadID *int64
+	RequestedAt             time.Time
+	ReminderSentAt          *time.Time
+	RespondedAt             *time.Time
+	SkippedAt               *time.Time
 }
 
 type GoalFinalReview struct {
@@ -215,6 +217,7 @@ type GoalFinalReview struct {
 	PromptMessageID       *int64
 	PromptMessageThreadID *int64
 	SummaryText           *string
+	SummaryMessageIDs     []int64
 	RequestedAt           time.Time
 	CompletedAt           *time.Time
 }

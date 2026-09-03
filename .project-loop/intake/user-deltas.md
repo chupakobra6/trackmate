@@ -1255,6 +1255,33 @@ ID источника: `S038`
 - [x] production backup, deploy и post-deploy health/DB/log checks;
 - [x] сохранить deploy evidence в handoff.
 
+### Seasonal Goals Final Incident
+
+ID источника: `S039`
+
+Исходный ввод:
+
+```text
+На production Trackmate не подвёл итоги летнего сезона и не спросил про цели ни 1, ни 3 сентября. Последние вопросы по целям не удалились. Отправленные 3 сентября итоги не зафиксировались как финал. Итог может состоять из одного или нескольких текстовых сообщений. Нужно понять причину, исправить логику сезонов/границ/целей, записать уже отправленные итоги и починить Trackmate для следующего сезона.
+```
+
+Подтвержденный production evidence:
+- `summer-2026` имеет правильную границу `period_ends_on=2026-09-01`;
+- final reviews отсутствуют;
+- weekly review `13` Егора и pending `874` остались открытыми с 24.08;
+- worker каждые 5 секунд падает на `deleteMessage: message can't be deleted`; в текущем журнале `19308` одинаковых errors;
+- сообщения `7207` и `7225` ошибочно сохранились как weekly responses `11` и `12`; `7208` не попало в БД;
+- за goals stage накопились `17` unpublished progress events и `19` pending alerts, хотя previous worker stages продолжали менять domain state.
+
+Нормализация:
+- [ ] убрать permanent Telegram delete failure из critical path weekly skip;
+- [ ] закрывать retry внутри delete window с inert fallback;
+- [ ] проверять season dates как calendar dates без timezone shift;
+- [ ] накапливать одну или несколько частей final summary и завершать их явно;
+- [ ] не echo-ить длинный итог в Telegram bot card, а ссылаться на source messages;
+- [ ] после backup перенести `7207+7208` и `7225` в final reviews, закрыть старые weekly rows и не отправлять stale alerts массово;
+- [ ] пропустить через worker только нужные final/progress deliveries и проверить production state.
+
 Маршрутизация:
 - [x] source map `S038`;
 - [x] `REQ-062`, `VAL-015`, `STEP-037`;

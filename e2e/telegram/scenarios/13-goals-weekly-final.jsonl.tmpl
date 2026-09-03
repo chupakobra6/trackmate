@@ -13,5 +13,8 @@
 {"id":"wait_final_review_prompt","action":"assert_visible_text","text":"Итог периода","timeout_ms":120000}
 {"id":"choose_final_partial","action":"click_button","button_text":"🔸 Частично","message_text":"Итог периода","timeout_ms":60000}
 {"id":"wait_final_summary_prompt","action":"wait","timeout_ms":60000}
-{"id":"send_final_summary","action":"send_text","text":"Довел до конца: регулярные отклики и обновленное резюме.\nОсталось невыполненным: стабильный режим, потому что неделя часто распадалась.\nПереношу дальше: планирование недели заранее и два тренировочных собеседования."}
-{"id":"wait_final_saved","action":"wait","timeout_ms":90000}
+{"id":"send_final_summary_part_1","action":"send_text","text":"Довел до конца: регулярные отклики и обновленное резюме.\nОсталось невыполненным: стабильный режим, потому что неделя часто распадалась."}
+{"id":"send_final_summary_part_2","action":"send_text","text":"Переношу дальше: планирование недели заранее и два тренировочных собеседования."}
+{"id":"wait_final_draft","action":"assert_visible_text","text":"Сохранено частей: 2","timeout_ms":90000}
+{"id":"complete_final_summary","action":"click_button","button_text":"✅ Завершить итог","message_text":"Сохранено частей: 2","timeout_ms":60000}
+{"id":"wait_final_saved","action":"assert_visible_text","text":"Итог: часть 1 · часть 2","timeout_ms":90000}

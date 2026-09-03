@@ -205,19 +205,27 @@ into the topic. The instruction asks for a measurable format:
 - `Еженедельный шаг`
 - `Почему важно`
 
-The first live period is `Лето 2026`, ending on `2026-09-01`; the period helper
-then follows calendar seasons.
+The setup prompt derives its title and end date from the current workspace-local
+calendar season; the long-lived pinned control message contains no date that can
+become stale.
 
 Every second Sunday after 20:00 local time, the worker sends one goals review
-prompt in `Цели` and stores the response as `goal_weekly_review`. On and after
-the period end date, the worker sends a final review prompt with buttons
-`done|partial|failed`; after the button, the user writes one final summary.
+prompt in `Цели` and stores both the response and its Telegram source message.
+On and after the period end date, interpreted as a workspace-local calendar
+date, the worker sends a final review prompt with buttons
+`done|partial|failed`. After choosing a status, the user can send one or more
+text messages and explicitly finishes them with `Завершить итог`. The permanent
+final card links to every source message instead of echoing an arbitrarily long
+summary.
 An unanswered two-week review has its own persisted lifecycle: after 24 hours
-the first prompt is removed and sent once again; 72 hours after the first
-successful delivery, the retry is removed and the review is stored as skipped.
-The generic pending-input cleanup does not own these prompts, so the retry stays
-answerable until the shared 72-hour deadline. A final period review waits until
-an open two-week review is answered or skipped.
+the first prompt is removed and sent once again; 71 hours after the first
+successful delivery, the retry is removed before Telegram's 48-hour delete
+window closes and the review is stored as skipped. A failed Telegram deletion
+falls back to an inert closed message and never blocks the persisted skip or
+later worker stages. The generic pending-input cleanup does not own weekly or
+final goal inputs: weekly prompts follow this lifecycle, while a final input
+waits for explicit completion. A final period review waits until an open
+two-week review is answered or skipped.
 
 Today can show a rare deterministic goal nudge when a participant already has
 seasonal goals for the current period. Nudges are pseudo-random by seed, but
@@ -257,7 +265,8 @@ Core tables:
 - `daily_task_alerts`
 - `pending_inputs`
   - one active input per `workspace_group_id`, `user_id`, `message_thread_id`
-  - stale inputs older than 24 hours are removed by the worker
+  - ordinary stale inputs older than 24 hours are removed by the worker
+  - weekly and final goal inputs use their own lifecycle
 - `progress_events`
 - `routine_plans`
 - `routine_checkins`

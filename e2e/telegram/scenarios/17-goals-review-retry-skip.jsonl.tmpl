@@ -2,7 +2,7 @@
 # До запуска: reset workspace, clock 2026-08-09T16:59:00Z, затем настройка целей.
 # Перед wait_initial_review: clock 2026-08-09T17:00:00Z + POST /control/tick.
 # Перед wait_retry_review: clock 2026-08-10T17:00:00Z + POST /control/tick.
-# Перед assert_review_removed: clock 2026-08-12T17:00:00Z + POST /control/tick.
+# Перед assert_review_removed: clock 2026-08-12T16:00:00Z (71 час) + POST /control/tick.
 {"id":"select_goals","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{GOALS_THREAD_ID}}}
 {"id":"open_goals_setup","action":"click_button","button_text":"✏️ Настроить цели","timeout_ms":60000}
 {"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}

@@ -2,6 +2,7 @@ package goals_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -73,7 +74,63 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	}
 }
 
-func TestWeeklyReviewRetriesOnceAndSkipsAfter72Hours(t *testing.T) {
+func TestWeeklyDeleteFailureDoesNotBlockSkipOrFinalReview(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000559, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 40, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+	}
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "Результат", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeTelegram{nextMessageID: 6000, deleteErrors: map[int64]error{6100: errors.New("message can't be deleted")}}
+	requestedAt := time.Date(2026, 6, 28, 20, 0, 0, 0, time.UTC)
+	review, err := q.GetOrCreateGoalWeeklyReview(ctx, goalSet.ID, time.Date(2026, 6, 22, 0, 0, 0, 0, time.UTC), requestedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated, err := q.SetGoalWeeklyReviewReminderPrompt(ctx, review.ID, 6100, 40, requestedAt.Add(domain.GoalReviewReminderDelay)); err != nil || !updated {
+		t.Fatalf("set retry prompt updated=%v err=%v", updated, err)
+	}
+	if _, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 40, domain.PendingGoalWeeklyReview, map[string]any{"review_id": review.ID}); err != nil {
+		t.Fatal(err)
+	}
+	skipAt := requestedAt.Add(domain.GoalReviewSkipAfter)
+	setGoalTestClock(t, q, skipAt)
+	if err := appgoals.DispatchWeeklyReviews(ctx, store, fake, skipAt); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := q.GetOpenGoalWeeklyReview(ctx, goalSet.ID); err != nil || found {
+		t.Fatalf("weekly review stayed open found=%v err=%v", found, err)
+	}
+	if edit, found := fake.findEdit(6100); !found || !strings.Contains(edit.Text, "проверка целей закрыта") {
+		t.Fatalf("undeletable prompt was not made inert: found=%v edit=%+v", found, edit)
+	}
+	if err := appgoals.DispatchFinalReviews(ctx, store, fake, skipAt); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.countSent("Итог периода"); got != 1 {
+		t.Fatalf("final review was blocked after delete failure: %d", got)
+	}
+}
+
+func TestWeeklyReviewRetriesOnceAndSkipsBeforeTelegramDeleteLimit(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	ctx := context.Background()
 	q := store.Queries()
@@ -149,7 +206,7 @@ func TestWeeklyReviewRetriesOnceAndSkipsAfter72Hours(t *testing.T) {
 		t.Fatal(err)
 	}
 	if fake.wasDeleted(retryPromptID) {
-		t.Fatal("retry prompt must remain answerable until the 72h deadline")
+		t.Fatal("retry prompt must remain answerable before its close deadline")
 	}
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingGoalWeeklyReview {
 		t.Fatalf("retry pending must survive 48h found=%v pending=%+v err=%v", found, pending, err)
@@ -179,7 +236,7 @@ func TestWeeklyReviewRetriesOnceAndSkipsAfter72Hours(t *testing.T) {
 		t.Fatalf("retry prompt %d was not removed at 72h: %+v", retryPromptID, fake.deleted)
 	}
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || found {
-		t.Fatalf("weekly pending must be closed at 72h found=%v err=%v", found, err)
+		t.Fatalf("weekly pending must be closed at deadline found=%v err=%v", found, err)
 	}
 	if _, found, err := q.GetOpenGoalWeeklyReview(ctx, goalSet.ID); err != nil || found {
 		t.Fatalf("weekly review must be persisted as skipped found=%v err=%v", found, err)
@@ -191,7 +248,7 @@ func TestWeeklyReviewRetriesOnceAndSkipsAfter72Hours(t *testing.T) {
 	if !skippedAt.Equal(skipAt) {
 		t.Fatalf("skipped_at=%s want=%s", skippedAt, skipAt)
 	}
-	if _, saved, err := q.SubmitGoalWeeklyReview(ctx, review.ID, participant.UserID, "late answer"); err != nil || saved {
+	if _, saved, err := q.SubmitGoalWeeklyReview(ctx, review.ID, participant.UserID, "late answer", 999, 40); err != nil || saved {
 		t.Fatalf("skipped review accepted a late answer saved=%v err=%v", saved, err)
 	}
 	if err := appgoals.DispatchFinalReviews(ctx, store, fake, skipAt); err != nil {
@@ -290,6 +347,8 @@ type fakeTelegram struct {
 	sent           []telegram.SendMessageRequest
 	sentMessageIDs []int64
 	deleted        []int64
+	edits          []telegram.EditMessageTextRequest
+	deleteErrors   map[int64]error
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -304,11 +363,15 @@ func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessa
 	f.sentMessageIDs = append(f.sentMessageIDs, f.nextMessageID)
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
-func (f *fakeTelegram) EditMessageText(context.Context, telegram.EditMessageTextRequest) error {
+func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditMessageTextRequest) error {
+	f.edits = append(f.edits, request)
 	return nil
 }
 func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
 	f.deleted = append(f.deleted, messageID)
+	if err := f.deleteErrors[messageID]; err != nil {
+		return err
+	}
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {
@@ -347,4 +410,13 @@ func (f *fakeTelegram) wasDeleted(messageID int64) bool {
 		}
 	}
 	return false
+}
+
+func (f *fakeTelegram) findEdit(messageID int64) (telegram.EditMessageTextRequest, bool) {
+	for i := len(f.edits) - 1; i >= 0; i-- {
+		if f.edits[i].MessageID == messageID {
+			return f.edits[i], true
+		}
+	}
+	return telegram.EditMessageTextRequest{}, false
 }

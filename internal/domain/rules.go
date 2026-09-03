@@ -20,11 +20,13 @@ const (
 	GoalWeeklyReviewHour    = 20
 	GoalReviewIntervalDays  = 14
 	GoalReviewReminderDelay = 24 * time.Hour
-	GoalReviewSkipAfter     = 72 * time.Hour
-	GoalNudgePercent        = 10
-	GoalNudgeCooldown       = 72 * time.Hour
-	PersonalAlertPercent    = 30
-	PendingInputMaxAge      = 24 * time.Hour
+	// The retry is sent after 24 hours. Closing at 71 hours leaves one hour of
+	// margin before Telegram's 48-hour deletion limit for that retry.
+	GoalReviewSkipAfter  = 71 * time.Hour
+	GoalNudgePercent     = 10
+	GoalNudgeCooldown    = 72 * time.Hour
+	PersonalAlertPercent = 30
+	PendingInputMaxAge   = 24 * time.Hour
 )
 
 type GoalWeeklyReviewAction string
@@ -274,12 +276,11 @@ func GoalReviewCountdown(periodStartsOn time.Time, periodEndsOn time.Time, works
 	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
-	endYear, endMonth, endDay := periodEndsOn.In(location).Date()
-	endDate := time.Date(endYear, endMonth, endDay, 0, 0, 0, 0, location)
+	endDate := calendarDate(periodEndsOn, location)
 	if !localDate.Before(endDate) {
 		return 0, 0, nil
 	}
-	daysLeft := int(endDate.Sub(localDate).Hours() / 24)
+	daysLeft := calendarDaysBetween(localDate, endDate)
 	reviewsLeft := 0
 	for date := localDate.AddDate(0, 0, 1); date.Before(endDate); date = date.AddDate(0, 0, 1) {
 		if date.Weekday() == GoalWeeklyReviewWeekday && goalReviewDateDue(periodStartsOn, date, location) {
@@ -290,9 +291,8 @@ func GoalReviewCountdown(periodStartsOn time.Time, periodEndsOn time.Time, works
 }
 
 func goalReviewDateDue(periodStartsOn time.Time, localDate time.Time, location *time.Location) bool {
-	startYear, startMonth, startDay := periodStartsOn.In(location).Date()
-	startDate := time.Date(startYear, startMonth, startDay, 0, 0, 0, 0, location)
-	daysSinceStart := int(localDate.Sub(startDate).Hours() / 24)
+	startDate := calendarDate(periodStartsOn, location)
+	daysSinceStart := calendarDaysBetween(startDate, localDate)
 	if daysSinceStart < GoalReviewIntervalDays-1 {
 		return false
 	}
@@ -308,9 +308,23 @@ func GoalFinalReviewDue(period GoalPeriod, workspaceTimezone string, nowUTC time
 	localNow := nowUTC.In(location)
 	year, month, day := localNow.Date()
 	localDate := time.Date(year, month, day, 0, 0, 0, 0, location)
-	endYear, endMonth, endDay := period.EndsOn.In(location).Date()
-	endDate := time.Date(endYear, endMonth, endDay, 0, 0, 0, 0, location)
+	endDate := calendarDate(period.EndsOn, location)
 	return !localDate.Before(endDate), nil
+}
+
+// calendarDate treats database DATE values as calendar components. Converting
+// them through another timezone can move the date backward or forward.
+func calendarDate(value time.Time, location *time.Location) time.Time {
+	year, month, day := value.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, location)
+}
+
+func calendarDaysBetween(start time.Time, end time.Time) int {
+	startYear, startMonth, startDay := start.Date()
+	endYear, endMonth, endDay := end.Date()
+	startUTC := time.Date(startYear, startMonth, startDay, 0, 0, 0, 0, time.UTC)
+	endUTC := time.Date(endYear, endMonth, endDay, 0, 0, 0, 0, time.UTC)
+	return int(endUTC.Sub(startUTC).Hours() / 24)
 }
 
 func ShouldShowGoalNudge(seed string) bool {

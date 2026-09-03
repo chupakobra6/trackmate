@@ -274,8 +274,12 @@ func FormatRoutineLeaderboard(entries []postgres.RoutineLeaderboardEntry) string
 	return strings.Join(lines, "\n")
 }
 
-func SeasonalGoalsPrompt() string {
-	return messages.Text("goals.prompt")
+func SeasonalGoalsPrompt(period domain.GoalPeriod) string {
+	return messages.Format(
+		"goals.prompt",
+		"period", html.EscapeString(period.Title),
+		"date", period.EndsOn.Format("02.01.2006"),
+	)
 }
 
 func FormatGoalsSaved(goalsLink string) string {
@@ -364,10 +368,11 @@ func russianPlural(count int, one string, few string, many string) string {
 	}
 }
 
-func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview) string {
+func FormatGoalWeeklyReviewSaved(review postgres.GoalWeeklyReview, chatID int64) string {
 	lines := []string{messages.Text("goals.weekly.saved")}
-	if review.ResponseText != nil && *review.ResponseText != "" {
-		lines = append(lines, "", renderSectionHTML(*review.ResponseText))
+	if review.ResponseMessageID != nil {
+		link := postgres.MessageLink(chatID, *review.ResponseMessageID, int64Value(review.ResponseMessageThreadID))
+		lines = append(lines, "", messages.Format("goals.weekly.saved_source", "link", html.EscapeString(link)))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -385,7 +390,16 @@ func FormatGoalFinalReflectionPrompt(goalSet postgres.SeasonalGoalSet, status do
 	}, "\n")
 }
 
-func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgres.GoalFinalReview) string {
+func FormatGoalFinalReflectionDraft(goalSet postgres.SeasonalGoalSet, status domain.GoalFinalStatus, parts int) string {
+	return strings.Join([]string{
+		FormatGoalFinalReflectionPrompt(goalSet, status),
+		"",
+		messages.Format("goals.final.parts_saved", "count", fmt.Sprint(parts)),
+		messages.Text("goals.final.finish_hint"),
+	}, "\n")
+}
+
+func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgres.GoalFinalReview, chatID int64) string {
 	status := "—"
 	if review.Status != nil {
 		status = goalFinalStatusLabel(*review.Status)
@@ -395,10 +409,27 @@ func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgre
 		"",
 		messages.Format("goals.final.score", "status", status),
 	}
-	if review.SummaryText != nil && *review.SummaryText != "" {
-		lines = append(lines, "", messages.Text("goals.final.saved_summary"), renderSectionHTML(*review.SummaryText))
+	if len(review.SummaryMessageIDs) > 0 {
+		parts := make([]string, 0, len(review.SummaryMessageIDs))
+		threadID := int64Value(review.PromptMessageThreadID)
+		for index, messageID := range review.SummaryMessageIDs {
+			link := postgres.MessageLink(chatID, messageID, threadID)
+			parts = append(parts, messages.Format(
+				"goals.final.saved_part",
+				"link", html.EscapeString(link),
+				"number", fmt.Sprint(index+1),
+			))
+		}
+		lines = append(lines, "", messages.Format("goals.final.saved_summary", "parts", strings.Join(parts, " · ")))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func int64Value(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func NextRoutineItemIndex(checkin postgres.RoutineCheckin) int {

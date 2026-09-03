@@ -199,6 +199,31 @@ func TestCurrentGoalPeriodReturnsSummer2026(t *testing.T) {
 	}
 }
 
+func TestCurrentGoalPeriodChangesAtEveryLocalSeasonBoundary(t *testing.T) {
+	tests := []struct {
+		name string
+		now  time.Time
+		key  string
+	}{
+		{name: "spring", now: time.Date(2026, 3, 1, 8, 0, 0, 0, time.UTC), key: "spring-2026"},
+		{name: "summer", now: time.Date(2026, 6, 1, 7, 0, 0, 0, time.UTC), key: "summer-2026"},
+		{name: "autumn", now: time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC), key: "autumn-2026"},
+		{name: "winter", now: time.Date(2026, 12, 1, 8, 0, 0, 0, time.UTC), key: "winter-2026"},
+		{name: "next spring", now: time.Date(2027, 3, 1, 8, 0, 0, 0, time.UTC), key: "spring-2027"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			period, err := CurrentGoalPeriod("America/Los_Angeles", test.now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if period.Key != test.key {
+				t.Fatalf("period=%s want=%s", period.Key, test.key)
+			}
+		})
+	}
+}
+
 func TestGoalWeeklyReviewDueEveryOtherSundayEvening(t *testing.T) {
 	periodStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	_, due, err := GoalWeeklyReviewDue(periodStart, "UTC", time.Date(2026, 6, 28, 19, 59, 0, 0, time.UTC))
@@ -225,6 +250,9 @@ func TestGoalWeeklyReviewDueEveryOtherSundayEvening(t *testing.T) {
 }
 
 func TestGoalWeeklyReviewLifecycleActionBoundaries(t *testing.T) {
+	if retryAge := GoalReviewSkipAfter - GoalReviewReminderDelay; retryAge >= 48*time.Hour {
+		t.Fatalf("retry age=%s must stay inside Telegram's 48-hour delete window", retryAge)
+	}
 	requestedAt := time.Date(2026, 8, 9, 17, 0, 0, 0, time.UTC)
 	remindedAt := requestedAt.Add(GoalReviewReminderDelay)
 	respondedAt := requestedAt.Add(time.Hour)
@@ -332,5 +360,33 @@ func TestGoalFinalReviewDueUsesWorkspaceLocalDate(t *testing.T) {
 	}
 	if !due {
 		t.Fatal("expected final review after local midnight on period end date")
+	}
+}
+
+func TestGoalDatesKeepDatabaseCalendarDayInNegativeTimezone(t *testing.T) {
+	period := GoalPeriod{
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	}
+	before, err := GoalFinalReviewDue(period, "America/Los_Angeles", time.Date(2026, 9, 1, 6, 59, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if before {
+		t.Fatal("final review became due before September 1 local time")
+	}
+	due, err := GoalFinalReviewDue(period, "America/Los_Angeles", time.Date(2026, 9, 1, 7, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !due {
+		t.Fatal("final review was not due on the stored September 1 calendar date")
+	}
+	days, _, err := GoalReviewCountdown(period.StartsOn, period.EndsOn, "America/Los_Angeles", time.Date(2026, 8, 31, 19, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if days != 1 {
+		t.Fatalf("days=%d want=1", days)
 	}
 }

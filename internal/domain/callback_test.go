@@ -50,6 +50,16 @@ func TestParseGoalFinalCallback(t *testing.T) {
 	}
 }
 
+func TestParseGoalFinalCompleteCallback(t *testing.T) {
+	got, err := ParseCallback("goals:final:77:complete")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Kind != CallbackGoalFinalComplete || got.GoalSetID != 77 {
+		t.Fatalf("unexpected callback: %+v", got)
+	}
+}
+
 func TestParseNoticeDismissCallback(t *testing.T) {
 	got, err := ParseCallback("notice:dismiss:42")
 	if err != nil {

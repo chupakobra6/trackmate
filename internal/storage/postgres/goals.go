@@ -163,7 +163,8 @@ VALUES ($1, $2::date, $3)
 ON CONFLICT (goal_set_id, review_week_start) DO UPDATE SET
     requested_at = seasonal_goal_weekly_reviews.requested_at
 RETURNING id, goal_set_id, review_week_start, prompt_message_id, prompt_message_thread_id,
-	      response_text, requested_at, reminder_sent_at, responded_at, skipped_at
+	      response_text, response_message_id, response_message_thread_id,
+	      requested_at, reminder_sent_at, responded_at, skipped_at
 `, goalSetID, weekStart, requestedAt.UTC())
 	return scanGoalWeeklyReview(row)
 }
@@ -171,7 +172,8 @@ RETURNING id, goal_set_id, review_week_start, prompt_message_id, prompt_message_
 func (q *Queries) GetOpenGoalWeeklyReview(ctx context.Context, goalSetID int64) (GoalWeeklyReview, bool, error) {
 	row := q.db.QueryRow(ctx, `
 SELECT id, goal_set_id, review_week_start, prompt_message_id, prompt_message_thread_id,
-       response_text, requested_at, reminder_sent_at, responded_at, skipped_at
+       response_text, response_message_id, response_message_thread_id,
+       requested_at, reminder_sent_at, responded_at, skipped_at
 FROM seasonal_goal_weekly_reviews
 WHERE goal_set_id = $1
   AND response_text IS NULL
@@ -225,10 +227,12 @@ WHERE id = $1
 	return err == nil && tag.RowsAffected() == 1, err
 }
 
-func (q *Queries) SubmitGoalWeeklyReview(ctx context.Context, reviewID int64, ownerUserID int64, responseHTML string) (GoalWeeklyReview, bool, error) {
+func (q *Queries) SubmitGoalWeeklyReview(ctx context.Context, reviewID int64, ownerUserID int64, responseHTML string, responseMessageID int64, responseMessageThreadID int64) (GoalWeeklyReview, bool, error) {
 	row := q.db.QueryRow(ctx, `
 UPDATE seasonal_goal_weekly_reviews gwr
 SET response_text = $3,
+	response_message_id = $4,
+	response_message_thread_id = $5,
     responded_at = now()
 FROM seasonal_goal_sets gs
 WHERE gwr.goal_set_id = gs.id
@@ -236,8 +240,9 @@ WHERE gwr.goal_set_id = gs.id
   AND gs.owner_user_id = $2
   AND gwr.skipped_at IS NULL
 RETURNING gwr.id, gwr.goal_set_id, gwr.review_week_start, gwr.prompt_message_id, gwr.prompt_message_thread_id,
-	      gwr.response_text, gwr.requested_at, gwr.reminder_sent_at, gwr.responded_at, gwr.skipped_at
-`, reviewID, ownerUserID, responseHTML)
+	      gwr.response_text, gwr.response_message_id, gwr.response_message_thread_id,
+	      gwr.requested_at, gwr.reminder_sent_at, gwr.responded_at, gwr.skipped_at
+`, reviewID, ownerUserID, responseHTML, responseMessageID, responseMessageThreadID)
 	review, err := scanGoalWeeklyReview(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return GoalWeeklyReview{}, false, nil
@@ -252,7 +257,7 @@ VALUES ($1, now())
 ON CONFLICT (goal_set_id) DO UPDATE SET
     requested_at = seasonal_goal_final_reviews.requested_at
 RETURNING id, goal_set_id, status::text, prompt_message_id, prompt_message_thread_id,
-          summary_text, requested_at, completed_at
+          summary_text, summary_message_ids, requested_at, completed_at
 `, goalSetID)
 	return scanGoalFinalReview(row)
 }
@@ -280,7 +285,7 @@ WHERE gfr.goal_set_id = gs.id
   AND gs.owner_user_id = $2
   AND gfr.completed_at IS NULL
 RETURNING gfr.id, gfr.goal_set_id, gfr.status::text, gfr.prompt_message_id, gfr.prompt_message_thread_id,
-          gfr.summary_text, gfr.requested_at, gfr.completed_at
+          gfr.summary_text, gfr.summary_message_ids, gfr.requested_at, gfr.completed_at
 `, goalSetID, ownerUserID, string(status))
 	review, err := scanGoalFinalReview(row)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -289,19 +294,47 @@ RETURNING gfr.id, gfr.goal_set_id, gfr.status::text, gfr.prompt_message_id, gfr.
 	return review, err == nil, err
 }
 
-func (q *Queries) CompleteGoalFinalReview(ctx context.Context, goalSetID int64, ownerUserID int64, summaryHTML string) (GoalFinalReview, bool, error) {
+func (q *Queries) AppendGoalFinalReviewSummaryPart(ctx context.Context, goalSetID int64, ownerUserID int64, messageID int64, summaryHTML string) (GoalFinalReview, bool, error) {
 	row := q.db.QueryRow(ctx, `
 UPDATE seasonal_goal_final_reviews gfr
-SET summary_text = $3,
-    completed_at = now()
+SET summary_text = CASE
+        WHEN $3 = ANY(gfr.summary_message_ids) THEN gfr.summary_text
+        ELSE concat_ws(E'\n\n', NULLIF(gfr.summary_text, ''), $4::TEXT)
+    END,
+    summary_message_ids = CASE
+        WHEN $3 = ANY(gfr.summary_message_ids) THEN gfr.summary_message_ids
+        ELSE array_append(gfr.summary_message_ids, $3)
+    END
 FROM seasonal_goal_sets gs
 WHERE gfr.goal_set_id = gs.id
   AND gfr.goal_set_id = $1
   AND gs.owner_user_id = $2
   AND gfr.status IS NOT NULL
+  AND gfr.completed_at IS NULL
 RETURNING gfr.id, gfr.goal_set_id, gfr.status::text, gfr.prompt_message_id, gfr.prompt_message_thread_id,
-          gfr.summary_text, gfr.requested_at, gfr.completed_at
-`, goalSetID, ownerUserID, summaryHTML)
+	      gfr.summary_text, gfr.summary_message_ids, gfr.requested_at, gfr.completed_at
+`, goalSetID, ownerUserID, messageID, summaryHTML)
+	review, err := scanGoalFinalReview(row)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return GoalFinalReview{}, false, nil
+	}
+	return review, err == nil, err
+}
+
+func (q *Queries) FinalizeGoalFinalReview(ctx context.Context, goalSetID int64, ownerUserID int64) (GoalFinalReview, bool, error) {
+	row := q.db.QueryRow(ctx, `
+UPDATE seasonal_goal_final_reviews gfr
+SET completed_at = now()
+FROM seasonal_goal_sets gs
+WHERE gfr.goal_set_id = gs.id
+  AND gfr.goal_set_id = $1
+  AND gs.owner_user_id = $2
+  AND gfr.status IS NOT NULL
+  AND NULLIF(BTRIM(gfr.summary_text), '') IS NOT NULL
+  AND gfr.completed_at IS NULL
+RETURNING gfr.id, gfr.goal_set_id, gfr.status::text, gfr.prompt_message_id, gfr.prompt_message_thread_id,
+	      gfr.summary_text, gfr.summary_message_ids, gfr.requested_at, gfr.completed_at
+`, goalSetID, ownerUserID)
 	review, err := scanGoalFinalReview(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return GoalFinalReview{}, false, nil
@@ -327,18 +360,21 @@ func scanSeasonalGoalSet(row pgx.Row) (SeasonalGoalSet, error) {
 
 func scanGoalWeeklyReview(row pgx.Row) (GoalWeeklyReview, error) {
 	var review GoalWeeklyReview
-	var promptID, promptThreadID pgtype.Int4
+	var promptID, promptThreadID, responseID, responseThreadID pgtype.Int4
 	var response pgtype.Text
 	var reminderSentAt, respondedAt, skippedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&review.ID, &review.GoalSetID, &review.ReviewWeekStart, &promptID, &promptThreadID,
-		&response, &review.RequestedAt, &reminderSentAt, &respondedAt, &skippedAt,
+		&response, &responseID, &responseThreadID,
+		&review.RequestedAt, &reminderSentAt, &respondedAt, &skippedAt,
 	); err != nil {
 		return GoalWeeklyReview{}, err
 	}
 	review.PromptMessageID = int64FromPgInt4(promptID)
 	review.PromptMessageThreadID = int64FromPgInt4(promptThreadID)
 	review.ResponseText = textFromPg(response)
+	review.ResponseMessageID = int64FromPgInt4(responseID)
+	review.ResponseMessageThreadID = int64FromPgInt4(responseThreadID)
 	review.ReminderSentAt = timeFromPg(reminderSentAt)
 	review.RespondedAt = timeFromPg(respondedAt)
 	review.SkippedAt = timeFromPg(skippedAt)
@@ -352,7 +388,7 @@ func scanGoalFinalReview(row pgx.Row) (GoalFinalReview, error) {
 	var completedAt pgtype.Timestamptz
 	if err := row.Scan(
 		&review.ID, &review.GoalSetID, &status, &promptID, &promptThreadID,
-		&summary, &review.RequestedAt, &completedAt,
+		&summary, &review.SummaryMessageIDs, &review.RequestedAt, &completedAt,
 	); err != nil {
 		return GoalFinalReview{}, err
 	}

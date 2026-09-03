@@ -56,6 +56,12 @@ func GoalFinalStatusKeyboard(goalSetID int64) *telegram.InlineKeyboardMarkup {
 	}}
 }
 
+func GoalFinalCompleteKeyboard(goalSetID int64) *telegram.InlineKeyboardMarkup {
+	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
+		{{Text: messages.Text("button.goal.complete"), CallbackData: fmt.Sprintf("goals:final:%d:complete", goalSetID)}},
+	}}
+}
+
 func DailyTaskKeyboard(taskID int64) *telegram.InlineKeyboardMarkup {
 	return &telegram.InlineKeyboardMarkup{InlineKeyboard: [][]telegram.InlineKeyboardButton{
 		{{Text: messages.Text("button.task.report"), CallbackData: fmt.Sprintf("task:report:%d", taskID)}},

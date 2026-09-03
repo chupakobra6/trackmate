@@ -65,7 +65,7 @@ func (s *Service) authorizeCallback(ctx context.Context, callback telegram.Callb
 			return staleCallbackAnswer(), false, nil
 		}
 		return s.authorizeOwnedCallback(ctx, callback, checkin.WorkspaceGroupID, checkin.OwnerUserID)
-	case domain.CallbackGoalFinalStatus:
+	case domain.CallbackGoalFinalStatus, domain.CallbackGoalFinalComplete:
 		goalSet, found, err := s.Store.Queries().GetSeasonalGoalSet(ctx, parsed.GoalSetID)
 		if err != nil {
 			return CallbackAnswer{}, false, err
