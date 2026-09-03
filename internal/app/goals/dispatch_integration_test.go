@@ -72,6 +72,55 @@ func TestDispatchWeeklyAndFinalReviews(t *testing.T) {
 	if !fake.hasSentToThread(40, "Итог периода") {
 		t.Fatalf("final review was not sent to goals topic: %+v", fake.sent)
 	}
+	finalRequest, found := fake.findSent("Итог периода")
+	if !found || finalRequest.ReplyToMessageID != sourceMessageID {
+		t.Fatalf("final review should reply to source goals message %d: found=%v request=%+v", sourceMessageID, found, finalRequest)
+	}
+}
+
+func TestFinalReviewFallsBackWhenSourceReplyTargetIsMissing(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000556, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicGoals, 40, "Цели"); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	period := domain.GoalPeriod{
+		Key:      "summer-2026",
+		Title:    "Лето 2026",
+		StartsOn: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		EndsOn:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	}
+	sourceMessageID := int64(501)
+	sourceThreadID := int64(40)
+	goalSet, err := q.UpsertSeasonalGoalSet(ctx, workspace.ID, participant.ID, participant.UserID, period, "1. Работа", &sourceMessageID, &sourceThreadID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeTelegram{
+		nextMessageID:   3000,
+		sendReplyErrors: map[int64]error{sourceMessageID: errors.New("Bad Request: reply message not found")},
+	}
+
+	if err := appgoals.DispatchFinalReviews(ctx, store, fake, time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 2 || fake.sent[0].ReplyToMessageID != sourceMessageID || fake.sent[1].ReplyToMessageID != 0 {
+		t.Fatalf("missing source should retry once without reply: %+v", fake.sent)
+	}
+	review, err := q.GetOrCreateGoalFinalReview(ctx, goalSet.ID)
+	if err != nil || review.PromptMessageID == nil || *review.PromptMessageID != 3001 {
+		t.Fatalf("fallback prompt was not persisted: review=%+v err=%v", review, err)
+	}
 }
 
 func TestWeeklyDeleteFailureDoesNotBlockSkipOrFinalReview(t *testing.T) {
@@ -343,12 +392,13 @@ func (f *fakeTelegram) hasSentToThread(threadID int64, text string) bool {
 }
 
 type fakeTelegram struct {
-	nextMessageID  int64
-	sent           []telegram.SendMessageRequest
-	sentMessageIDs []int64
-	deleted        []int64
-	edits          []telegram.EditMessageTextRequest
-	deleteErrors   map[int64]error
+	nextMessageID   int64
+	sent            []telegram.SendMessageRequest
+	sentMessageIDs  []int64
+	deleted         []int64
+	edits           []telegram.EditMessageTextRequest
+	deleteErrors    map[int64]error
+	sendReplyErrors map[int64]error
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -358,8 +408,11 @@ func (f *fakeTelegram) AnswerCallbackQuery(context.Context, telegram.AnswerCallb
 	return nil
 }
 func (f *fakeTelegram) SendMessage(_ context.Context, request telegram.SendMessageRequest) (telegram.Message, error) {
-	f.nextMessageID++
 	f.sent = append(f.sent, request)
+	if err := f.sendReplyErrors[request.ReplyToMessageID]; err != nil {
+		return telegram.Message{}, err
+	}
+	f.nextMessageID++
 	f.sentMessageIDs = append(f.sentMessageIDs, f.nextMessageID)
 	return telegram.Message{MessageID: f.nextMessageID, MessageThreadID: request.MessageThreadID, Chat: telegram.Chat{ID: request.ChatID, Type: "supergroup"}}, nil
 }
@@ -401,6 +454,15 @@ func (f *fakeTelegram) countSent(text string) int {
 		}
 	}
 	return count
+}
+
+func (f *fakeTelegram) findSent(text string) (telegram.SendMessageRequest, bool) {
+	for _, sent := range f.sent {
+		if strings.Contains(sent.Text, text) {
+			return sent, true
+		}
+	}
+	return telegram.SendMessageRequest{}, false
 }
 
 func (f *fakeTelegram) wasDeleted(messageID int64) bool {

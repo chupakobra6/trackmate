@@ -46,7 +46,7 @@ an old message.
 26. In completed routine cards with all items marked, remove the helper line that asks users to mark points; it only belongs to open cards.
 27. Keep each unanswered two-week goal review available for 71 hours: replace the first prompt with exactly one identical retry after 24 hours, then remove the retry before Telegram's 48-hour delete limit and persist the review as skipped. If deletion fails, replace the prompt with an inert closed state and continue. Do not overlap the final period review with an open two-week review.
 28. Treat stored season boundaries as calendar dates in the workspace timezone. Send the final review on the first local day of the next season.
-29. Keep permanent weekly/final cards short and link them to the original Telegram response messages instead of echoing unbounded response text.
+29. Keep permanent weekly/final cards short and link them to the original Telegram response messages instead of echoing unbounded response text. A permanent final card names its participant using the same `period · person` visual grammar as the seasonal goals card. Create the final prompt as a reply to the stored source goals message when that message still exists, and fall back to a root topic message when Telegram no longer has the reply target.
 
 ## Non-goals for MVP
 

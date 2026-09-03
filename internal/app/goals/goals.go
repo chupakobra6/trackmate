@@ -268,13 +268,19 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 		if review.CompletedAt != nil || review.PromptMessageID != nil {
 			continue
 		}
-		message, err := tg.SendMessage(ctx, telegram.SendMessageRequest{
+		request := telegram.SendMessageRequest{
 			ChatID:              item.Workspace.ChatID,
 			MessageThreadID:     goalsTopic.ThreadID,
 			Text:                ui.FormatGoalFinalReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant), goalSourceLink(item.Workspace.ChatID, item.GoalSet)),
 			ReplyMarkup:         ui.GoalFinalStatusKeyboard(item.GoalSet.ID),
+			ReplyToMessageID:    goalSourceReplyID(item.GoalSet, goalsTopic.ThreadID),
 			DisableNotification: true,
-		})
+		}
+		message, err := tg.SendMessage(ctx, request)
+		if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {
+			request.ReplyToMessageID = 0
+			message, err = tg.SendMessage(ctx, request)
+		}
 		if err != nil {
 			return err
 		}
@@ -300,6 +306,16 @@ func nowBeforeLocalDate(nowUTC time.Time, timezoneName string, date time.Time) b
 
 func goalSourceLink(chatID int64, goalSet postgres.SeasonalGoalSet) string {
 	return postgres.MessageLink(chatID, optionalInt64(goalSet.SourceMessageID), optionalInt64(goalSet.SourceMessageThreadID))
+}
+
+func goalSourceReplyID(goalSet postgres.SeasonalGoalSet, goalsThreadID int64) int64 {
+	if goalSet.SourceMessageID == nil {
+		return 0
+	}
+	if goalSet.SourceMessageThreadID != nil && *goalSet.SourceMessageThreadID != 0 && *goalSet.SourceMessageThreadID != goalsThreadID {
+		return 0
+	}
+	return *goalSet.SourceMessageID
 }
 
 func optionalInt64(value *int64) int64 {

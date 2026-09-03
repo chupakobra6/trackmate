@@ -1163,7 +1163,7 @@ func TestGoalFinalReviewAccumulatesMessagesUntilExplicitCompletion(t *testing.T)
 		t.Fatalf("completed_at=%v part_count=%d", completedAt, partCount)
 	}
 	edit, found := fake.findEdit(702)
-	if !found || !strings.Contains(edit.Text, "часть 1") || !strings.Contains(edit.Text, "часть 2") || !strings.Contains(edit.Text, "/801?thread=14") || !strings.Contains(edit.Text, "/802?thread=14") {
+	if !found || !strings.Contains(edit.Text, "🏁 <b>Итог периода: Лето 2026</b> · Игорь") || !strings.Contains(edit.Text, "часть 1") || !strings.Contains(edit.Text, "часть 2") || !strings.Contains(edit.Text, "/801?thread=14") || !strings.Contains(edit.Text, "/802?thread=14") {
 		t.Fatalf("final card mismatch found=%v edit=%+v", found, edit)
 	}
 	if strings.Contains(edit.Text, "Первый результат") || len(edit.Text) >= 4096 {

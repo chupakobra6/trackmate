@@ -1,6 +1,7 @@
 # Проверяет настройку целей, вопросы раз в две недели и итог периода в теме «Цели».
 # Перед wait_weekly_review_prompt: clock на воскресенье 20:00 локального времени + POST /control/tick.
-# Перед wait_final_review_prompt: clock на 2026-09-01 + POST /control/tick.
+# Перед wait_final_review_prompt: clock на 2026-09-01 + POST /control/tick; prompt должен быть reply к исходному сообщению целей.
+# После complete_final_summary постоянный итог сохраняется на месте и явно показывает имя участника после периода.
 {"id":"select_goals","action":"select_chat","chat":"{{CHAT}}","message_thread_id":{{GOALS_THREAD_ID}}}
 {"id":"open_goals_setup","action":"click_button","button_text":"✏️ Настроить цели","timeout_ms":60000}
 {"id":"wait_goals_prompt","action":"wait","timeout_ms":60000}

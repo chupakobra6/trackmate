@@ -1372,3 +1372,38 @@ Production-доказательства:
 - `api`, `worker`, `postgres` healthy, migrate завершён успешно;
 - unpublished progress, outstanding alerts, stale claims, stale generic pending, stale routine notices, weekly past safe deadline и advisory waiters равны `0`;
 - в свежих production logs нет `error`, `panic`, `fatal`, `message can't be deleted` или `deleteMessage` failures.
+
+### Goal Final Card Ownership And Reply Context
+
+ID источника: `S044`
+
+Исходный ввод:
+
+```text
+В карточках «Итог периода: Лето 2026» должно быть понятно, чей это итог. По возможности итог должен быть ответом на исходное сообщение с целями, а оформление — совпадать со стилем существующих сообщений Trackmate.
+```
+
+Нормализация:
+- [x] добавить имя участника в постоянную итоговую карточку по образцу сезонной карточки целей;
+- [x] будущий final prompt отправлять reply к сохранённому source message целей, с безопасным fallback при отсутствующем source;
+- [ ] существующие completed cards `6686` и `6687` обновить на месте без дублей; историческую reply-связь не эмулировать новым сообщением;
+- [ ] проверить точный пользовательский текст, formatter/app/bot tests, затем commit, push, production deploy и readback.
+
+Подтверждённые production-данные:
+- Игорь: goals source `3847`, final card `6686`, summary parts `7207`,`7208`;
+- Ярослав: goals source `3691`, final card `6687`, summary part `7225`;
+- Егор: goals source `4192`, открытый final prompt `7248`;
+- Telegram не позволяет изменить reply target уже существующего сообщения, поэтому completed cards сохраняются и только редактируются; новая reply-связь применяется к будущим prompt/card lifecycle.
+
+Маршрутизация:
+- [x] source map `S044`;
+- [x] `REQ-071..REQ-072`, `VAL-019`, `STEP-041`;
+- [x] implementation/style review;
+- [ ] production delivery и handoff.
+
+Локальные доказательства:
+- сохранённый заголовок теперь имеет exact shape `🏁 <b>Итог периода: Лето 2026</b> · Игорь`, совпадающий с `period · person` у сезонной карточки целей;
+- source reply и missing-target fallback покрыты PostgreSQL application integration test;
+- completion flow читает каноническое имя участника из БД и покрыт bot integration test;
+- focused tests без cache, `make check`, fresh `go test ./... -count=1` и `git diff --check` прошли;
+- Harvest style readback локально недоступен из-за отсутствующей `TG_HARVEST_DAILY_APP_ID`; до production mutation точный текст проверяется formatter tests, после mutation — Bot API edit response.

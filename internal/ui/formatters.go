@@ -399,13 +399,17 @@ func FormatGoalFinalReflectionDraft(goalSet postgres.SeasonalGoalSet, status dom
 	}, "\n")
 }
 
-func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgres.GoalFinalReview, chatID int64) string {
+func FormatGoalFinalReviewSaved(goalSet postgres.SeasonalGoalSet, review postgres.GoalFinalReview, displayName string, username string, chatID int64) string {
 	status := "—"
 	if review.Status != nil {
 		status = goalFinalStatusLabel(*review.Status)
 	}
 	lines := []string{
-		messages.Format("goals.final.title", "period", html.EscapeString(goalSet.PeriodTitle)),
+		messages.Format(
+			"goals.final.saved_title",
+			"period", html.EscapeString(goalSet.PeriodTitle),
+			"person", personLabel(username, displayName),
+		),
 		"",
 		messages.Format("goals.final.score", "status", status),
 	}

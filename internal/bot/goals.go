@@ -275,11 +275,17 @@ func (s *Service) handleGoalFinalComplete(ctx context.Context, callback telegram
 	var answer CallbackAnswer
 	var goalSet postgres.SeasonalGoalSet
 	var review postgres.GoalFinalReview
+	var participant postgres.Participant
 	completed := false
 	err = s.Store.InTx(ctx, func(q *postgres.Queries) error {
 		var found bool
 		var err error
 		goalSet, found, err = q.GetSeasonalGoalSet(ctx, goalSetID)
+		if err != nil || !found {
+			answer.Text = messages.Text("goals.not_found")
+			return err
+		}
+		participant, found, err = q.GetParticipantByID(ctx, goalSet.ParticipantID)
 		if err != nil || !found {
 			answer.Text = messages.Text("goals.not_found")
 			return err
@@ -310,7 +316,11 @@ func (s *Service) handleGoalFinalComplete(ctx context.Context, callback telegram
 	if err != nil || !completed {
 		return answer, err
 	}
-	text := ui.FormatGoalFinalReviewSaved(goalSet, review, callback.Message.Chat.ID)
+	username := ""
+	if participant.Username != nil {
+		username = *participant.Username
+	}
+	text := ui.FormatGoalFinalReviewSaved(goalSet, review, participant.DisplayName, username, callback.Message.Chat.ID)
 	if !s.editMessageSafe(ctx, callback.Message.Chat.ID, callback.Message.MessageID, text, ui.EmptyKeyboard()) {
 		_, _ = s.Telegram.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
 			ChatID:          callback.Message.Chat.ID,

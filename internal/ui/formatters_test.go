@@ -442,8 +442,8 @@ func TestFinalCopyUsesCalmStyleAndDashLists(t *testing.T) {
 		Status:                &status,
 		PromptMessageThreadID: &messageThreadID,
 		SummaryMessageIDs:     []int64{801, 802},
-	}, -1000000000001)
-	for _, part := range []string{"часть 1", "часть 2", "https://t.me/c/0000000001/801?thread=40", "https://t.me/c/0000000001/802?thread=40"} {
+	}, "Игорь", "igor", -1000000000001)
+	for _, part := range []string{"🏁 <b>Итог периода: Лето 2026</b> · Игорь", "часть 1", "часть 2", "https://t.me/c/0000000001/801?thread=40", "https://t.me/c/0000000001/802?thread=40"} {
 		if !strings.Contains(savedFinal, part) {
 			t.Fatalf("saved final missing %q: %s", part, savedFinal)
 		}
