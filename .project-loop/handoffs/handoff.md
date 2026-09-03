@@ -4,38 +4,36 @@
 Обновлено: 2026-09-04
 
 ## Цель
-- Проверить все удаления Telegram-сообщений, устранить граничные timed deletes и гарантировать, что delete failure не блокирует worker.
+- Сделать автора итоговой карточки сезона явным, связать будущий final lifecycle с исходными целями и привести production-карточки лета к текущему стилю без дублей.
 
 ## Завершенный Шаг
-- step: `STEP-040`
+- step: `STEP-041`
 - status: `готово`
-- requirements: `REQ-069`, `REQ-070`, `VAL-018`
-- sources: `S042`, `S043`
+- requirements: `REQ-071`, `REQ-072`, `VAL-019`
+- sources: `S044`
 
-## Контракт
-- По официальному Bot API обычное сообщение можно удалить только в возрасте строго меньше `48h`.
-- Trackmate планирует удаление не позже `47h`, сохраняя час запаса.
-- Weekly deadline `71h` считается от первого prompt: retry через `24h`, затем `47h` до cleanup.
-- `GoalNudgeCooldown=72h` не относится к удалениям и не менялся.
+## Результат
+- Постоянный итог теперь имеет заголовок `🏁 Итог периода: Период · Имя`, повторяющий `period · person` из сезонной карточки целей.
+- Имя берётся из канонического participant в БД и проходит общую name-normalization.
+- Новый final prompt отправляется reply к сохранённому source goals message и затем редактируется в постоянный итог на том же месте.
+- Если Telegram больше не видит source, выполняется ровно один fallback send без reply; сезонный lifecycle не блокируется.
+- Existing completed cards нельзя reparent через Telegram edit, поэтому они сохранены и отредактированы на месте без новых сообщений.
 
-## Реализация И Prevention
-- `internal/domain` содержит один источник delete limit, margin и target age.
-- `internal/app/messagecleanup` выполняет age-aware best-effort delete и inert fallback без worker block.
-- Pending, routine notices и weekly goals cleanup переведены на общий контракт.
-- Architecture regression test запрещает обход контракта в application code; единственное исключение — компенсация сообщения, отправленного в том же вызове.
-- Интерактивные `internal/bot` call sites проаудированы: они user-triggered/immediate и не блокируют worker при delete error.
-- `AGENTS.md` закрепляет Telegram invariant и каноническую production backup-команду.
+## Production
+- Игорь: source `3847`, final card `6686`, parts `7207`,`7208`; readback `Итог периода: Лето 2026 · Игорь`.
+- Ярослав: source `3691`, final card `6687`, part `7225`; readback `Итог периода: Лето 2026 · Ярослав`.
+- Егор: source `4192`, active prompt `7248`; prompt не пересоздавался, потому что уже адресован Егору, а replacement дал бы лишнее сообщение.
+- Existing cards сохранили scores/summary links и ожидаемо имеют `reply_to_message_id=null`.
 
-## Проверки И Production
-- focused tests, fresh `go test ./... -count=1`, `make check`, `git diff --check`, Project Loop validation: pass.
-- code commit `c1e126d` включён в local, `origin/main` и `/opt/trackmate`.
-- backup `/opt/trackmate/backups/trackmate_20260903T230430Z.dump` проверен checksum и `pg_restore --list`.
-- `api`, `worker`, `postgres` healthy; migrate завершён успешно.
-- unpublished progress, outstanding alerts, stale claims, stale generic pending, stale routine notices, weekly past safe deadline и advisory waiters: `0`.
-- fresh production error/delete-failure scan: clean.
+## Проверки И Delivery
+- focused tests без cache, `make check`, fresh `go test ./... -count=1`, `git diff --check`, Project Loop validation: pass.
+- code commit `5398ecc` включён в local, `origin/main` и `/opt/trackmate`.
+- backup `/opt/trackmate/backups/trackmate_20260903T231522Z.dump` прошёл checksum/archive validation.
+- `api`, `worker`, `postgres` healthy; unpublished progress, outstanding alerts, stale claims, advisory waiters и fresh errors: `0`.
+- Telegram Harvest не запустился из текущей shell без `TG_HARVEST_DAILY_APP_ID`; exact production verification выполнена через успешные Bot API edit responses без раскрытия token.
 
 ## Остаточный Риск
-- Telegram может отказать в удалении и до 48 часов по другим правилам Bot API или transient причинам; в worker-owned flows это теперь приводит к inert fallback/безопасному завершению, а не к повторному loop.
+- Реальный source-reply path не создавался специально в production ради теста и отсутствия лишнего сообщения; он защищён PostgreSQL integration tests и сработает на следующем новом final prompt.
 
 ## Следующее Действие
 - Нет обязательного действия.
