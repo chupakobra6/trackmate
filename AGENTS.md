@@ -35,7 +35,8 @@
 - User-visible Telegram copy lives in `internal/messages/messages.md`; Go code should use `internal/messages` and `internal/ui` instead of embedding Russian message text directly.
 - Change user-visible Telegram copy only when the user explicitly asks for copy changes. After changing visible copy, report exact before/after message text for review.
 - When public Telegram behavior changes, update the matching product docs and E2E scenario comments or expectations in the same pass: timing, topic flow, parser rules, notification level, visible messages, and Progress links.
-- During local development, after committing code that affects the running bot, rebuild/restart the local Docker stack before manual Telegram checks. Deploy to production only after an explicit user request.
+- During local development, after committing code that affects the running bot, rebuild/restart the local Docker stack before manual Telegram checks.
+- Production delivery is the standing default for user-requested Trackmate fixes: after the relevant focused and broad checks pass, commit the task changes, push them, deploy them to the production VPS, and verify the applied revision, migrations, healthy services, affected Telegram state, queues, and fresh logs. Do not stop at a local commit unless the user explicitly asks to keep the change local.
 
 ## Code change policy
 - Keep diffs small and local.
@@ -48,6 +49,7 @@
 - Advance the Telegram polling offset only after the update handler succeeds. Do not put updates behind an unacknowledged in-memory queue.
 - Session-level PostgreSQL advisory locks must be schema-namespaced and acquired/released through the same pinned `pgxpool.Conn`; never acquire or unlock them directly through the pool.
 - Persisted `dispatching`/`publishing` states must carry a reclaimable lease timestamp. Terminal transitions must verify that the row is still claimed, and send-then-persist failures should remove the just-sent Telegram message when safe.
+- Worker failures must be isolated per item and must not produce unbounded repeat processing or block later work. Persist retry state, use bounded backoff and a terminal or recoverable outcome, and expose enough context in logs or metrics to identify the offending item.
 - Every callback kind must pass the central deny-by-default access gate before dispatch. Personal callbacks must bind to an owner and, for persisted entities, to the callback message workspace; do not add handler-only authorization or ownerless dismiss buttons.
 
 ## Verification
