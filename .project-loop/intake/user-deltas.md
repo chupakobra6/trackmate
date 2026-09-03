@@ -1287,3 +1287,46 @@ ID источника: `S039`
 - [x] `REQ-063..REQ-066`, `VAL-016`, `STEP-038`;
 - [x] root-cause audit, implementation и DB-backed verification;
 - [x] push, deploy и handoff.
+
+### Reliable Production Workflow
+
+ID источника: `S040`
+
+Исходный ввод:
+
+```text
+Готовые и подтверждённые исправления Trackmate сразу коммитить, пушить и выкатывать в production. Повторяющиеся ошибки, retry storms и worker loops не закрывать только cleanup-ом: устранять причину и добавлять или предлагать механизмы предотвращения повторения.
+```
+
+Нормализация:
+- [x] закрепить standing production delivery в Trackmate rules;
+- [x] закрепить глобальный root-cause/regression/bounded-retry принцип для всех агентов;
+- [x] проверять после deploy не только health, но и logs, queues и affected live state;
+- [x] commit, push и production sync самих Trackmate rules.
+
+Доказательства:
+- `AGENTS.md` и `/Users/igor/.codex/AGENTS.md` обновлены;
+- commit `37c1136` совпадает в local, `origin/main` и production checkout;
+- production services healthy.
+
+### Progress Backlog Burst
+
+ID источника: `S041`
+
+Исходный ввод:
+
+```text
+После восстановления Trackmate в топик `Прогресс` пришло 39 сообщений. Проверить, ожидаемая ли это раскрытая очередь; если это баг или мусор — убрать, если корректные события — оставить.
+```
+
+Нормализация:
+- [x] точно сверить пользовательское число с production `progress_events`;
+- [x] проверить task/event/message IDs, source links и дубли;
+- [x] сверить реальные Telegram-карточки через Harvest;
+- [x] не удалять корректную историю.
+
+Доказательства:
+- `22` события опубликованы 7–25 августа, `17` backlog events — 3 сентября; сумма ровно `39`;
+- events `304..320` и messages `7250..7266` уникальны и относятся к отдельным daily tasks;
+- duplicate task/event pairs `0`, duplicate Telegram message IDs `0`, missing source links `0`;
+- cleanup не выполнялся, потому что подтверждённого шума нет.

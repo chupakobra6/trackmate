@@ -75,6 +75,8 @@
 | REQ-064 | `готово` | S039 | Принимать финал сезона одним или несколькими текстовыми сообщениями. | Каждая часть идемпотентно сохраняется в БД; pending остается открытым до `Завершить итог`; после завершения одна постоянная карточка ссылается на части и не echo-ит длинный summary. | migration `202609040001`; storage/bot/UI tests with messages `801+802`; owner-only complete callback |
 | REQ-065 | `готово` | S039 | Использовать date-only семантику для границ календарных сезонов. | Весна/лето/осень/зима и финал в первый день следующего сезона проходят в положительных и отрицательных timezone без UTC date shift. | boundary table + `America/Los_Angeles` regressions; dynamic Autumn 2026 setup prompt; stale season removed from control copy |
 | REQ-066 | `готово` | S039 | Восстановить production-итоги лета и разблокировать очереди. | После backup итоги Игоря `7207+7208` и Ярослава `7225` хранятся как final reviews; старые weekly rows больше не считают их двухнедельными ответами; в `Целях` есть постоянный итог, для Егора появляется финальный prompt; stale alerts не устраивают массовую рассылку, progress backlog доходит до видимой ленты. | backup `trackmate_20260903T223606Z.dump`; cards `6686/6687`, closed `6688`, Egor prompt `7248`; unpublished alerts/progress `0` |
+| REQ-067 | `готово` | S040 | Закрепить production delivery и предотвращение повторных сбоев как постоянные правила. | Готовый Trackmate fix проходит checks, commit, push, deploy и live verification; retry storm или stuck queue требует устранения root cause, регрессионного контракта и bounded recovery либо явного preventive proposal. | `AGENTS.md`; `/Users/igor/.codex/AGENTS.md`; commit/deploy `37c1136` |
+| REQ-068 | `готово` | S041 | Сверить 39 сообщений в `Прогрессе` и удалить только подтверждённый шум или дубли. | Exact DB/Telegram reconciliation различает старые сообщения и восстановленный backlog; каждое новое событие связано с отдельной задачей и source link; корректная история не удаляется. | `22` ранее опубликованных + `17` восстановленных = `39`; duplicate task/event и message IDs `0`; Harvest подтверждает 17 отдельных карточек `7250..7266` |
 
 ## Ограничения
 | ID | Статус | Источник | Ограничение | Доказательства |
@@ -82,11 +84,12 @@
 | CON-001 | `принято` | S001 | Минимизировать спам: routine check-in редактирует одну карточку пользователя, а не шлет отдельное сообщение на каждый пункт. |  |
 | CON-002 | `принято` | S001 | Не публиковать рутины, причины и leaderboard в `Прогресс`. |  |
 | CON-003 | `принято` | S001 | Не терять текущие данные БД для истории и статистики. |  |
-| CON-004 | `принято` | S001 | На прод не выкатывать без отдельного approval после ревью локальной реализации и миграционного плана. |  |
+| CON-004 | `отклонено` | S001,S040 | На прод не выкатывать без отдельного approval после ревью локальной реализации и миграционного плана. | Заменено standing production delivery из S040; явный local-only запрос остаётся исключением. |
 | CON-005 | `принято` | S004 | Не удалять E2E сообщения после текущего live-прогона. |  |
 | CON-006 | `принято` | S009 | При автоматической отмене pending input Trackmate работает молча: не отправляет новых пользовательских сообщений и не отвечает на callback текстом. |  |
 | CON-007 | `принято` | S036 | Не запускать полный Telegram E2E для локальных правок; проверять только измененные feature flows и релевантные DB/Go контракты. | `AGENTS.md`; focused scenario evidence |
 | CON-008 | `принято` | S037 | Не менять production без отдельного явного запроса в текущей задаче. | Локальная реализация, focused tests и local commit; push/deploy не выполняются. |
+| CON-009 | `принято` | S040 | Для Trackmate не считать исправление готовым до verified production delivery, если Игорь явно не просит оставить его локальным. | `AGENTS.md` production delivery rule; commit/push/prod checkout `37c1136` |
 
 ## Обязательная Валидация
 | ID | Статус | Источник | Валидация | Доказательства |
@@ -107,10 +110,11 @@
 | VAL-014 | `готово` | S037 | Регрессионно проверить авторизацию callback-кнопок без полного Telegram E2E. | Parser отклоняет безадресный dismiss; UI всегда кодирует owner; table-driven policy покрывает все callback kinds; PostgreSQL integration доказывает, что чужой task/alert/routine/goal/notice callback и callback из другого workspace не меняют сообщение или доменное состояние; focused packages и `make check` проходят. | focused DB-backed callback tests: pass; `TRACKMATE_TEST_DATABASE_URL=... make check`: pass; `git diff --check`: pass; full Telegram E2E not run |
 | VAL-015 | `готово` | S038 | Точечно перепроверить routine callback ownership и production deploy. | PostgreSQL routine transition test проверяет owner callback data для reminder/auto-close; bot authorization regression проверяет чужой exact callback и отсутствие mutations; `make check` проходит; production deploy имеет verified backup, healthy compose, no stale claims/advisory waiters/new errors. | focused tests + DB-backed `make check`: pass; checksum/archive: pass; prod services healthy; stale claims/progress/errors/waiters `0` |
 | VAL-016 | `готово` | S039 | Проверить сезонный переход, отказ Telegram cleanup, многосообщениевый финал и production repair. | Focused domain/storage/app/bot/worker tests, DB-backed `make check`, migration readback, focused Goals E2E or exact integration fallback, backup + exact production SQL/Telegram verification, healthy services, clean worker error loop and queues. | DB-backed `make check`, local migration/readback and exact PostgreSQL bot integration pass; live E2E blocked before first step by expired runner session; production DB + Harvest verify links/cards/prompt; services healthy, queues/claims clean, fresh errors `0` |
+| VAL-017 | `готово` | S041 | Проверить всплеск `Прогресса` по production БД и фактической Telegram-истории. | Сверить количество, времена публикации, event/task/message IDs, payload source links, дубли и текущую очередь; удаление допустимо только для подтверждённого шума. | DB: `22+17=39`, duplicate task/event `0`, duplicate Telegram message IDs `0`, source-link failures `0`, unpublished progress `0`; Harvest: 17 уникальных карточек `7250..7266` |
 
 ## Границы Объема
 | ID | Статус | Источник | Граница | Примечания |
 | --- | --- | --- | --- | --- |
-| SCOPE-001 | `принято` | S001 | В текущем проходе делаем локальную реализацию, тесты и показываем на ревью. | Прод-деплой и реальные миграции на VPS только после отдельного approval. |
+| SCOPE-001 | `отклонено` | S001,S040 | В текущем проходе делаем локальную реализацию, тесты и показываем на ревью. | Старый launch-scope заменён standing production delivery из S040. |
 | SCOPE-002 | `принято` | S001 | MVP routine items все ежедневные. | Расписание по разным дням не входит в первый шаг. |
 | SCOPE-003 | `принято` | S001 | Goals MVP сохраняет raw text целей. | Идеальный парсинг каждого поля не обязателен, но инструкция должна вести к структуре. |
