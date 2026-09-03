@@ -1271,19 +1271,19 @@ ID источника: `S039`
 - weekly review `13` Егора и pending `874` остались открытыми с 24.08;
 - worker каждые 5 секунд падает на `deleteMessage: message can't be deleted`; в текущем журнале `19308` одинаковых errors;
 - сообщения `7207` и `7225` ошибочно сохранились как weekly responses `11` и `12`; `7208` не попало в БД;
-- за goals stage накопились `17` unpublished progress events и `19` pending alerts, хотя previous worker stages продолжали менять domain state.
+- за goals stage накопились `17` unpublished progress events и `5` pending alerts, хотя previous worker stages продолжали менять domain state.
 
 Нормализация:
-- [ ] убрать permanent Telegram delete failure из critical path weekly skip;
-- [ ] закрывать retry внутри delete window с inert fallback;
-- [ ] проверять season dates как calendar dates без timezone shift;
-- [ ] накапливать одну или несколько частей final summary и завершать их явно;
-- [ ] не echo-ить длинный итог в Telegram bot card, а ссылаться на source messages;
-- [ ] после backup перенести `7207+7208` и `7225` в final reviews, закрыть старые weekly rows и не отправлять stale alerts массово;
-- [ ] пропустить через worker только нужные final/progress deliveries и проверить production state.
+- [x] убрать permanent Telegram delete failure из critical path weekly skip;
+- [x] закрывать retry внутри delete window с inert fallback;
+- [x] проверять season dates как calendar dates без timezone shift;
+- [x] накапливать одну или несколько частей final summary и завершать их явно;
+- [x] не echo-ить длинный итог в Telegram bot card, а ссылаться на source messages;
+- [x] после backup перенести `7207+7208` и `7225` в final reviews, закрыть старые weekly rows и не отправлять stale alerts массово;
+- [x] пропустить через worker только нужные final/progress deliveries и проверить production state.
 
 Маршрутизация:
-- [x] source map `S038`;
-- [x] `REQ-062`, `VAL-015`, `STEP-037`;
-- [x] focused verification;
+- [x] source map `S039`;
+- [x] `REQ-063..REQ-066`, `VAL-016`, `STEP-038`;
+- [x] root-cause audit, implementation и DB-backed verification;
 - [x] push, deploy и handoff.
