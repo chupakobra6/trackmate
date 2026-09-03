@@ -250,8 +250,8 @@ func TestGoalWeeklyReviewDueEveryOtherSundayEvening(t *testing.T) {
 }
 
 func TestGoalWeeklyReviewLifecycleActionBoundaries(t *testing.T) {
-	if retryAge := GoalReviewSkipAfter - GoalReviewReminderDelay; retryAge >= 48*time.Hour {
-		t.Fatalf("retry age=%s must stay inside Telegram's 48-hour delete window", retryAge)
+	if retryAge := GoalReviewSkipAfter - GoalReviewReminderDelay; retryAge != TelegramDeleteTargetAge {
+		t.Fatalf("retry age=%s want shared Telegram target age=%s", retryAge, TelegramDeleteTargetAge)
 	}
 	requestedAt := time.Date(2026, 8, 9, 17, 0, 0, 0, time.UTC)
 	remindedAt := requestedAt.Add(GoalReviewReminderDelay)
@@ -281,6 +281,52 @@ func TestGoalWeeklyReviewLifecycleActionBoundaries(t *testing.T) {
 				t.Fatalf("action=%q want=%q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestScheduledTelegramDeletionAgesKeepSafetyMargin(t *testing.T) {
+	tests := []struct {
+		name string
+		age  time.Duration
+	}{
+		{name: "stale pending input", age: PendingInputMaxAge},
+		{name: "routine notice", age: RoutineNoticeMaxAge},
+		{name: "weekly retry prompt", age: GoalReviewSkipAfter - GoalReviewReminderDelay},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.age > TelegramDeleteTargetAge {
+				t.Fatalf("scheduled age=%s exceeds safe target=%s", tt.age, TelegramDeleteTargetAge)
+			}
+			if tt.age >= TelegramDeleteLimit {
+				t.Fatalf("scheduled age=%s reaches Telegram limit=%s", tt.age, TelegramDeleteLimit)
+			}
+		})
+	}
+}
+
+func TestTelegramMessageDeleteAllowed(t *testing.T) {
+	sentAt := time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		now  time.Time
+		want bool
+	}{
+		{name: "target age", now: sentAt.Add(TelegramDeleteTargetAge), want: true},
+		{name: "just before limit", now: sentAt.Add(TelegramDeleteLimit - time.Nanosecond), want: true},
+		{name: "at limit", now: sentAt.Add(TelegramDeleteLimit), want: false},
+		{name: "after limit", now: sentAt.Add(TelegramDeleteLimit + time.Second), want: false},
+		{name: "before send", now: sentAt.Add(-time.Second), want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := TelegramMessageDeleteAllowed(sentAt, tt.now); got != tt.want {
+				t.Fatalf("allowed=%v want=%v", got, tt.want)
+			}
+		})
+	}
+	if TelegramMessageDeleteAllowed(time.Time{}, sentAt) {
+		t.Fatal("unknown message age must not be deletable by scheduled cleanup")
 	}
 }
 

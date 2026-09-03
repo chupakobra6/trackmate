@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/igor/trackmate/internal/app/delivery"
+	"github.com/igor/trackmate/internal/app/messagecleanup"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
@@ -131,7 +132,7 @@ func advanceWeeklyReview(ctx context.Context, store *postgres.Store, tg telegram
 			return err
 		}
 		if previousPromptID != nil {
-			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *previousPromptID)
+			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *previousPromptID, review.RequestedAt, nowUTC)
 		}
 		return nil
 	case domain.GoalWeeklyReviewSkip:
@@ -145,7 +146,11 @@ func advanceWeeklyReview(ctx context.Context, store *postgres.Store, tg telegram
 			return err
 		}
 		if review.PromptMessageID != nil {
-			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *review.PromptMessageID)
+			promptSentAt := review.RequestedAt
+			if review.ReminderSentAt != nil {
+				promptSentAt = *review.ReminderSentAt
+			}
+			closeWeeklyReviewPrompt(ctx, tg, item.Workspace.ChatID, *review.PromptMessageID, promptSentAt, nowUTC)
 		}
 		return nil
 	default:
@@ -153,13 +158,8 @@ func advanceWeeklyReview(ctx context.Context, store *postgres.Store, tg telegram
 	}
 }
 
-func closeWeeklyReviewPrompt(ctx context.Context, tg telegram.API, chatID int64, messageID int64) {
-	if err := tg.DeleteMessage(ctx, chatID, messageID); err == nil {
-		return
-	}
-	_ = tg.EditMessageText(ctx, telegram.EditMessageTextRequest{
-		ChatID:      chatID,
-		MessageID:   messageID,
+func closeWeeklyReviewPrompt(ctx context.Context, tg telegram.API, chatID int64, messageID int64, sentAt time.Time, nowUTC time.Time) {
+	messagecleanup.CloseBestEffort(ctx, tg, chatID, messageID, sentAt, nowUTC, telegram.EditMessageTextRequest{
 		Text:        messages.Text("goals.weekly.closed"),
 		ReplyMarkup: ui.EmptyKeyboard(),
 	})

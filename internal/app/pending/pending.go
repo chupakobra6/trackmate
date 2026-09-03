@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/igor/trackmate/internal/app/messagecleanup"
 	"github.com/igor/trackmate/internal/domain"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
@@ -27,7 +28,7 @@ func CleanupStaleInputs(ctx context.Context, store *postgres.Store, tg telegram.
 			if !ok {
 				continue
 			}
-			deletePendingMessages(ctx, tg, item.Workspace.ChatID, claimed.Payload)
+			deletePendingMessages(ctx, tg, item.Workspace.ChatID, claimed.Payload, claimed.CreatedAt, nowUTC)
 		}
 		if len(items) < staleBatchSize {
 			return nil
@@ -35,14 +36,14 @@ func CleanupStaleInputs(ctx context.Context, store *postgres.Store, tg telegram.
 	}
 }
 
-func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any) {
+func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any, sentAt time.Time, nowUTC time.Time) {
 	seen := map[int64]bool{}
 	for _, messageID := range append([]int64{payloadInt64(payload, "prompt_message_id")}, payloadInt64Slice(payload, "user_message_ids")...) {
 		if messageID == 0 || seen[messageID] {
 			continue
 		}
 		seen[messageID] = true
-		_ = tg.DeleteMessage(ctx, chatID, messageID)
+		messagecleanup.DeleteBestEffort(ctx, tg, chatID, messageID, sentAt, nowUTC)
 	}
 }
 

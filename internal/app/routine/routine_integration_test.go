@@ -401,11 +401,58 @@ func TestCleanupExpiredNoticesDeletesOldRoutineReminder(t *testing.T) {
 	if fake.wasDeleted(4100) {
 		t.Fatalf("routine reminder should stay until it is older than 24h, deleted=%+v", fake.deleted)
 	}
+	fake.deleteError = errors.New("message can't be deleted")
 	if err := approutine.CleanupExpiredNotices(ctx, store, fake, time.Date(2026, 6, 30, 0, 1, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if !fake.wasDeleted(4100) {
-		t.Fatalf("expired routine reminder should be deleted, deleted=%+v", fake.deleted)
+		t.Fatalf("expired routine reminder deletion should be attempted, deleted=%+v", fake.deleted)
+	}
+	if edit, found := fake.findEdit(4100); !found || edit.ReplyMarkup == nil || len(edit.ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("undeletable routine reminder should become inert: found=%v edit=%+v", found, edit)
+	}
+	cleaned, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || cleaned.ReminderMessageID != nil {
+		t.Fatalf("routine reminder id should be cleared found=%v checkin=%+v err=%v", found, cleaned, err)
+	}
+}
+
+func TestCleanupExpiredNoticeSkipsDeleteOutsideTelegramWindow(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000449, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Igor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка"}, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkin, err := q.GetOrCreateRoutineCheckin(ctx, plan, time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sentAt := time.Date(2026, 6, 29, 0, 0, 0, 0, time.UTC)
+	if err := q.SetRoutineCheckinReminderMessageID(ctx, checkin.ID, 4200, sentAt); err != nil {
+		t.Fatal(err)
+	}
+
+	fake := &fakeTelegram{}
+	now := sentAt.Add(domain.TelegramDeleteLimit + time.Minute)
+	if err := approutine.CleanupExpiredNotices(ctx, store, fake, now); err != nil {
+		t.Fatal(err)
+	}
+	if fake.wasDeleted(4200) {
+		t.Fatalf("expired Telegram message must not be sent to deleteMessage: %+v", fake.deleted)
+	}
+	if edit, found := fake.findEdit(4200); !found || edit.ReplyMarkup == nil || len(edit.ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("expired routine reminder should become inert: found=%v edit=%+v", found, edit)
 	}
 	cleaned, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
 	if err != nil || !found || cleaned.ReminderMessageID != nil {
@@ -420,6 +467,7 @@ type fakeTelegram struct {
 	deleted       []int64
 	sendError     error
 	editErrors    map[int64]error
+	deleteError   error
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -445,7 +493,7 @@ func (f *fakeTelegram) EditMessageText(_ context.Context, request telegram.EditM
 }
 func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
 	f.deleted = append(f.deleted, messageID)
-	return nil
+	return f.deleteError
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {
 	return nil

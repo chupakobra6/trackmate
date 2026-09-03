@@ -50,6 +50,7 @@
 - Session-level PostgreSQL advisory locks must be schema-namespaced and acquired/released through the same pinned `pgxpool.Conn`; never acquire or unlock them directly through the pool.
 - Persisted `dispatching`/`publishing` states must carry a reclaimable lease timestamp. Terminal transitions must verify that the row is still claimed, and send-then-persist failures should remove the just-sent Telegram message when safe.
 - Worker failures must be isolated per item and must not produce unbounded repeat processing or block later work. Persist retry state, use bounded backoff and a terminal or recoverable outcome, and expose enough context in logs or metrics to identify the offending item.
+- Telegram `deleteMessage` is allowed only for messages younger than 48 hours. Schedule cleanup by 47 hours, route worker-owned deletion through `internal/app/messagecleanup`, and advance lifecycle with an inert fallback when deletion is late or fails; a deletion failure must never block a worker stage. The weekly 71-hour deadline is 24 hours to the retry plus 47 hours of retry age.
 - Every callback kind must pass the central deny-by-default access gate before dispatch. Personal callbacks must bind to an owner and, for persisted entities, to the callback message workspace; do not add handler-only authorization or ownerless dismiss buttons.
 
 ## Verification

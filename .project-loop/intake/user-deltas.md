@@ -1330,3 +1330,38 @@ ID источника: `S041`
 - events `304..320` и messages `7250..7266` уникальны и относятся к отдельным daily tasks;
 - duplicate task/event pairs `0`, duplicate Telegram message IDs `0`, missing source links `0`;
 - cleanup не выполнялся, потому что подтверждённого шума нет.
+
+### Telegram Deletion Window Audit
+
+ID источника: `S042`
+
+Исходный ввод:
+
+```text
+Проверить все удаления сообщений во всём приложении, чтобы нигде lifecycle не доходил до Telegram-лимита и ошибка удаления больше не могла блокировать worker. Зафиксировать правило и исключить повторение класса ошибки.
+```
+
+Нормализация:
+- [x] подтвердить актуальный Bot API delete limit по официальному источнику;
+- [x] инвентаризировать все вызовы `DeleteMessage` и связанные таймеры;
+- [x] вынести единый лимит и safety margin в код вместо отдельных magic durations;
+- [x] все scheduled cleanup выполнять до safe deadline либо переводить просроченное сообщение в inert state без worker block;
+- [x] добавить regression-аудит таймеров/удалений и постоянный Trackmate invariant;
+- [ ] пройти DB-backed checks, commit, push, deploy и production verification.
+
+Уточнение факта:
+- официальный Bot API ограничивает обычное `deleteMessage` возрастом строго меньше 48 часов;
+- `71h` в weekly lifecycle считается от первого prompt: retry отправлен через `24h`, поэтому его возраст при закрытии равен `47h`.
+
+Маршрутизация:
+- [x] source map `S042`,`S043`;
+- [x] `REQ-069..REQ-070`, `CON-010`, `VAL-018`, `STEP-040`;
+- [x] code/test/rule audit;
+- [ ] production delivery и handoff.
+
+Локальные доказательства:
+- официальный источник подтверждает hard limit `<48h`;
+- `TelegramDeleteTargetAge=47h`, weekly deadline вычисляется как `24h + 47h = 71h`;
+- scheduled app cleanup проходит через `internal/app/messagecleanup`, а architecture test запрещает новые прямые вызовы;
+- `GoalNudgeCooldown=72h` классифицирован как unrelated и оставлен без изменений;
+- focused tests, fresh `go test ./... -count=1`, `make check`, `git diff --check` и Project Loop validation прошли.

@@ -15,19 +15,29 @@ const (
 	RoutineReminderHour     = 20
 	RoutineAutoFailHour     = 0
 	RoutineNoticeMaxAge     = 24 * time.Hour
+	TelegramDeleteLimit     = 48 * time.Hour
+	TelegramDeleteMargin    = time.Hour
+	TelegramDeleteTargetAge = TelegramDeleteLimit - TelegramDeleteMargin
 	DailySummaryStartHour   = 20
 	GoalWeeklyReviewWeekday = time.Sunday
 	GoalWeeklyReviewHour    = 20
 	GoalReviewIntervalDays  = 14
 	GoalReviewReminderDelay = 24 * time.Hour
-	// The retry is sent after 24 hours. Closing at 71 hours leaves one hour of
-	// margin before Telegram's 48-hour deletion limit for that retry.
-	GoalReviewSkipAfter  = 71 * time.Hour
+	// The retry is sent after GoalReviewReminderDelay. Its planned cleanup uses
+	// the shared one-hour margin before Telegram's 48-hour deletion limit.
+	GoalReviewSkipAfter  = GoalReviewReminderDelay + TelegramDeleteTargetAge
 	GoalNudgePercent     = 10
 	GoalNudgeCooldown    = 72 * time.Hour
 	PersonalAlertPercent = 30
 	PendingInputMaxAge   = 24 * time.Hour
 )
+
+func TelegramMessageDeleteAllowed(sentAt time.Time, nowUTC time.Time) bool {
+	if sentAt.IsZero() || nowUTC.Before(sentAt) {
+		return false
+	}
+	return nowUTC.Sub(sentAt) < TelegramDeleteLimit
+}
 
 type GoalWeeklyReviewAction string
 

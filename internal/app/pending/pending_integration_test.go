@@ -2,6 +2,7 @@ package pending_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -43,6 +44,12 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	expired, err := q.UpsertPendingInput(ctx, workspace.ID, participant.UserID, 16, domain.PendingRoutinePlan, map[string]any{
+		"prompt_message_id": 500,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	now := time.Date(2026, 6, 24, 20, 0, 0, 0, time.UTC)
 	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $2 WHERE id = $1`, stale.ID, now.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
@@ -50,8 +57,11 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $2 WHERE id = $1`, finalPending.ID, now.Add(-25*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $2 WHERE id = $1`, expired.ID, now.Add(-domain.TelegramDeleteLimit-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
 
-	fake := &fakeTelegram{}
+	fake := &fakeTelegram{deleteErrors: map[int64]error{100: errors.New("request failed")}}
 	if err := apppending.CleanupStaleInputs(ctx, store, fake, now); err != nil {
 		t.Fatal(err)
 	}
@@ -64,6 +74,9 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 15); err != nil || !found {
 		t.Fatalf("final goal pending should wait for explicit completion found=%v err=%v", found, err)
 	}
+	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 16); err != nil || found {
+		t.Fatalf("expired pending should be removed without an invalid Telegram delete found=%v err=%v", found, err)
+	}
 	for _, messageID := range []int64{100, 201, 202} {
 		if !fake.wasDeleted(messageID) {
 			t.Fatalf("message %d was not deleted: %+v", messageID, fake.deleted)
@@ -72,10 +85,14 @@ func TestCleanupStaleInputsDeletesMessagesAndKeepsFreshTopic(t *testing.T) {
 	if fake.wasDeleted(300) {
 		t.Fatalf("fresh prompt should not be deleted: %+v", fake.deleted)
 	}
+	if fake.wasDeleted(500) {
+		t.Fatalf("message outside Telegram delete window should not be deleted: %+v", fake.deleted)
+	}
 }
 
 type fakeTelegram struct {
-	deleted []int64
+	deleted      []int64
+	deleteErrors map[int64]error
 }
 
 func (f *fakeTelegram) PollUpdates(context.Context, int64, int) ([]telegram.Update, error) {
@@ -92,6 +109,9 @@ func (f *fakeTelegram) EditMessageText(context.Context, telegram.EditMessageText
 }
 func (f *fakeTelegram) DeleteMessage(_ context.Context, _ int64, messageID int64) error {
 	f.deleted = append(f.deleted, messageID)
+	if err := f.deleteErrors[messageID]; err != nil {
+		return err
+	}
 	return nil
 }
 func (f *fakeTelegram) PinChatMessage(context.Context, int64, int64) error {

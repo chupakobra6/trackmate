@@ -3,26 +3,28 @@
 Проект: trackmate
 Обновлено: 2026-09-04
 
-## Завершенный Шаг
-- id: `STEP-039`
-- status: `готово`
-- objective: Закрепить reliable production workflow и проверить 39 сообщений в `Прогрессе`.
-- requirement IDs: `REQ-067`, `REQ-068`, `VAL-017`
-- source IDs: `S040`, `S041`
+## Активный Шаг
+- id: `STEP-040`
+- status: `в работе`
+- objective: Провести полный аудит Telegram deletion window и закрыть класс граничных удалений.
+- requirement IDs: `REQ-069`, `REQ-070`, `VAL-018`
+- source IDs: `S042`, `S043`
 
-## Результат
-- Готовые Trackmate fixes теперь по умолчанию проходят checks, commit, push, production deploy и live verification.
-- Повторяющиеся ошибки требуют root-cause prevention, bounded recovery и regression/invariant evidence.
-- Число `39` точно складывается из `22` обычных событий, опубликованных 7–25 августа, и `17` событий, накопившихся из-за goals worker wedge и доставленных 3 сентября.
-- Все `17` восстановленных карточек `7250..7266` уникальны, соответствуют отдельным daily tasks и содержат source links; это не дубли и не служебный мусор.
-- Telegram cleanup не выполнялся: удаление испортило бы корректную историю `Прогресса`.
+## Подтверждённый Контракт
+- Официальный Bot API разрешает `deleteMessage` только для сообщений младше `48h`.
+- Trackmate использует `1h` safety margin: максимальный плановый возраст удаления — `47h`.
+- Weekly `71h` = initial-to-reminder `24h` + retry safe age `47h`.
+- `GoalNudgeCooldown=72h` не связан с удалением и не должен механически меняться.
 
-## Валидация
-- duplicate `(daily_task_id,event_type)`: `0`.
-- duplicate `published_message_id`: `0`.
-- missing task/source link: `0`.
-- unpublished progress: `0`.
-- Telegram Harvest подтвердил видимые карточки `7250..7266`.
+## Область
+- все production `DeleteMessage` call sites;
+- domain cleanup/retry durations;
+- worker delete-failure behavior;
+- regression tests и `AGENTS.md` invariant;
+- commit, push, production deploy и live verification.
 
-## Следующее Действие
-- Product follow-up не требуется; при желании отдельно спроектировать coalesced summary для большого корректного backlog после длительного outage.
+## Критерий Готовности
+- scheduled delete paths планируются не позже safe age `47h` и никогда не вызывают Telegram deletion на/после hard limit `48h`;
+- delayed worker делает сообщение inert или безопасно закрывает lifecycle без повторного loop;
+- все удаления классифицированы и покрыты проверяемым контрактом;
+- DB-backed checks и production verification проходят.

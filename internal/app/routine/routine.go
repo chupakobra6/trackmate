@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/igor/trackmate/internal/app/delivery"
+	"github.com/igor/trackmate/internal/app/messagecleanup"
 	"github.com/igor/trackmate/internal/domain"
+	"github.com/igor/trackmate/internal/messages"
 	"github.com/igor/trackmate/internal/storage/postgres"
 	"github.com/igor/trackmate/internal/telegram"
 	"github.com/igor/trackmate/internal/ui"
@@ -85,7 +87,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 				return err
 			}
 			if pendingFound && pending.Kind == domain.PendingRoutineReason && payloadInt64(pending.Payload, "checkin_id") == item.Checkin.ID {
-				deletePendingMessages(ctx, tg, item.Workspace.ChatID, pending.Payload)
+				deletePendingMessages(ctx, tg, item.Workspace.ChatID, pending.Payload, pending.CreatedAt, nowUTC)
 			}
 			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
 				return err
@@ -98,7 +100,7 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 				continue
 			}
 			if item.Checkin.ReminderMessageID != nil {
-				_ = tg.DeleteMessage(ctx, item.Workspace.ChatID, *item.Checkin.ReminderMessageID)
+				closeRoutineNotice(ctx, tg, item.Workspace.ChatID, *item.Checkin.ReminderMessageID, item.Checkin.ReminderSentAt, nowUTC)
 				if err := store.Queries().ClearRoutineCheckinReminderMessageID(ctx, item.Checkin.ID); err != nil {
 					return err
 				}
@@ -216,13 +218,13 @@ func CleanupExpiredNotices(ctx context.Context, store *postgres.Store, tg telegr
 	}
 	for _, notice := range notices {
 		if notice.Checkin.ReminderMessageID != nil && notice.Checkin.ReminderSentAt != nil && !notice.Checkin.ReminderSentAt.After(cutoff) {
-			_ = tg.DeleteMessage(ctx, notice.Workspace.ChatID, *notice.Checkin.ReminderMessageID)
+			closeRoutineNotice(ctx, tg, notice.Workspace.ChatID, *notice.Checkin.ReminderMessageID, notice.Checkin.ReminderSentAt, nowUTC)
 			if err := store.Queries().ClearRoutineCheckinReminderMessageID(ctx, notice.Checkin.ID); err != nil {
 				return err
 			}
 		}
 		if notice.Checkin.AutoCloseNoticeMessageID != nil && notice.Checkin.AutoCloseNoticeSentAt != nil && !notice.Checkin.AutoCloseNoticeSentAt.After(cutoff) {
-			_ = tg.DeleteMessage(ctx, notice.Workspace.ChatID, *notice.Checkin.AutoCloseNoticeMessageID)
+			closeRoutineNotice(ctx, tg, notice.Workspace.ChatID, *notice.Checkin.AutoCloseNoticeMessageID, notice.Checkin.AutoCloseNoticeSentAt, nowUTC)
 			if err := store.Queries().ClearRoutineCheckinAutoCloseNoticeMessageID(ctx, notice.Checkin.ID); err != nil {
 				return err
 			}
@@ -278,15 +280,26 @@ func optionalInt64(value *int64) int64 {
 	return *value
 }
 
-func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any) {
+func deletePendingMessages(ctx context.Context, tg telegram.API, chatID int64, payload map[string]any, sentAt time.Time, nowUTC time.Time) {
 	seen := map[int64]bool{}
 	for _, messageID := range append([]int64{payloadInt64(payload, "prompt_message_id")}, payloadInt64Slice(payload, "user_message_ids")...) {
 		if messageID == 0 || seen[messageID] {
 			continue
 		}
 		seen[messageID] = true
-		_ = tg.DeleteMessage(ctx, chatID, messageID)
+		messagecleanup.DeleteBestEffort(ctx, tg, chatID, messageID, sentAt, nowUTC)
 	}
+}
+
+func closeRoutineNotice(ctx context.Context, tg telegram.API, chatID int64, messageID int64, sentAt *time.Time, nowUTC time.Time) {
+	messageSentAt := time.Time{}
+	if sentAt != nil {
+		messageSentAt = *sentAt
+	}
+	messagecleanup.CloseBestEffort(ctx, tg, chatID, messageID, messageSentAt, nowUTC, telegram.EditMessageTextRequest{
+		Text:        messages.Text("notice.dismissed"),
+		ReplyMarkup: ui.EmptyKeyboard(),
+	})
 }
 
 func payloadInt64(payload map[string]any, key string) int64 {

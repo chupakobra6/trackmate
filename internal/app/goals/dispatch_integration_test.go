@@ -233,7 +233,7 @@ func TestWeeklyReviewRetriesOnceAndSkipsBeforeTelegramDeleteLimit(t *testing.T) 
 		t.Fatal(err)
 	}
 	if !fake.wasDeleted(retryPromptID) {
-		t.Fatalf("retry prompt %d was not removed at 72h: %+v", retryPromptID, fake.deleted)
+		t.Fatalf("retry prompt %d was not removed at the safe deadline: %+v", retryPromptID, fake.deleted)
 	}
 	if _, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || found {
 		t.Fatalf("weekly pending must be closed at deadline found=%v err=%v", found, err)
