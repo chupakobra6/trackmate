@@ -51,6 +51,16 @@ Backups are written under `backups/` by default. That directory is ignored by
 git. The backup script uses `umask 077`, so new dump, metadata, and checksum
 files are readable only by the account that creates them.
 
+Production backup policy:
+
+- run the same verified logical-backup script at least weekly;
+- retain dump, metadata, and checksum files for 90 days, pruning them only
+  after a new backup succeeds;
+- keep the hosting-provider backup as an additional recovery layer, not as a
+  replacement for a verified PostgreSQL dump;
+- copy a fresh verified dump off the production host before package, network,
+  storage, or reboot maintenance.
+
 ## Restore
 
 Restore a dump into the Compose PostgreSQL service:
@@ -127,6 +137,14 @@ multiple holders.
    cycle.
 
 Never run two Telegram polling runtimes for the same bot token at the same time.
+
+The small production host also needs bounded Docker storage. Trackmate builds
+three application services from the repository, so repeated
+`docker compose up -d --build` runs can accumulate BuildKit cache. Keep Docker
+container logs bounded (`10m` per file, three files), prune only unused build
+cache older than 14 days on a weekly schedule, and keep the cache near `2G`.
+Do not use `docker system prune -a`: it is broader than the known failure mode
+and can remove recovery images needed by the running deployment.
 
 ## Schema Checks
 
