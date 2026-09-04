@@ -1427,17 +1427,24 @@ ID источника: `S045`
 ```
 
 Нормализация:
-- [ ] полный routine day увеличивает streak; partial-day не увеличивает и не сбрасывает; failed-day сбрасывает;
-- [ ] незавершённый routine check-in до deadline не сбрасывает текущую серию;
-- [ ] worker после auto-fail редактирует исходную Today card в failed-состояние и снимает её кнопку;
-- [ ] кнопка `Результат` в overdue alert запускает обычный status/report prompt;
-- [ ] поздний report сохраняется ровно один раз и не превращает auto-failed task в выполненную;
-- [ ] существующий auto-fail Progress event дополняется результатом без duplicate close event;
-- [ ] точную последнюю задачу Игоря восстановить только после сверки DB и Telegram source message;
-- [ ] выполнить focused/full validation, commit, push, production backup/deploy и live verification.
+- [x] полный routine day увеличивает streak; partial-day не увеличивает и не сбрасывает; failed-day сбрасывает;
+- [x] незавершённый routine check-in до deadline не сбрасывает текущую серию;
+- [x] worker после auto-fail редактирует исходную Today card в failed-состояние и снимает её кнопку;
+- [x] кнопка `Результат` в overdue alert запускает обычный status/report prompt;
+- [x] поздний report сохраняется ровно один раз и не превращает auto-failed task в выполненную;
+- [x] существующий auto-fail Progress event дополняется результатом без duplicate close event;
+- [x] точную последнюю задачу Игоря восстановить только после сверки DB и Telegram source message;
+- [x] выполнить focused/full validation, commit, push, production backup/deploy и live verification.
 
 Маршрутизация:
 - [x] source map `S045`;
 - [x] `REQ-073..REQ-075`, `VAL-020`, `STEP-042`;
-- [ ] implementation и regression tests;
-- [ ] production delivery/data repair и handoff.
+- [x] implementation и regression tests;
+- [x] production delivery/data repair и handoff.
+
+Production-доказательства:
+- task `297`/source `7201` был автоматически провален в `12:00:04 MSK`, а callbacks `Результат` после deadline доходили до API и отклонялись старой проверкой статуса;
+- сообщение результата `7285` найдено в Today thread `6`, сохранено в task и связано с Progress payload;
+- по явному запросу task восстановлен как `done`, event `321` — как единственный `daily_task.closed` с published message `7282`;
+- Today card `7202` и Progress message `7282` отредактированы на месте и не имеют inline-кнопок;
+- production backup `trackmate_20260904T092257Z.dump` проверен, сервисы healthy, очереди и claims чисты, свежих ошибок нет.

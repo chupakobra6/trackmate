@@ -4,36 +4,39 @@
 Обновлено: 2026-09-04
 
 ## Цель
-- Сделать автора итоговой карточки сезона явным, связать будущий final lifecycle с исходными целями и привести production-карточки лета к текущему стилю без дублей.
+- Не сбрасывать серию рутины из-за частичного пункта, исправить late-report lifecycle автопроваленной задачи дня и восстановить последнюю задачу Игоря по фактическому результату.
 
 ## Завершенный Шаг
-- step: `STEP-041`
+- step: `STEP-042`
 - status: `готово`
-- requirements: `REQ-071`, `REQ-072`, `VAL-019`
-- sources: `S044`
+- requirements: `REQ-073`, `REQ-074`, `REQ-075`, `VAL-020`
+- sources: `S045`
 
 ## Результат
-- Постоянный итог теперь имеет заголовок `🏁 Итог периода: Период · Имя`, повторяющий `period · person` из сезонной карточки целей.
-- Имя берётся из канонического participant в БД и проходит общую name-normalization.
-- Новый final prompt отправляется reply к сохранённому source goals message и затем редактируется в постоянный итог на том же месте.
-- Если Telegram больше не видит source, выполняется ровно один fallback send без reply; сезонный lifecycle не блокируется.
-- Existing completed cards нельзя reparent через Telegram edit, поэтому они сохранены и отредактированы на месте без новых сообщений.
+- Полностью выполненный routine day увеличивает streak; день с `partial` сохраняет серию без увеличения; `failed` и календарный разрыв сбрасывают; незавершённый check-in нейтрален до разрешения.
+- В 12:00 auto-fail теперь редактирует исходную Today card в failed-состояние и снимает её кнопки для обычной задачи, как уже происходило для итогов дня.
+- Кнопка `Результат` во временном overdue alert принимает один поздний report. Task остаётся `failed`, report добавляется в исходную карточку и уже опубликованное auto-fail Progress event; duplicate close event не создаётся.
+- Late-report изменения сначала фиксируются транзакционно, после commit обе Telegram-карточки обновляются; ошибка edit попадает в существующий системный alert lifecycle.
 
-## Production
-- Игорь: source `3847`, final card `6686`, parts `7207`,`7208`; readback `Итог периода: Лето 2026 · Игорь`.
-- Ярослав: source `3691`, final card `6687`, part `7225`; readback `Итог периода: Лето 2026 · Ярослав`.
-- Егор: source `4192`, active prompt `7248`; prompt не пересоздавался, потому что уже адресован Егору, а replacement дал бы лишнее сообщение.
-- Existing cards сохранили scores/summary links и ожидаемо имеют `reply_to_message_id=null`.
+## Восстановление Задачи Игоря
+- Точная запись: `daily_tasks.id=297`, дата `2026-09-03`, source message `7201`, Today card `7202`.
+- Auto-fail произошёл `2026-09-04 12:00:04 MSK`; API logs подтвердили последующие callbacks `Результат`, которые старый код отклонял из-за failed-статуса.
+- Фактический результат — Today message `7285` от `2026-09-04 12:05:13 MSK` в thread `6`; текст сохранён целиком.
+- По явному запросу Игоря task `297` восстановлен как `done`: `report_status=done`, `report_message_id=7285`, `failed_at=NULL`.
+- Единственный Progress event `321` преобразован в `daily_task.closed`, сохранил published message `7282`; auto-fail/duplicate events для task отсутствуют.
+- Telegram messages `7202` и `7282` отредактированы на месте: показывают выполнение и результат, inline-кнопок нет.
+- Остальные активные задачи `298..300` не изменены.
 
 ## Проверки И Delivery
-- focused tests без cache, `make check`, fresh `go test ./... -count=1`, `git diff --check`, Project Loop validation: pass.
-- code commit `5398ecc` включён в local, `origin/main` и `/opt/trackmate`.
-- backup `/opt/trackmate/backups/trackmate_20260903T231522Z.dump` прошёл checksum/archive validation.
-- `api`, `worker`, `postgres` healthy; unpublished progress, outstanding alerts, stale claims, advisory waiters и fresh errors: `0`.
-- Telegram Harvest не запустился из текущей shell без `TG_HARVEST_DAILY_APP_ID`; exact production verification выполнена через успешные Bot API edit responses без раскрытия token.
+- Focused PostgreSQL tests для storage/bot/worker/UI, `make check`, fresh `go test ./... -count=1`, `git diff --check` и Project Loop validation прошли.
+- Code commit `406b114` включён в local, `origin/main` и production checkout.
+- Backup `/opt/trackmate/backups/trackmate_20260904T092257Z.dump` прошёл checksum и `pg_restore --list`.
+- Production `api`, `worker`, `postgres` healthy; migration завершилась успешно.
+- Все `312` Progress events опубликованы; stale progress/alert claims и свежие ошибки равны `0`; alerts task `297` acknowledged.
+- Routine leaderboard message `3285` совпадает с перерасчётом нового алгоритма; Telegram вернул `message is not modified`.
 
-## Остаточный Риск
-- Реальный source-reply path не создавался специально в production ради теста и отсутствия лишнего сообщения; он защищён PostgreSQL integration tests и сработает на следующем новом final prompt.
+## Ограничение Проверки
+- Новый focused live Telegram E2E-сценарий добавлен, но отдельная тестовая MTProto-сессия runner потребовала повторного входа. Поведение проверено полным PostgreSQL integration flow callback → status → late report → Today/Progress edits и production readback существующих сообщений.
 
 ## Следующее Действие
 - Нет обязательного действия.

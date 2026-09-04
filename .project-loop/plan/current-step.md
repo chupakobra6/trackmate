@@ -5,7 +5,7 @@
 
 ## Активный Шаг
 - id: `STEP-042`
-- status: `в работе`
+- status: `готово`
 - objective: Исправить streak рутины, поздний результат auto-failed задачи и последнюю задачу Игоря.
 - requirement IDs: `REQ-073`, `REQ-074`, `REQ-075`, `VAL-020`
 - source IDs: `S045`
@@ -18,13 +18,13 @@
 - Один поздний результат можно записать через alert; задача остаётся `failed`, а существующее auto-fail Progress событие дополняется результатом без дубля.
 - Последняя задача Игоря восстанавливается как `done` только по точному production evidence уже отправленного своевременного результата.
 
-## План Реализации
-1. Сверить production DB/logs/Telegram для последней задачи Игоря и не менять данные до точной идентификации.
-2. Исправить streak-классификацию и добавить проверки full/partial/failed/open/gap.
-3. Исправить worker card finalization и late-report storage/bot/progress lifecycle с регрессионными тестами.
-4. Обновить публичную архитектурную документацию и focused E2E expectation, если контракт там описан.
-5. Пройти focused и broad проверки; сделать path-specific commit и push.
-6. Снять production backup, развернуть revision, восстановить одну задачу Игоря и проверить DB/Telegram/services/queues/logs.
+## Выполнено
+1. Production DB, API logs и Telegram history точно связали task `297`, auto-fail event `321`, Today card `7202`, Progress message `7282` и результат Игоря `7285`.
+2. Streak-классификация покрывает full/partial/failed/open/gap; partial теперь нейтрален, а открытая проверка не обнуляет серию.
+3. Worker финализирует исходную карточку при auto-fail; overdue alert принимает один поздний report, сохраняя failed-статус и переиспользуя существующее событие.
+4. Обновлены архитектурная документация и focused E2E-сценарий.
+5. Focused и broad проверки прошли; code commit `406b114` отправлен в `origin/main`.
+6. Production backup проверен, версия развернута, task `297` и обе Telegram-карточки восстановлены без дублей; сервисы, очереди, claims и логи проверены.
 
 ## Валидация
 - focused tests для storage/bot/worker/UI;
@@ -33,4 +33,4 @@
 - production revision/backup/schema, affected task/progress/card readback, service health, queues/claims и fresh logs.
 
 ## Следующее Действие
-- Получить exact production evidence и реализовать минимальный root-cause fix.
+- Нет обязательного действия.
