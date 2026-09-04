@@ -18,6 +18,17 @@ docker compose ps
 docker compose logs --tail=200 migrate api worker
 ```
 
+Local Make targets apply `docker-compose.local.yml`, where services use
+`restart: "no"`, so starting Docker Desktop alone does not start Trackmate.
+Run `make down` after local or E2E work to remove the stopped containers while
+preserving the PostgreSQL volume and built images. The base Compose file keeps
+`restart: unless-stopped` for the production VPS.
+
+`make docker-up` caps unused BuildKit cache at 2 GB after each successful
+build. The same safe cleanup can be run directly with
+`make docker-cache-prune`; it does not remove images, containers, networks, or
+volumes. Compose also rotates each service log at 10 MB and keeps three files.
+
 Full local database reset:
 
 ```bash

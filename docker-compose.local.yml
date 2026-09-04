@@ -1,0 +1,12 @@
+services:
+  postgres:
+    restart: "no"
+
+  migrate:
+    restart: "no"
+
+  api:
+    restart: "no"
+
+  worker:
+    restart: "no"

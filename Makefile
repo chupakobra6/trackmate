@@ -1,6 +1,9 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup tidy fmt fmt-check lint vet test check migrate api worker dev docker-up docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean down logs logs-all logs-db
+LOCAL_COMPOSE_FILES := docker-compose.yml:docker-compose.local.yml
+LOCAL_COMPOSE := COMPOSE_FILE=$(LOCAL_COMPOSE_FILES) docker compose
+
+.PHONY: help setup tidy fmt fmt-check lint vet test check migrate api worker dev docker-up docker-cache-prune docker-reset docker-db-backup docker-db-backup-stop docker-db-restore clean down logs logs-all logs-db
 
 help:
 	@printf "Available commands:\n"
@@ -13,6 +16,7 @@ help:
 	@printf "  make api                # run Go Telegram poller locally\n"
 	@printf "  make worker             # run Go worker locally\n"
 	@printf "  make docker-up          # build and start local Docker stack\n"
+	@printf "  make docker-cache-prune # cap unused local BuildKit cache at 2 GB\n"
 	@printf "  make docker-reset       # remove local Docker DB volume and restart stack\n"
 	@printf "  make docker-db-backup   # create logical PostgreSQL dump\n"
 	@printf "  make docker-db-backup-stop  # backup after stopping api and worker\n"
@@ -61,10 +65,14 @@ worker:
 dev: docker-up
 
 docker-up:
-	docker compose up -d --build
+	$(LOCAL_COMPOSE) up -d --build
+	$(MAKE) docker-cache-prune
+
+docker-cache-prune:
+	docker buildx prune --force --max-used-space 2GB
 
 docker-reset:
-	sh scripts/reset_docker_db.sh
+	COMPOSE_FILE=$(LOCAL_COMPOSE_FILES) sh scripts/reset_docker_db.sh
 
 docker-db-backup:
 	sh scripts/backup_docker_db.sh
@@ -80,13 +88,13 @@ clean:
 	rm -rf tmp
 
 down:
-	docker compose down
+	$(LOCAL_COMPOSE) down
 
 logs:
-	docker compose logs --tail=200 -f api worker migrate
+	$(LOCAL_COMPOSE) logs --tail=200 -f api worker migrate
 
 logs-all:
-	docker compose logs --tail=200 -f
+	$(LOCAL_COMPOSE) logs --tail=200 -f
 
 logs-db:
-	docker compose logs --tail=200 -f postgres
+	$(LOCAL_COMPOSE) logs --tail=200 -f postgres

@@ -45,6 +45,13 @@ make docker-up
 docker compose ps
 ```
 
+The local Compose override makes services start only through an explicit
+command; restarting Docker Desktop does not start them automatically. Run
+`make down` when the local stack is no longer needed. `make docker-up` also
+caps unused BuildKit cache at 2 GB after a successful build without removing
+images, containers, or volumes. The base Compose file retains the production
+restart policy.
+
 For local non-Docker processes:
 
 ```bash
@@ -70,6 +77,7 @@ make migrate             # apply goose migrations
 make api                 # run Telegram poller
 make worker              # run background worker
 make docker-up           # build and start Docker services
+make docker-cache-prune  # cap unused local BuildKit cache at 2 GB
 make docker-reset        # remove Docker volume and restart stack
 make docker-db-backup    # create logical PostgreSQL dump
 make docker-db-backup-stop  # backup after stopping api and worker

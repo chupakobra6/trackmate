@@ -1,7 +1,14 @@
+x-bounded-logging: &bounded-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   postgres:
     image: postgres:17
     restart: unless-stopped
+    logging: *bounded-logging
     environment:
       POSTGRES_DB: trackmate
       POSTGRES_USER: postgres
@@ -19,6 +26,7 @@ services:
   migrate:
     build: .
     restart: "no"
+    logging: *bounded-logging
     env_file:
       - .env
     environment:
@@ -31,6 +39,7 @@ services:
   api:
     build: .
     restart: unless-stopped
+    logging: *bounded-logging
     env_file:
       - .env
     environment:
@@ -48,6 +57,7 @@ services:
   worker:
     build: .
     restart: unless-stopped
+    logging: *bounded-logging
     env_file:
       - .env
     environment:
