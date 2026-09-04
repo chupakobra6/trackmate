@@ -368,8 +368,11 @@ func TestWeeklyReviewDoesNotReplaceAnotherGoalsPending(t *testing.T) {
 	if pending, found, err := q.GetPendingInput(ctx, workspace.ID, participant.UserID, 40); err != nil || !found || pending.Kind != domain.PendingSeasonalGoals {
 		t.Fatalf("another pending was changed found=%v pending=%+v err=%v", found, pending, err)
 	}
-	if !fake.wasDeleted(initialPromptID) {
-		t.Fatalf("expired weekly prompt was not removed: %+v", fake.deleted)
+	if fake.wasDeleted(initialPromptID) {
+		t.Fatalf("weekly prompt older than Telegram limit must not be deleted: %+v", fake.deleted)
+	}
+	if edit, found := fake.findEdit(initialPromptID); !found || !strings.Contains(edit.Text, "проверка целей закрыта") || edit.ReplyMarkup == nil || len(edit.ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("expired weekly prompt was not made inert: found=%v edit=%+v", found, edit)
 	}
 }
 

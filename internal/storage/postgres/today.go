@@ -155,8 +155,28 @@ func (q *Queries) SubmitTaskReport(ctx context.Context, taskID int64, ownerUserI
 	if err != nil || !found {
 		return false, err
 	}
-	if task.OwnerUserID != ownerUserID || !task.Status.IsOpen() || !status.IsFinalReport() {
+	if task.OwnerUserID != ownerUserID || !task.AcceptsReport() || !status.IsFinalReport() {
 		return false, nil
+	}
+	if !task.Status.IsOpen() {
+		tag, err := q.db.Exec(ctx, `
+UPDATE daily_tasks
+SET report_status = $2::dailytaskstatus,
+    report_text = $3,
+    report_message_id = $5,
+    report_message_thread_id = $6,
+    reported_at = now()
+WHERE id = $1
+  AND owner_user_id = $4
+  AND entry_kind = 'task'::dailyentrykind
+  AND status = 'failed'::dailytaskstatus
+  AND failed_at IS NOT NULL
+  AND reported_at IS NULL
+`, taskID, string(status), reportHTML, ownerUserID, messageID, threadID)
+		if err != nil {
+			return false, err
+		}
+		return tag.RowsAffected() == 1, nil
 	}
 	_, err = q.db.Exec(ctx, `
 UPDATE daily_tasks
@@ -298,7 +318,7 @@ SET payload = CASE
     WHEN event_type = 'daily_task.closed'::progresseventtype THEN
         payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_task.auto_failed'::progresseventtype THEN
-        payload::jsonb || jsonb_build_object('task_html', $2::text, 'task_link', $4::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_summary.closed'::progresseventtype THEN
         payload::jsonb || jsonb_build_object('report_html', $3::text, 'summary_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_summary.auto_failed'::progresseventtype THEN

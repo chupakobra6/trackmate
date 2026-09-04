@@ -105,6 +105,9 @@ func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := store.Pool().Exec(ctx, `UPDATE pending_inputs SET created_at = $1 WHERE workspace_group_id = $2 AND user_id = $3 AND message_thread_id = $4`, time.Date(2026, 6, 29, 20, 0, 0, 0, time.UTC), workspace.ID, participant.UserID, 30); err != nil {
+		t.Fatal(err)
+	}
 
 	fake := &fakeTelegram{nextMessageID: 3000}
 	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, time.Date(2026, 6, 29, 19, 59, 0, 0, time.UTC)); err != nil {

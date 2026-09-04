@@ -65,6 +65,9 @@ func TestWorkerTransitionsDispatchesAlertAndPublishesProgress(t *testing.T) {
 	if !fake.sent[1].DisableNotification {
 		t.Fatalf("progress should be silent: %+v", fake.sent[1])
 	}
+	if len(fake.edits) != 1 || fake.edits[0].MessageID != 555 || !strings.Contains(fake.edits[0].Text, "не выполнил задачу дня") || fake.edits[0].ReplyMarkup == nil || len(fake.edits[0].ReplyMarkup.InlineKeyboard) != 0 {
+		t.Fatalf("task card was not auto-closed without buttons: %+v", fake.edits)
+	}
 }
 
 func TestWorkerTransitionsDailySummaryWithOwnAlertsAndProgress(t *testing.T) {

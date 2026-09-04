@@ -473,7 +473,14 @@ func (s *Service) consumeDailySummaryReport(ctx context.Context, workspace postg
 }
 
 func (s *Service) consumeDailyReport(ctx context.Context, workspace postgres.Workspace, message telegram.Message, pendingKind domain.PendingInputKind) error {
-	return s.Store.InTx(ctx, func(q *postgres.Queries) error {
+	var task postgres.DailyTask
+	var progressEvents []postgres.ProgressEvent
+	var found bool
+	var submitted bool
+	var isSummary bool
+	var promptMessageID int64
+	var isTodayCardPrompt bool
+	err := s.Store.InTx(ctx, func(q *postgres.Queries) error {
 		pending, ok, err := q.ClaimPendingInput(ctx, workspace.ID, message.From.ID, message.MessageThreadID, pendingKind)
 		if err != nil || !ok {
 			return err
@@ -481,48 +488,74 @@ func (s *Service) consumeDailyReport(ctx context.Context, workspace postgres.Wor
 		taskID := payloadInt64(pending.Payload, "task_id")
 		status := domain.DailyTaskStatus(payloadString(pending.Payload, "status"))
 		input := telegram.NewMessageInput(message)
-		submitted, err := q.SubmitTaskReport(ctx, taskID, message.From.ID, status, input.TextHTML, telegram.DisplayName(*message.From), input.Source.MessageID, input.Source.ThreadID)
+		submitted, err = q.SubmitTaskReport(ctx, taskID, message.From.ID, status, input.TextHTML, telegram.DisplayName(*message.From), input.Source.MessageID, input.Source.ThreadID)
 		if err != nil {
 			return err
 		}
-		task, found, getErr := q.GetTask(ctx, taskID)
-		if getErr != nil {
-			return getErr
+		task, found, err = q.GetTask(ctx, taskID)
+		if err != nil {
+			return err
 		}
-		isSummary := pendingKind == domain.PendingDailySummaryReport
+		isSummary = pendingKind == domain.PendingDailySummaryReport
 		if found {
 			isSummary = task.Kind.IsSummary()
 		}
-		promptMessageID := payloadInt64(pending.Payload, "prompt_message_id")
-		isTodayCardPrompt := found && promptMessageID != 0 && promptMessageID == optionalInt64(task.TodayCardMessageID)
+		promptMessageID = payloadInt64(pending.Payload, "prompt_message_id")
+		isTodayCardPrompt = found && promptMessageID != 0 && promptMessageID == optionalInt64(task.TodayCardMessageID)
 		if !submitted {
-			text := dailyReportRejectedText(isSummary, found && !task.Status.IsOpen())
-			if !isTodayCardPrompt && !s.editMessageSafe(ctx, message.Chat.ID, promptMessageID, text, ui.DismissKeyboard(message.From.ID)) {
-				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
-			} else if isTodayCardPrompt {
-				_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
-			}
 			return nil
 		}
 		if err := s.dismissTaskAlerts(ctx, q, message.Chat.ID, taskID); err != nil {
 			return err
 		}
 		if found {
-			request := telegram.EditMessageTextRequest{
-				ChatID:    message.Chat.ID,
-				MessageID: optionalInt64(task.TodayCardMessageID),
-				Text:      ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
-			}
-			if task.Kind.IsSummary() {
-				request.ReplyMarkup = ui.EmptyKeyboard()
-			}
-			_ = s.Telegram.EditMessageText(ctx, request)
-		}
-		if !isTodayCardPrompt {
-			_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, promptMessageID)
+			progressEvents, err = q.SyncDailyTaskProgressPayloads(ctx, task)
+			return err
 		}
 		return nil
 	})
+	if err != nil {
+		return err
+	}
+	if !submitted {
+		text := dailyReportRejectedText(isSummary, found && !task.AcceptsReport())
+		if !isTodayCardPrompt && !s.editMessageSafe(ctx, message.Chat.ID, promptMessageID, text, ui.DismissKeyboard(message.From.ID)) {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
+		} else if isTodayCardPrompt {
+			_, _ = s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{ChatID: message.Chat.ID, MessageThreadID: message.MessageThreadID, Text: text, ReplyMarkup: ui.DismissKeyboard(message.From.ID), DisableNotification: true})
+		}
+		return nil
+	}
+	if found && task.TodayCardMessageID != nil {
+		replyMarkup := dailyTaskCardKeyboard(task)
+		if task.Kind.IsSummary() {
+			replyMarkup = ui.EmptyKeyboard()
+		}
+		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
+			ChatID:      message.Chat.ID,
+			MessageID:   *task.TodayCardMessageID,
+			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
+			ReplyMarkup: replyMarkup,
+		}, messages.Text("progress.edit_failed.target_today_card"), optionalInt64(task.TaskMessageThreadID)); err != nil {
+			return err
+		}
+	}
+	if !isTodayCardPrompt {
+		_ = s.Telegram.DeleteMessage(ctx, message.Chat.ID, promptMessageID)
+	}
+	for _, event := range progressEvents {
+		if event.PublishedMessageID == nil {
+			continue
+		}
+		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
+			ChatID:    message.Chat.ID,
+			MessageID: *event.PublishedMessageID,
+			Text:      ui.FormatProgressEvent(event),
+		}, messages.Text("progress.edit_failed.target_progress_message"), 0); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Service) handleTaskReport(ctx context.Context, callback telegram.CallbackQuery, taskID int64) (CallbackAnswer, error) {
@@ -540,7 +573,7 @@ func (s *Service) handleTaskReport(ctx context.Context, callback telegram.Callba
 			answer.Text = messages.Text("callback.task.author_only")
 			return nil
 		}
-		if !task.Status.IsOpen() {
+		if !task.AcceptsReport() {
 			if err := s.dismissTaskAlerts(ctx, q, callback.Message.Chat.ID, taskID); err != nil {
 				return err
 			}
@@ -582,7 +615,7 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 			answer.Text = messages.Text("callback.task.author_only")
 			return nil
 		}
-		if !task.Status.IsOpen() {
+		if !task.AcceptsReport() {
 			answer.Text = messages.Text("callback.task.closed")
 			return nil
 		}

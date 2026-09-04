@@ -111,14 +111,14 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
 			return nil
 		}
-		if task.Kind.IsSummary() && alert.AlertKind == domain.AlertOverdueTaskFailed && task.TodayCardMessageID != nil {
+		if alert.AlertKind == domain.AlertOverdueTaskFailed && task.TodayCardMessageID != nil {
 			if err := r.TG.EditMessageText(ctx, telegram.EditMessageTextRequest{
 				ChatID:      workspace.ChatID,
 				MessageID:   *task.TodayCardMessageID,
 				Text:        ui.FormatDailyTaskCard(task, displayName, username, ""),
 				ReplyMarkup: ui.EmptyKeyboard(),
 			}); err != nil && !telegram.IsNotModifiedError(err) && r.Logger != nil {
-				r.Logger.WarnContext(ctx, "daily_summary_card_auto_close_edit_failed", "task_id", task.ID, "error", err)
+				r.Logger.WarnContext(ctx, "daily_card_auto_close_edit_failed", "task_id", task.ID, "entry_kind", task.Kind, "error", err)
 			}
 		}
 		todayTopic, found, err := r.Store.Queries().GetTopicBinding(ctx, workspace.ID, domain.TopicToday)

@@ -111,6 +111,11 @@ Daily entry creation is protected by:
 
 Task cards stay in Today and include a report button while the task is open.
 Summary cards stay in Today and show their three status buttons while open.
+At the noon deadline, the worker edits an overdue task card in place to its
+failed state and removes the card button. The separate overdue alert keeps
+`Результат` and `Понял`: its report flow accepts one retrospective result,
+adds it to the failed task card and its existing auto-fail Progress event, but
+does not change the task from `failed` or create a second closed event.
 
 `task:report:<task_id>` opens the report flow by editing the pressed task card
 or alert in place into the status chooser. Replayed callbacks edit that same
@@ -189,9 +194,12 @@ is dismissed or cleaned up. Reminder and auto-close alerts are cleaned up after
 about 24 hours if the user does not dismiss them first.
 
 The Routines topic also keeps a leaderboard message with 7-day completion rate,
-current streak, best streak, and routine item count. Ranking uses completion
-rate first, then current streak, so a one-item routine does not dominate by
-streak alone.
+current streak, best streak, and routine item count. A fully completed day
+increases the streak, a day with `partial` items preserves the accumulated
+streak without increasing it, and a `failed` day or calendar gap resets it. An
+open check-in does not reset the streak before its deadline. Ranking uses
+completion rate first, then current streak, so a one-item routine does not
+dominate by streak alone.
 
 ## Goals Flow
 
@@ -242,7 +250,9 @@ Transitions for both task and summary entries:
   `day_closed_pending_report` alert;
 - after local noon: `active` or `awaiting_report` to `failed`, plus
   `overdue_task_failed` alert and a `daily_task.auto_failed` or
-  `daily_summary.auto_failed` progress event.
+  `daily_summary.auto_failed` progress event. The original card is finalized
+  without buttons; a regular task may still receive one retrospective report
+  while keeping its failed status.
 
 Alerts and progress events are claimed with `FOR UPDATE SKIP LOCKED`. Telegram
 transient failures are requeued; permanent failures are marked failed.

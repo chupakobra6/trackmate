@@ -1415,3 +1415,29 @@ Production-доказательства:
 - оба existing messages имеют `reply_to_message_id=null`, что подтверждает отсутствие reparenting и новых дублей;
 - `api`, `worker`, `postgres` healthy; final DB mapping `1:6686:Игорь,4:6687:Ярослав Севастьянов`;
 - unpublished progress, outstanding alerts, stale progress/alert claims, advisory waiters и fresh errors равны `0`.
+
+### Routine Partial Streak And Late Daily Result
+
+ID источника: `S045`
+
+Исходный ввод:
+
+```text
+В TrackMate частично выполненный пункт рутины не должен сбрасывать ежедневный streak полностью выполненной рутины. После auto-fail задачи дня в 12:00 следующего дня исходная карточка осталась открытой, а кнопка «Результат» ничего не сделала; поздний результат должен приниматься, хотя задача остаётся невыполненной. Последнюю задачу Игоря нужно исправить как выполненную вовремя по уже отправленному сообщению результата и согласовать теги/карточки.
+```
+
+Нормализация:
+- [ ] полный routine day увеличивает streak; partial-day не увеличивает и не сбрасывает; failed-day сбрасывает;
+- [ ] незавершённый routine check-in до deadline не сбрасывает текущую серию;
+- [ ] worker после auto-fail редактирует исходную Today card в failed-состояние и снимает её кнопку;
+- [ ] кнопка `Результат` в overdue alert запускает обычный status/report prompt;
+- [ ] поздний report сохраняется ровно один раз и не превращает auto-failed task в выполненную;
+- [ ] существующий auto-fail Progress event дополняется результатом без duplicate close event;
+- [ ] точную последнюю задачу Игоря восстановить только после сверки DB и Telegram source message;
+- [ ] выполнить focused/full validation, commit, push, production backup/deploy и live verification.
+
+Маршрутизация:
+- [x] source map `S045`;
+- [x] `REQ-073..REQ-075`, `VAL-020`, `STEP-042`;
+- [ ] implementation и regression tests;
+- [ ] production delivery/data repair и handoff.

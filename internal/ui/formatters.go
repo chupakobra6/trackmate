@@ -490,12 +490,16 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		}, "\n")
 	case domain.ProgressDailyTaskAutoFail:
 		task := payloadLink(payload, "task_link", messages.Text("progress.daily.task_link"))
-		return strings.Join([]string{
+		lines := []string{
 			messages.Format("progress.daily.auto_failed", "person", person, "task", task),
 			"",
 			messages.Text("daily.card.plan"),
 			renderTaskSectionHTML(payloadString(payload, "task_html")),
-		}, "\n")
+		}
+		if report := payloadString(payload, "report_html"); report != "" {
+			lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(report))
+		}
+		return strings.Join(lines, "\n")
 	case domain.ProgressDailySummaryClosed:
 		action := dailySummaryClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
 		return strings.Join([]string{

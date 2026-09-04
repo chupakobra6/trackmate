@@ -63,6 +63,16 @@ type DailyTask struct {
 	FailedAt              *time.Time
 }
 
+func (task DailyTask) AcceptsReport() bool {
+	if task.Status.IsOpen() {
+		return true
+	}
+	return task.Kind == domain.DailyEntryTask &&
+		task.Status == domain.DailyTaskFailed &&
+		task.FailedAt != nil &&
+		task.ReportedAt == nil
+}
+
 type DailyTaskAlert struct {
 	ID                int64
 	DailyTaskID       int64
