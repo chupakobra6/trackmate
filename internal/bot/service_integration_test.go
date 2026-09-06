@@ -617,8 +617,8 @@ func TestRoutineCheckinFlowStaysInRoutineTopic(t *testing.T) {
 		t.Fatalf("completed routine card should remain as an artifact, deleted=%+v", fake.deleted)
 	}
 	finalEdit, ok := fake.findEdit(100)
-	if !ok || !strings.Contains(finalEdit.Text, "🔸 йога") || !strings.Contains(finalEdit.Text, "Сорвался график") {
-		t.Fatalf("completed routine card should keep mixed result details: found=%v edit=%+v", ok, finalEdit)
+	if !ok || !strings.Contains(finalEdit.Text, "Игорь выполнил всю рутину") || !strings.Contains(finalEdit.Text, "кроме:") || !strings.Contains(finalEdit.Text, "🔸 йога") || !strings.Contains(finalEdit.Text, "Сорвался график") || strings.Contains(finalEdit.Text, "✅ зарядка") {
+		t.Fatalf("partial routine card should summarize exceptions: found=%v edit=%+v", ok, finalEdit)
 	}
 	tableEdit, ok := fake.findEdit(900)
 	if !ok || !strings.Contains(tableEdit.Text, "Лидерборд") {

@@ -580,17 +580,17 @@ func routineStreaks(checkins []RoutineCheckin) (int, int) {
 	currentRun := 0
 	var previousResolved time.Time
 	for _, checkin := range checkins {
-		resolved, allDone, hasFailure := routineCheckinStreakState(checkin)
+		resolved, continuesStreak := routineCheckinStreakState(checkin)
 		if !resolved {
 			continue
 		}
 		if !previousResolved.IsZero() && checkin.CheckinDate.Sub(previousResolved) > 24*time.Hour {
 			currentRun = 0
 		}
-		if hasFailure {
-			currentRun = 0
-		} else if allDone {
+		if continuesStreak {
 			currentRun++
+		} else {
+			currentRun = 0
 		}
 		if currentRun > maxStreak {
 			maxStreak = currentRun
@@ -600,24 +600,23 @@ func routineStreaks(checkins []RoutineCheckin) (int, int) {
 	return currentRun, maxStreak
 }
 
-func routineCheckinStreakState(checkin RoutineCheckin) (resolved bool, allDone bool, hasFailure bool) {
+func routineCheckinStreakState(checkin RoutineCheckin) (resolved bool, continuesStreak bool) {
 	if len(checkin.Items) == 0 {
-		return false, false, false
+		return false, false
 	}
-	allDone = true
 	for _, item := range checkin.Items {
 		if item.Status == nil {
-			return false, false, false
+			return false, false
 		}
 		switch *item.Status {
-		case domain.RoutineItemDone:
-		case domain.RoutineItemPartial:
-			allDone = false
+		case domain.RoutineItemDone, domain.RoutineItemPartial:
 		case domain.RoutineItemFailed:
-			return true, false, true
+			return true, false
+		default:
+			return true, false
 		}
 	}
-	return true, allDone, false
+	return true, true
 }
 
 func routineCompletionRate(checkins []RoutineCheckin, nowUTC time.Time) float64 {

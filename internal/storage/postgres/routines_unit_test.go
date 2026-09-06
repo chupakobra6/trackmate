@@ -7,7 +7,7 @@ import (
 	"github.com/igor/trackmate/internal/domain"
 )
 
-func TestRoutineStreaksTreatPartialAsNeutral(t *testing.T) {
+func TestRoutineStreaksTreatPartialAsCompletedDay(t *testing.T) {
 	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
 	done := domain.RoutineItemDone
 	partial := domain.RoutineItemPartial
@@ -20,24 +20,24 @@ func TestRoutineStreaksTreatPartialAsNeutral(t *testing.T) {
 		wantMax     int
 	}{
 		{
-			name: "partial preserves but does not increase the series",
+			name: "partial continues and increases the series",
 			checkins: []RoutineCheckin{
 				streakCheckin(start, &done),
 				streakCheckin(start.AddDate(0, 0, 1), &partial),
 				streakCheckin(start.AddDate(0, 0, 2), &done),
 			},
-			wantCurrent: 2,
-			wantMax:     2,
+			wantCurrent: 3,
+			wantMax:     3,
 		},
 		{
-			name: "partial after full days keeps the existing number",
+			name: "partial after full days counts as the next day",
 			checkins: []RoutineCheckin{
 				streakCheckin(start, &done),
 				streakCheckin(start.AddDate(0, 0, 1), &done),
 				streakCheckin(start.AddDate(0, 0, 2), &partial),
 			},
-			wantCurrent: 2,
-			wantMax:     2,
+			wantCurrent: 3,
+			wantMax:     3,
 		},
 		{
 			name: "failed resets the current series",

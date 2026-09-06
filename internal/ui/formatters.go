@@ -182,6 +182,25 @@ func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayNa
 		}
 		return appendNotice(lines, notice)
 	}
+	if partialItems, ok := routineCheckinPartialItems(checkin); ok {
+		lines := []string{
+			messages.Format(
+				"routine.card.completed_partial",
+				"emoji", routineHeaderEmoji,
+				"date", routineDateLabel(checkin.CheckinDate),
+				"person", personLabel(username, displayName),
+				"routine", routineLinkedWord("рутину", routineLink),
+			),
+			"",
+		}
+		for _, item := range partialItems {
+			lines = append(lines, routineItemLine(item))
+			if item.ReasonText != nil && *item.ReasonText != "" {
+				lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
+			}
+		}
+		return appendNotice(lines, notice)
+	}
 	return FormatRoutineCheckinStatusCard(checkin, displayName, username, routineLink, notice)
 }
 
@@ -455,6 +474,26 @@ func routineCheckinAllDone(checkin postgres.RoutineCheckin) bool {
 		}
 	}
 	return true
+}
+
+func routineCheckinPartialItems(checkin postgres.RoutineCheckin) ([]postgres.RoutineCheckinItem, bool) {
+	if len(checkin.Items) == 0 {
+		return nil, false
+	}
+	partialItems := make([]postgres.RoutineCheckinItem, 0, len(checkin.Items))
+	for _, item := range checkin.Items {
+		if item.Status == nil {
+			return nil, false
+		}
+		switch *item.Status {
+		case domain.RoutineItemDone:
+		case domain.RoutineItemPartial:
+			partialItems = append(partialItems, item)
+		default:
+			return nil, false
+		}
+	}
+	return partialItems, len(partialItems) > 0
 }
 
 func routineDateLabel(date time.Time) string {

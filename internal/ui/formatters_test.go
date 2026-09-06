@@ -347,9 +347,19 @@ func TestFormatRoutineCheckinCardClarifiesDateScope(t *testing.T) {
 	partialStatus := domain.RoutineItemPartial
 	mixed := finished
 	mixed.Items[1].Status = &partialStatus
+	partialReason := "Сорвался график"
+	mixed.Items[1].ReasonText = &partialReason
 	mixedCard := FormatRoutineCheckinFinishedCard(mixed, "Игорь", "igor", "", "")
-	if !strings.Contains(mixedCard, "🔸 английский") || strings.Contains(mixedCard, "Отметь пункты за этот день") || strings.Contains(mixedCard, "выполнил всю рутину") {
-		t.Fatalf("mixed routine final card should keep item details: %s", mixedCard)
+	if !strings.Contains(mixedCard, "🌿 <b>Игорь выполнил всю рутину за среду, 24 июня, кроме:</b>") || !strings.Contains(mixedCard, "🔸 английский") || !strings.Contains(mixedCard, "Сорвался график") || strings.Contains(mixedCard, "✅ зарядка") || strings.Contains(mixedCard, "Отметь пункты за этот день") {
+		t.Fatalf("partial routine final card should summarize exceptions: %s", mixedCard)
+	}
+
+	failedStatus := domain.RoutineItemFailed
+	failed := mixed
+	failed.Items[1].Status = &failedStatus
+	failedCard := FormatRoutineCheckinFinishedCard(failed, "Игорь", "igor", "", "")
+	if !strings.Contains(failedCard, "🌿 <b>Рутина Игоря за среду, 24 июня</b>") || !strings.Contains(failedCard, "✅ зарядка") || !strings.Contains(failedCard, "❌ английский") || strings.Contains(failedCard, "выполнил всю рутину") {
+		t.Fatalf("failed routine final card should keep full result details: %s", failedCard)
 	}
 }
 

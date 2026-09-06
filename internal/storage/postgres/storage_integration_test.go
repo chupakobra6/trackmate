@@ -165,7 +165,7 @@ func TestStorageIntegrationContracts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(leaderboard) != 1 || leaderboard[0].CurrentStreak != 0 || leaderboard[0].CompletionRate != 75 || leaderboard[0].RoutineItemCount != 2 {
+	if len(leaderboard) != 1 || leaderboard[0].CurrentStreak != 1 || leaderboard[0].CompletionRate != 75 || leaderboard[0].RoutineItemCount != 2 {
 		t.Fatalf("unexpected routine leaderboard: %+v", leaderboard)
 	}
 
@@ -332,7 +332,7 @@ func TestRoutineLeaderboardRanksCompletionRateBeforeStreak(t *testing.T) {
 	if leaderboard[0].Participant.UserID != rateParticipant.UserID {
 		t.Fatalf("completion rate should rank first, got %+v", leaderboard)
 	}
-	if leaderboard[0].CompletionRate <= leaderboard[1].CompletionRate || leaderboard[1].CurrentStreak != 3 {
+	if leaderboard[0].CompletionRate <= leaderboard[1].CompletionRate || leaderboard[0].CurrentStreak != 7 || leaderboard[1].CurrentStreak != 3 {
 		t.Fatalf("unexpected metrics: %+v", leaderboard)
 	}
 }
