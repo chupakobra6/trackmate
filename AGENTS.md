@@ -6,7 +6,6 @@
 - Preserve existing architecture unless a task requires a structural change.
 
 ## How to work
-- Project Loop is explicitly enabled for requirement continuity; start from `PROJECT.md` and follow only the relevant contract links. Load `/Users/igor/.codex/skills/project-loop/SKILL.md` for planning or execution under that workflow; do not initialize another workspace.
 - Start complex tasks with a plan before writing code.
 - For non-trivial changes, explain which files will be touched and why.
 - If the implementation starts drifting, stop, restate the plan, and continue from the updated plan.

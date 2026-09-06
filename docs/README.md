@@ -1,7 +1,5 @@
 # Documentation
 
-- [../PROJECT.md](../PROJECT.md) — current entry point, requirement owners, and open work.
-
 - [../README.md](../README.md)
   Go runtime overview, local development flow, Docker flow, E2E control endpoints, and command reference.
 
@@ -16,3 +14,10 @@
 
 - [adr/0001-remove-materials-topic.md](adr/0001-remove-materials-topic.md)
   Decision record for deleting Materials from the product and schema.
+
+- [../internal/messages/messages.md](../internal/messages/messages.md)
+  Exact user-visible message text; changes require Igor's explicit request.
+
+## Отложенное ревью текстов
+
+Отложено отдельное ревью вопросов и случайных вставок: goal nudges, обзоры/итоги целей, routine prompts и Today. Проверить пользу, тон, частоту и лишние уточнения вроде «сезонные», когда контекст понятен. Эта запись не разрешает автоматически менять тексты или начинать ревью.
