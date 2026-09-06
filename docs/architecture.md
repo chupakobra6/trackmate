@@ -158,6 +158,9 @@ accepts lines that start with `-`, `—`, `1.`, or `1)`, and caps the list at 9
 daily items. Plain lines and unsupported bullet symbols are rejected so the setup
 format stays unambiguous.
 
+Before replacing a plan, preserve any due check-in for the previous day using
+the old list. An existing check-in keeps its snapshot; later dates use the new list.
+
 Routine and Goals setup share one recoverable prompt lifecycle. Repeated
 configure callbacks verify and reuse the stored prompt instead of sending a
 second copy. A replacement is sent and attached to the existing pending input
@@ -201,6 +204,10 @@ open check-in does not reset the streak before its deadline. Ranking uses
 completion rate first, then current streak, so a one-item routine does not
 dominate by streak alone.
 
+Completion scoring assigns `done=1`, `partial=0.5`, and `failed=0`. The configured
+personal alert variant targets only `@whysoxxx` through a stable 30% bucket for
+routine reminders and missed-task alerts; routine auto-close uses the common copy.
+
 ## Goals Flow
 
 `goals:configure` creates one pending `seasonal_goals` input scoped to the Goals
@@ -213,18 +220,27 @@ into the topic. The instruction asks for a measurable format:
 - `Еженедельный шаг`
 - `Почему важно`
 
+Saving goals removes the old setup prompt and sends a new silent confirmation
+after the user's message, without replying to it; `Цели` links to that source.
+The source message stays available and the complete goals text is not echoed.
+
 The setup prompt derives its title and end date from the current workspace-local
 calendar season; the long-lived pinned control message contains no date that can
 become stale.
 
 Every second Sunday after 20:00 local time, the worker sends one goals review
 prompt in `Цели` and stores both the response and its Telegram source message.
+The prompt links to the goals and shows days and remaining reviews before the
+period ends. The final prompt also links to the goals and replies to their source
+message; a missing reply target permits one send without the reply.
 On and after the period end date, interpreted as a workspace-local calendar
 date, the worker sends a final review prompt with buttons
 `done|partial|failed`. After choosing a status, the user can send one or more
 text messages and explicitly finishes them with `Завершить итог`. The permanent
 final card links to every source message instead of echoing an arbitrarily long
 summary.
+Its title identifies both the period and participant. Existing completed cards
+are not duplicated merely to change their reply parent.
 An unanswered two-week review has its own persisted lifecycle: after 24 hours
 the first prompt is removed and sent once again; 71 hours after the first
 successful delivery, the retry is removed before Telegram's 48-hour delete

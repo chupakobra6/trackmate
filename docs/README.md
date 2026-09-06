@@ -1,5 +1,7 @@
 # Documentation
 
+- [../PROJECT.md](../PROJECT.md) — current entry point, requirement owners, and open work.
+
 - [../README.md](../README.md)
   Go runtime overview, local development flow, Docker flow, E2E control endpoints, and command reference.
 
