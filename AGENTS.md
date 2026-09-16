@@ -1,97 +1,47 @@
-# AGENTS.md
+# Trackmate
 
-## Project overview
-- This repository contains the product code and local tooling for development.
-- Prefer minimal, targeted changes over broad refactors unless explicitly requested.
-- Preserve existing architecture unless a task requires a structural change.
+Telegram-бот на Go для задачи дня, рутин, целей на сезон и общего прогресса. Общие инженерные методы и правила Git задаются глобальными инструкциями; здесь — местные контракты.
 
-## How to work
-- Start complex tasks with a plan before writing code.
-- For non-trivial changes, explain which files will be touched and why.
-- If the implementation starts drifting, stop, restate the plan, and continue from the updated plan.
+## Найти владельца
 
-## Source of truth
-- Follow existing patterns in nearby code first.
-- Prefer referencing canonical files over inventing new patterns.
-- If there are conflicting patterns, choose the one used closest to the edited code.
+- Команды и запуск — `README.md` и `Makefile`; устройство — `docs/architecture.md`; продуктовые правила — `docs/product/routines-goals.md`; эксплуатация и резервные копии — `docs/operations.md`.
+- Сохраняй действующую архитектуру и соразмерный объём изменения. Новая зависимость, перенос или переименование должны решать конкретную задачу. При расхождении соседних реализаций следуй действующему контракту.
+- Trackmate использует только Go. Описывай текущее состояние; завершённые инструкции Python/Alembic остаются в истории Git.
+- Отложенное ревью текстов записано в `docs/README.md`; само наличие этой записи не поручает его выполнение. Project Loop удалён из проекта; прежние файлы и история не подключают его заново.
 
-## Commands
-- Install dependencies: `make setup`
-- Run local API: `make api`
-- Run local worker: `make worker`
-- Run local Docker stack: `make docker-up`
-- Create a production cutover backup: `make docker-db-backup-stop`; use the Make target because the underlying shell script is intentionally invoked through `sh` and is not executable.
-- Run lint: `make lint`
-- Run tests: `make test`
-- Run a focused test first when possible, then broader checks if needed.
+## Команды и среда
 
-## Documentation boundaries
-- Use `README.md` and `docs/*.md` for tracked, reusable project guidance.
-- Do not track or read `private-docs/`; keep machine-specific operational context outside the repository.
-- Default assumption: local `.env` plus local Docker is development; a VPS running the long-lived bot is production unless the user says otherwise.
-- The tracked Docker default binds PostgreSQL to `127.0.0.1:5432`; do not broaden that host bind unless the user explicitly needs remote database access.
-- Trackmate is Go-only. Keep tracked docs focused on the current runtime; do not add migration-era Python/Alembic guides back to the public documentation.
-- Product-owned Telegram E2E scenarios live in `e2e/telegram/`; rendered scenarios stay under ignored `tmp/`.
-- Topic-visible E2E prompts should be root messages in the forum topic, not nested replies to bot cards, unless the scenario explicitly tests reply behavior.
-- User-visible Telegram copy lives in `internal/messages/messages.md`; Go code should use `internal/messages` and `internal/ui` instead of embedding Russian message text directly.
-- Change user-visible Telegram copy only when the user explicitly asks for copy changes. After changing visible copy, report exact before/after message text for review.
-- When public Telegram behavior changes, update the matching product docs and E2E scenario comments or expectations in the same pass: timing, topic flow, parser rules, notification level, visible messages, and Progress links.
-- During local development, after committing code that affects the running bot, rebuild/restart the local Docker stack before manual Telegram checks.
-- Production delivery is the standing default for user-requested Trackmate fixes: after the relevant focused and broad checks pass, commit the task changes, push them, deploy them to the production VPS, and verify the applied revision, migrations, healthy services, affected Telegram state, queues, and fresh logs. Do not stop at a local commit unless the user explicitly asks to keep the change local.
+- `make setup` — зависимости; `make api` и `make worker` — локальные процессы; `make docker-up` — локальный Docker.
+- `make lint` — форматирование; `make test` — тесты; `make check` — lint, vet и тесты. Интеграционные тесты БД используют отдельный `TRACKMATE_TEST_DATABASE_URL` и временную схему.
+- `make docker-db-backup-stop` — резервная копия перед переключением работающего бота. Используй Make: лежащий под ним скрипт вызывается через `sh` и не имеет executable-бита.
+- Локальные `.env` и Docker считаются средой разработки; длительно работающий бот на VPS — production, если Игорь не указал другое. PostgreSQL по умолчанию опубликован на `127.0.0.1:5432`; внешний доступ требует конкретной задачи.
+- `private-docs/` не читать и не добавлять в Git. Настройки конкретной машины держать вне отслеживаемой документации; переносимые процедуры — в README и docs.
 
-## Code change policy
-- Keep diffs small and local.
-- Do not rename/move files unless necessary for the task.
-- Do not introduce new dependencies without a clear reason.
-- Update tests for changed behavior.
-- Update docs when public behavior, contracts, or setup changes.
+## Тексты и видимый результат
 
-## Delivery invariants
-- Advance the Telegram polling offset only after the update handler succeeds. Do not put updates behind an unacknowledged in-memory queue.
-- Session-level PostgreSQL advisory locks must be schema-namespaced and acquired/released through the same pinned `pgxpool.Conn`; never acquire or unlock them directly through the pool.
-- Persisted `dispatching`/`publishing` states must carry a reclaimable lease timestamp. Terminal transitions must verify that the row is still claimed, and send-then-persist failures should remove the just-sent Telegram message when safe.
-- Worker failures must be isolated per item and must not produce unbounded repeat processing or block later work. Persist retry state, use bounded backoff and a terminal or recoverable outcome, and expose enough context in logs or metrics to identify the offending item.
-- Telegram `deleteMessage` is allowed only for messages younger than 48 hours. Schedule cleanup by 47 hours, route worker-owned deletion through `internal/app/messagecleanup`, and advance lifecycle with an inert fallback when deletion is late or fails; a deletion failure must never block a worker stage. The weekly 71-hour deadline is 24 hours to the retry plus 47 hours of retry age.
-- Every callback kind must pass the central deny-by-default access gate before dispatch. Personal callbacks must bind to an owner and, for persisted entities, to the callback message workspace; do not add handler-only authorization or ownerless dismiss buttons.
+- Канонические тексты Telegram — `internal/messages/messages.md`; код использует `internal/messages` и `internal/ui`.
+- Меняй пользовательские тексты только по прямому запросу Игоря. После изменения покажи точный текст до и после. Переустройство внутреннего кода само по себе не меняет сообщения.
+- При изменении видимого поведения согласуй продуктовую документацию и ожидания E2E: время, темы, разбор ввода, уведомления, сообщения и ссылки в «Прогрессе».
 
-## Verification
-- Before finishing, run the narrowest relevant validation.
-- If code paths changed materially, run lint + tests relevant to touched files.
-- By default, run only the focused Telegram E2E scenario for the changed feature. Run the full Telegram E2E suite only when the user explicitly requests it.
-- For full Telegram E2E closure, record the run id and verify scenario logs,
-  `pending_inputs=0`, unpublished progress events `0`, healthy Docker services,
-  and recent `api`/`worker` logs.
-- Telegram E2E must verify the final chat state, not just successful steps: check full card/message appearance where practical, click dismiss/ack buttons such as `👀 Понял`, and confirm no extra visible messages remain after the workflow.
-- Do not claim success without checking command output.
+## Доставка и конкурентность
 
-## Safety
-- Ask before destructive actions, schema drops, mass renames, or secret rotation.
-- Never hardcode secrets or credentials.
-- Prefer mock/stub/local fixtures over calling production systems.
+- Продвигай Telegram polling offset после успешного обработчика. Полученные обновления должны сохранять подтверждённый порядок; дополнительная неподтверждаемая очередь в памяти для них не используется.
+- Session-level advisory lock PostgreSQL должен учитывать схему и удерживать одну `pgxpool.Conn` от захвата до освобождения. Используй закреплённое соединение и для unlock, включая завершение с отменённым context.
+- Для `dispatching`/`publishing` сохраняй время захвата, позволяющее вернуть зависшую работу. Завершай только ещё захваченную запись; при отказе сохранения после отправки ограниченно попытайся удалить только что отправленное сообщение, когда это безопасно.
+- Изолируй ошибку отдельного элемента от независимой работы. Сохраняй состояние повтора, ограничивай число или срок попыток, увеличивай задержку и предусматривай восстановимый либо конечный исход; логи или метрики должны позволять найти проблемный элемент. Текущий неполный охват этого требования описан в `docs/architecture.md`.
+- Учитывай 48-часовое окно Telegram `deleteMessage`: планируй очистку до 47 часов, а удаления из worker проводи через `internal/app/messagecleanup`. Если удаление опоздало или не удалось, продолжай жизненный цикл с неактивным представлением. Срок двухнедельного вопроса — 71 час: 24 часа до повтора плюс 47 часов возраста повторного сообщения.
+- Перед диспетчеризацией каждого вида callback проверяй разрешение в общем обработчике; действие разрешается только при выполнении его условий доступа. Для личного действия проверяй владельца, для сохранённой сущности — ещё и рабочую область сообщения. Кнопка закрытия подчиняется той же проверке.
 
-## Context management
-- Do not load large irrelevant files into context.
-- Search the codebase when the correct file is not obvious.
-- For long procedures or rare workflows, consult the relevant skill or local instructions instead of improvising.
+## Проверка и завершение
 
-## Documentation of learnings
-- If the same mistake happens more than once, propose an update to AGENTS.md, a Cursor rule, or a skill.
+- Начинай с относящихся к изменению проверок; для существенного изменения кода выполни нужные lint и тесты. Проверяй вывод перед утверждением об успехе.
+- Продуктовые Telegram-сценарии принадлежат `e2e/telegram/`, отрендеренные файлы — игнорируемому `tmp/`. Общий runner находится в соседнем `telegram-bot-e2e-test-tool`; команды и подготовка описаны в `e2e/telegram/README.md`.
+- По умолчанию выполняй адресный Telegram E2E изменённой функции. Полный Telegram E2E запускай только по прямой просьбе. Сообщения для показа в теме отправляй корневыми; вложенный ответ используй, когда проверяется именно reply-поведение.
+- Проверяй конечное состояние чата: полный вид карточек, нажатие «Понял»/подтверждений, наличие нужных сообщений и отсутствие лишних. Для полного прогона сохрани его идентификатор и сверь журналы runner, `pending_inputs=0`, неопубликованные progress-события `0`, состояние Docker и свежие логи `api`/`worker`.
+- При локальной разработке после коммита кода работающего бота пересобери/перезапусти локальный Docker до ручной проверки в Telegram.
+- Для порученных исправлений Trackmate действует согласованный цикл: относящиеся адресные и общие проверки → commit → push → production deploy → проверка применённой ревизии, миграций, сервисов, затронутого Telegram-состояния, очередей и свежих логов. Явное поручение оставить изменение локальным имеет приоритет. Порядок резервного копирования — в `docs/operations.md`.
+- Для диагностики предпочитай локальные подставные зависимости и fixtures. Разрешения на разрушительные операции, секреты и внешние отправки определяются глобальными правилами и текущим поручением.
 
-## Knowledge capture
-- Do not write intermediate thoughts or task-specific notes into permanent project files.
-- Persist only reusable project knowledge with long-term value.
-- Update AGENTS.md only for stable, high-signal rules:
-  - repeated mistakes,
-  - important invariants,
-  - canonical commands,
-  - validation requirements,
-  - project-specific constraints.
-- Put long procedures, operational runbooks, and rare workflows into skills or docs, not into AGENTS.md.
-- Put architectural decisions into ADR/docs, not into AGENTS.md.
-- Before adding a new rule, check whether it is:
-  - reusable,
-  - non-obvious,
-  - verified,
-  - short,
-  - non-duplicative.
-- Prefer proposing a file update at the end of the task instead of editing permanent guidance continuously during implementation.
+## Документация
+
+Авторские инструкции и документацию пиши по-русски. Сохраняй точные команды, идентификаторы и пользовательские сообщения. Общие методы поддерживай у их владельца, местные устойчивые условия — здесь, длинные процедуры и архитектурные решения — в docs. Обновляй текущий источник и связанные ссылки; промежуточные заметки задачи не становятся постоянной документацией.

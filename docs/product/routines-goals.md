@@ -56,4 +56,4 @@ an old message.
 - No per-item goals polling.
 - No routine leaderboard in Progress.
 - No aggressive Telegram spam.
-- No production migration without backup and manual approval.
+- Перед миграцией production нужна проверенная резервная копия; объём выкладки и разрешения определяются действующим поручением и AGENTS.

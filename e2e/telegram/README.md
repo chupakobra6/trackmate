@@ -215,7 +215,11 @@ Control API включается только вне production-окружени
 поздний result flow и обновление существующего сообщения в `Прогрессе`; полный
 Telegram E2E не нужен.
 
-## Финальная Сверка Прогона
+## Финальная сверка прогона
+
+После каждого вызова общего runner открой его `artifacts/transcripts/last-run-summary.txt` и `last-run-artifacts.json`. Сверь идентификатор и общий статус именно этого запуска, код выхода и наличие указанных файлов. Для серии вызовов используй сохранённые результаты в `artifacts/transcripts/runs/<run_id>/`: следующий вызов обновляет файлы `last-run-*`. При отказе до начала запуска ориентируйся на код выхода и stderr, а не на прежнюю сводку. Формат результата описан в [README общего инструмента](../../../telegram-bot-e2e-test-tool/README.md).
+
+Различай выполнение сценария (`execution_status`) и проверку его утверждений (`property_status`). Снимок чата помогает проверить видимый результат, но сам по себе не подтверждает ожидаемое свойство. Отказ подготовки, записи или очистки тоже оставляет прогон незавершённым.
 
 Не считай полный live E2E закрытым только по успешному коду выхода сценариев.
 В конце каждого полного прогона проверь логи запускателя, состояние локальной БД и
@@ -227,20 +231,6 @@ alert, draft, cleanup или user-input сообщения означают, ч�
 ```bash
 cd /Users/igor/projects/trackmate
 
-RUN_ID=$(cat tmp/e2e-current-run-id)
-LOG_DIR="tmp/e2e-live-logs-$RUN_ID"
-
-failed=0
-for f in "$LOG_DIR"/*.log; do
-  if rg -q '"type":"timeout"|"type":"error"|callback: read scenario|exit status|panic' "$f"; then
-    echo "bad $f"
-    failed=1
-  fi
-done
-test "$failed" -eq 0
-```
-
-```bash
 docker compose exec -T postgres psql -U postgres -d trackmate -Atc "
 select 'pending_inputs', count(*) from pending_inputs
 union all

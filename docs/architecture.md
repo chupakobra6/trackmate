@@ -196,13 +196,7 @@ worker retry; a delivered alert is not recreated after its temporary message
 is dismissed or cleaned up. Reminder and auto-close alerts are cleaned up after
 about 24 hours if the user does not dismiss them first.
 
-The Routines topic also keeps a leaderboard message with 7-day completion rate,
-current streak, best streak, and routine item count. A fully completed day
-increases the streak, a day with `partial` items preserves the accumulated
-streak without increasing it, and a `failed` day or calendar gap resets it. An
-open check-in does not reset the streak before its deadline. Ranking uses
-completion rate first, then current streak, so a one-item routine does not
-dominate by streak alone.
+В теме «Рутины» находится таблица с долей выполнения за 7 дней, текущей и лучшей сериями и числом пунктов. Завершённый день без `failed` увеличивает стрик: `done` и `partial` учитываются одинаково. День с `failed` или календарный пропуск сбрасывает серию; открытая карточка нейтральна до срока завершения. Рейтинг сначала учитывает долю выполнения, затем стрик, поэтому рутина из одного пункта не получает преимущество только за длину серии. Действующий продуктовый контракт — [Рутины и цели](product/routines-goals.md).
 
 Completion scoring assigns `done=1`, `partial=0.5`, and `failed=0`. The configured
 personal alert variant targets only `@whysoxxx` through a stable 30% bucket for
@@ -279,6 +273,10 @@ and clears the stored Telegram message ID.
 The same tick also dispatches due routine check-ins, goals reviews, and
 final goal reviews. These are idempotent through stored Telegram message IDs and
 do not pass through the Progress outbox.
+
+### Граница изоляции ошибок
+
+Удаление просроченных сообщений через `messagecleanup` уже не блокирует жизненный цикл. Остальные отказы изолированы не полностью: `Runner.Tick` возвращается после ошибки этапа, а отправка карточек в `DispatchDueCheckins`, `DispatchWeeklyReviews` и `DispatchFinalReviews` — после ошибки первого элемента. Следующий tick снова рассматривает такую запись; отдельного сохранённого срока и бюджета повторов для этих отправок нет. Поэтому постоянный отказ одной карточки может задерживать независимые карточки и последующие этапы worker. Требование из AGENTS об ограниченных повторах и продвижении независимой работы остаётся целью внедрения; общая недоступность БД и отмена запуска требуют отдельной обработки.
 
 ## Data Model
 
