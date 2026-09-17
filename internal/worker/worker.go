@@ -75,6 +75,10 @@ func (r *Runner) Tick(ctx context.Context, now time.Time) (err error) {
 }
 
 func (r *Runner) DispatchAlerts(ctx context.Context) error {
+	now, err := r.Store.Queries().CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return err
+	}
 	for {
 		alert, ok, err := r.Store.Queries().ClaimPendingAlert(ctx)
 		if err != nil || !ok {
@@ -86,7 +90,9 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			return err
 		}
 		if !found {
-			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			if err := r.deferUnavailableAlert(ctx, alert.ID, now, "daily task missing"); err != nil {
+				return err
+			}
 			continue
 		}
 		participant, participantFound, err := r.Store.Queries().GetParticipantByID(ctx, task.ParticipantID)
@@ -108,8 +114,10 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			return err
 		}
 		if !found {
-			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
-			return nil
+			if err := r.deferUnavailableAlert(ctx, alert.ID, now, "workspace missing"); err != nil {
+				return err
+			}
+			continue
 		}
 		if alert.AlertKind == domain.AlertOverdueTaskFailed && task.TodayCardMessageID != nil {
 			if err := r.TG.EditMessageText(ctx, telegram.EditMessageTextRequest{
@@ -127,8 +135,10 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			return err
 		}
 		if !found {
-			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
-			return nil
+			if err := r.deferUnavailableAlert(ctx, alert.ID, now, "Today topic missing"); err != nil {
+				return err
+			}
+			continue
 		}
 		message, err := r.TG.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
 			ChatID:           workspace.ChatID,
@@ -138,17 +148,21 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			ReplyMarkup:      ui.AlertKeyboard(task.ID, alert.ID),
 		}))
 		if err != nil {
-			_ = r.Store.Queries().RequeueAlert(ctx, alert.ID)
-			if r.Logger != nil {
-				r.Logger.WarnContext(ctx, "alert_dispatch_failed", "alert_id", alert.ID, "error", err)
+			retryErr := appdelivery.Defer(ctx, r.Store.Queries(), "alert", alert.ID, now, err)
+			requeueErr := r.Store.Queries().RequeueAlert(ctx, alert.ID)
+			if retryErr != nil || requeueErr != nil {
+				return errors.Join(retryErr, requeueErr)
 			}
-			return err
+			continue
 		}
 		if err := r.Store.Queries().MarkAlertSent(ctx, alert.ID, message.MessageID); err != nil {
 			compensateErr := appdelivery.CompensateSentMessage(r.TG, workspace.ChatID, message.MessageID, func(cleanupCtx context.Context) error {
 				return r.Store.Queries().RequeueAlert(cleanupCtx, alert.ID)
 			})
 			return errors.Join(err, compensateErr)
+		}
+		if err := r.Store.Queries().ClearDeliveryRetry(ctx, "alert", alert.ID); err != nil {
+			return err
 		}
 	}
 }
@@ -165,4 +179,14 @@ func participantUsername(participant postgres.Participant) string {
 		return ""
 	}
 	return *participant.Username
+}
+
+func (r *Runner) deferUnavailableAlert(ctx context.Context, id int64, now time.Time, reason string) error {
+	if err := r.Store.Queries().RecordDeliveryFailure(ctx, "alert", id, now, reason, false); err != nil {
+		return err
+	}
+	if r.Logger != nil {
+		r.Logger.WarnContext(ctx, "alert_dependency_unavailable", "alert_id", id, "reason", reason)
+	}
+	return r.Store.Queries().RequeueAlert(ctx, id)
 }

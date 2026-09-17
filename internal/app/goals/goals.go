@@ -15,6 +15,8 @@ import (
 	"github.com/igor/trackmate/internal/ui"
 )
 
+var errWeeklyReviewDeferred = errors.New("weekly review delivery deferred")
+
 var errWeeklyReviewNoLongerOpen = errors.New("weekly goal review is no longer open")
 
 func MaybeNudge(ctx context.Context, q *postgres.Queries, workspace postgres.Workspace, participant postgres.Participant, seed string, status string, nowFallback time.Time) (string, error) {
@@ -74,7 +76,7 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 			return err
 		}
 		if found {
-			if err := advanceWeeklyReview(ctx, store, tg, item, goalsTopic, openReview, nowUTC); err != nil {
+			if err := advanceWeeklyReview(ctx, store, tg, item, goalsTopic, openReview, nowUTC); err != nil && !errors.Is(err, errWeeklyReviewDeferred) {
 				return err
 			}
 			continue
@@ -101,7 +103,7 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 		if review.ResponseText != nil || review.SkippedAt != nil || review.PromptMessageID != nil {
 			continue
 		}
-		if err := sendWeeklyReviewPrompt(ctx, store, tg, item, goalsTopic, review, nowUTC, false); err != nil {
+		if err := sendWeeklyReviewPrompt(ctx, store, tg, item, goalsTopic, review, nowUTC, false); err != nil && !errors.Is(err, errWeeklyReviewDeferred) {
 			return err
 		}
 	}
@@ -110,7 +112,7 @@ func DispatchWeeklyReviews(ctx context.Context, store *postgres.Store, tg telegr
 
 func advanceWeeklyReview(ctx context.Context, store *postgres.Store, tg telegram.API, item postgres.SeasonalGoalSetContext, goalsTopic postgres.TopicBinding, review postgres.GoalWeeklyReview, nowUTC time.Time) error {
 	action := domain.GoalWeeklyReviewLifecycleAction(review.RequestedAt, review.ReminderSentAt, review.RespondedAt, review.SkippedAt, nowUTC)
-	if review.PromptMessageID == nil && review.ReminderSentAt == nil {
+	if review.PromptMessageID == nil && review.ReminderSentAt == nil && action != domain.GoalWeeklyReviewSkip {
 		if _, found, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, goalsTopic.ThreadID); err != nil {
 			return err
 		} else if found {
@@ -166,6 +168,23 @@ func closeWeeklyReviewPrompt(ctx context.Context, tg telegram.API, chatID int64,
 }
 
 func sendWeeklyReviewPrompt(ctx context.Context, store *postgres.Store, tg telegram.API, item postgres.SeasonalGoalSetContext, goalsTopic postgres.TopicBinding, review postgres.GoalWeeklyReview, nowUTC time.Time, reminder bool) error {
+	operation := "goal_weekly"
+	if reminder {
+		operation = "goal_reminder"
+	}
+	sent := false
+	err := delivery.Run(ctx, store.Queries(), operation, review.ID, nowUTC, func() error {
+		err := deliverWeeklyReviewPrompt(ctx, store, tg, item, goalsTopic, review, nowUTC, reminder)
+		sent = err == nil
+		return err
+	})
+	if err == nil && !sent {
+		return errWeeklyReviewDeferred
+	}
+	return err
+}
+
+func deliverWeeklyReviewPrompt(ctx context.Context, store *postgres.Store, tg telegram.API, item postgres.SeasonalGoalSetContext, goalsTopic postgres.TopicBinding, review postgres.GoalWeeklyReview, nowUTC time.Time, reminder bool) error {
 	daysLeft, reviewsLeft, err := domain.GoalReviewCountdown(item.GoalSet.PeriodStartsOn, item.GoalSet.PeriodEndsOn, item.Workspace.Timezone, nowUTC)
 	if err != nil {
 		return err
@@ -268,24 +287,29 @@ func DispatchFinalReviews(ctx context.Context, store *postgres.Store, tg telegra
 		if review.CompletedAt != nil || review.PromptMessageID != nil {
 			continue
 		}
-		request := telegram.SendMessageRequest{
-			ChatID:              item.Workspace.ChatID,
-			MessageThreadID:     goalsTopic.ThreadID,
-			Text:                ui.FormatGoalFinalReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant), goalSourceLink(item.Workspace.ChatID, item.GoalSet)),
-			ReplyMarkup:         ui.GoalFinalStatusKeyboard(item.GoalSet.ID),
-			ReplyToMessageID:    goalSourceReplyID(item.GoalSet, goalsTopic.ThreadID),
-			DisableNotification: true,
-		}
-		message, err := tg.SendMessage(ctx, request)
-		if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {
-			request.ReplyToMessageID = 0
-			message, err = tg.SendMessage(ctx, request)
-		}
-		if err != nil {
+		if err := delivery.Run(ctx, store.Queries(), "goal_final", review.ID, nowUTC, func() error {
+			request := telegram.SendMessageRequest{
+				ChatID:              item.Workspace.ChatID,
+				MessageThreadID:     goalsTopic.ThreadID,
+				Text:                ui.FormatGoalFinalReviewPrompt(item.GoalSet, item.Participant.DisplayName, participantUsername(item.Participant), goalSourceLink(item.Workspace.ChatID, item.GoalSet)),
+				ReplyMarkup:         ui.GoalFinalStatusKeyboard(item.GoalSet.ID),
+				ReplyToMessageID:    goalSourceReplyID(item.GoalSet, goalsTopic.ThreadID),
+				DisableNotification: true,
+			}
+			message, err := tg.SendMessage(ctx, request)
+			if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {
+				request.ReplyToMessageID = 0
+				message, err = tg.SendMessage(ctx, request)
+			}
+			if err != nil {
+				return err
+			}
+			if err := store.Queries().SetGoalFinalReviewPrompt(ctx, review.ID, message.MessageID, goalsTopic.ThreadID); err != nil {
+				return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
+			}
+			return nil
+		}); err != nil {
 			return err
-		}
-		if err := store.Queries().SetGoalFinalReviewPrompt(ctx, review.ID, message.MessageID, goalsTopic.ThreadID); err != nil {
-			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	return nil

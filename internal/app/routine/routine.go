@@ -48,20 +48,25 @@ func DispatchDueCheckins(ctx context.Context, store *postgres.Store, tg telegram
 		if nextIndex < 0 {
 			continue
 		}
-		message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
-			ChatID:          item.Workspace.ChatID,
-			MessageThreadID: routineTopic.ThreadID,
-			Text:            ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), routineSourceLink(item.Workspace.ChatID, checkin), ""),
-			ReplyMarkup:     ui.RoutineItemKeyboard(checkin.ID, nextIndex),
-		}))
-		if err != nil {
-			if logger != nil {
-				logger.WarnContext(ctx, "routine_checkin_dispatch_failed", "checkin_id", checkin.ID, "error", err)
+		if err := delivery.Run(ctx, store.Queries(), "routine_card", checkin.ID, nowUTC, func() error {
+			message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{
+				ChatID:          item.Workspace.ChatID,
+				MessageThreadID: routineTopic.ThreadID,
+				Text:            ui.FormatRoutineCheckinCard(checkin, item.Participant.DisplayName, participantUsername(item.Participant), routineSourceLink(item.Workspace.ChatID, checkin), ""),
+				ReplyMarkup:     ui.RoutineItemKeyboard(checkin.ID, nextIndex),
+			}))
+			if err != nil {
+				if logger != nil {
+					logger.WarnContext(ctx, "routine_checkin_dispatch_failed", "checkin_id", checkin.ID, "error", err)
+				}
+				return err
 			}
+			if err := store.Queries().SetRoutineCheckinCardMessageID(ctx, checkin.ID, message.MessageID, routineTopic.ThreadID); err != nil {
+				return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
+			}
+			return nil
+		}); err != nil {
 			return err
-		}
-		if err := store.Queries().SetRoutineCheckinCardMessageID(ctx, checkin.ID, message.MessageID, routineTopic.ThreadID); err != nil {
-			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	return nil
@@ -115,21 +120,26 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 		if !reminderDue {
 			continue
 		}
-		message, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
-			ChatID:           item.Workspace.ChatID,
-			MessageThreadID:  *item.Checkin.CardMessageThreadID,
-			Text:             ui.RoutineReminderText(item.Checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
-			ReplyMarkup:      ui.DismissKeyboard(item.Checkin.OwnerUserID),
-			ReplyToMessageID: *item.Checkin.CardMessageID,
-		}))
-		if err != nil {
-			if logger != nil {
-				logger.WarnContext(ctx, "routine_reminder_dispatch_failed", "checkin_id", item.Checkin.ID, "error", err)
+		if err := delivery.Run(ctx, store.Queries(), "routine_reminder", item.Checkin.ID, nowUTC, func() error {
+			message, err := tg.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
+				ChatID:           item.Workspace.ChatID,
+				MessageThreadID:  *item.Checkin.CardMessageThreadID,
+				Text:             ui.RoutineReminderText(item.Checkin, item.Participant.DisplayName, participantUsername(item.Participant), item.Participant.UserID),
+				ReplyMarkup:      ui.DismissKeyboard(item.Checkin.OwnerUserID),
+				ReplyToMessageID: *item.Checkin.CardMessageID,
+			}))
+			if err != nil {
+				if logger != nil {
+					logger.WarnContext(ctx, "routine_reminder_dispatch_failed", "checkin_id", item.Checkin.ID, "error", err)
+				}
+				return err
 			}
+			if err := store.Queries().SetRoutineCheckinReminderMessageID(ctx, item.Checkin.ID, message.MessageID, nowUTC); err != nil {
+				return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
+			}
+			return nil
+		}); err != nil {
 			return err
-		}
-		if err := store.Queries().SetRoutineCheckinReminderMessageID(ctx, item.Checkin.ID, message.MessageID, nowUTC); err != nil {
-			return errors.Join(err, delivery.CompensateSentMessage(tg, item.Workspace.ChatID, message.MessageID, nil))
 		}
 	}
 	for {
@@ -144,15 +154,34 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 			return deliverRoutineAutoCloseNotice(ctx, q, tg, logger, item, nowUTC)
 		})
 		if err != nil {
-			return err
+			if err := delivery.Defer(ctx, store.Queries(), "routine_close", item.Checkin.ID, nowUTC, err); err != nil {
+				return err
+			}
+			continue
 		}
 		if !found {
 			break
 		}
+		if err := store.Queries().ClearDeliveryRetry(ctx, "routine_close", item.Checkin.ID); err != nil {
+			return err
+		}
 		refreshed[item.Workspace.ID] = item.Workspace
 	}
+	retryIDs, err := store.Queries().DeliveryRetryIDs(ctx, "routine_leaderboard", nowUTC)
+	if err != nil {
+		return err
+	}
+	for _, id := range retryIDs {
+		workspace, found, err := store.Queries().GetWorkspaceByID(ctx, id)
+		if err != nil {
+			return err
+		}
+		if found {
+			refreshed[id] = workspace
+		}
+	}
 	for _, workspace := range refreshed {
-		if err := RefreshLeaderboard(ctx, store.Queries(), tg, workspace, workspace.ChatID, nowUTC); err != nil {
+		if err := delivery.Run(ctx, store.Queries(), "routine_leaderboard", workspace.ID, nowUTC, func() error { return RefreshLeaderboard(ctx, store.Queries(), tg, workspace, workspace.ChatID, nowUTC) }); err != nil {
 			return err
 		}
 	}
@@ -244,8 +273,10 @@ func RefreshLeaderboard(ctx context.Context, q *postgres.Queries, tg telegram.AP
 	}
 	text := ui.FormatRoutineLeaderboard(entries)
 	if binding.IntroMessageID != nil {
-		if err := tg.EditMessageText(ctx, telegram.EditMessageTextRequest{ChatID: chatID, MessageID: *binding.IntroMessageID, Text: text}); err == nil {
+		if err := tg.EditMessageText(ctx, telegram.EditMessageTextRequest{ChatID: chatID, MessageID: *binding.IntroMessageID, Text: text}); err == nil || telegram.IsNotModifiedError(err) {
 			return nil
+		} else if !telegram.IsMissingEditTarget(err) {
+			return err
 		}
 	}
 	message, err := tg.SendMessage(ctx, telegram.SilentMessage(telegram.SendMessageRequest{

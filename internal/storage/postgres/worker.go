@@ -85,6 +85,7 @@ WHERE id = (
             )
           )
       AND acknowledged_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM worker_delivery_retries r WHERE r.operation='alert' AND r.entity_id=daily_task_alerts.id AND (r.exhausted OR r.next_attempt_at > COALESCE((SELECT override_now FROM app_clock WHERE singleton),now())))
     ORDER BY id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1

@@ -3,6 +3,7 @@ package progress
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/igor/trackmate/internal/app/delivery"
 	"github.com/igor/trackmate/internal/domain"
@@ -12,6 +13,10 @@ import (
 )
 
 func PublishPending(ctx context.Context, store *postgres.Store, tg telegram.API) error {
+	now, err := store.Queries().CurrentNow(ctx, time.Now().UTC())
+	if err != nil {
+		return err
+	}
 	for {
 		event, ok, err := store.Queries().ClaimProgressEvent(ctx)
 		if err != nil || !ok {
@@ -43,10 +48,10 @@ func PublishPending(ctx context.Context, store *postgres.Store, tg telegram.API)
 			DisableWebPagePreview: &disablePreview,
 		}))
 		if err != nil {
-			if telegram.IsTransientRequestError(err) {
-				_ = store.Queries().RequeueProgressEvent(ctx, event.ID)
-			} else {
-				_ = store.Queries().MarkProgressEventFailed(ctx, event.ID)
+			retryErr := delivery.Defer(ctx, store.Queries(), "progress", event.ID, now, err)
+			requeueErr := store.Queries().RequeueProgressEvent(ctx, event.ID)
+			if retryErr != nil || requeueErr != nil {
+				return errors.Join(retryErr, requeueErr)
 			}
 			continue
 		}
@@ -55,6 +60,9 @@ func PublishPending(ctx context.Context, store *postgres.Store, tg telegram.API)
 				return store.Queries().RequeueProgressEvent(cleanupCtx, event.ID)
 			})
 			return errors.Join(err, compensateErr)
+		}
+		if err := store.Queries().ClearDeliveryRetry(ctx, "progress", event.ID); err != nil {
+			return err
 		}
 	}
 }

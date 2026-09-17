@@ -120,6 +120,7 @@ WHERE rc.id = (
       AND pending.auto_close_notice_message_id IS NULL
       AND pending.auto_close_notice_sent_at IS NULL
       AND pending.card_message_thread_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM worker_delivery_retries r WHERE r.operation='routine_close' AND r.entity_id=pending.id AND (r.exhausted OR r.next_attempt_at > COALESCE((SELECT override_now FROM app_clock WHERE singleton),now())))
     ORDER BY pending.checkin_date ASC, pending.id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1

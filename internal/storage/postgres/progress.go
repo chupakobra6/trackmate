@@ -32,11 +32,12 @@ SET publish_status = 'publishing',
 WHERE id = (
     SELECT id
     FROM progress_events
-    WHERE publish_status = 'pending'
+    WHERE (publish_status = 'pending'
        OR (
             publish_status = 'publishing'
             AND (publish_started_at IS NULL OR publish_started_at <= now() - make_interval(secs => $1))
        )
+      ) AND NOT EXISTS (SELECT 1 FROM worker_delivery_retries r WHERE r.operation='progress' AND r.entity_id=progress_events.id AND (r.exhausted OR r.next_attempt_at > COALESCE((SELECT override_now FROM app_clock WHERE singleton),now())))
     ORDER BY id ASC
     FOR UPDATE SKIP LOCKED
     LIMIT 1

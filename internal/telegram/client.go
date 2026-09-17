@@ -10,7 +10,9 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/igor/trackmate/internal/observability"
@@ -26,6 +28,7 @@ type Error struct {
 	Method      string
 	StatusCode  int
 	Description string
+	Ambiguous   bool
 }
 
 func (e *Error) Error() string {
@@ -202,7 +205,8 @@ func (c *Client) callJSON(ctx context.Context, method string, request any, dest 
 		} else {
 			return nil
 		}
-		if attempt == attempts || !IsTransientRequestError(lastErr) {
+		var apiErr *Error
+		if attempt == attempts || (method == "sendMessage" && errors.As(lastErr, &apiErr) && apiErr.Ambiguous) || !IsTransientRequestError(lastErr) {
 			return lastErr
 		}
 		if c.logger != nil {
@@ -223,9 +227,12 @@ func (c *Client) callJSONOnce(ctx context.Context, method string, encoded []byte
 	if method != "getUpdates" {
 		req.Close = true
 	}
+	var wroteRequest atomic.Bool
+	trace := &httptrace.ClientTrace{WroteHeaders: func() { wroteRequest.Store(true) }, WroteRequest: func(httptrace.WroteRequestInfo) { wroteRequest.Store(true) }}
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return c.redactError(err)
+		return c.redactError(&Error{Method: method, Description: err.Error(), Ambiguous: method == "sendMessage" && wroteRequest.Load()})
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
@@ -234,7 +241,7 @@ func (c *Client) callJSONOnce(ctx context.Context, method string, encoded []byte
 	}
 	decoder := json.NewDecoder(resp.Body)
 	if err := decoder.Decode(dest); err != nil {
-		return err
+		return c.redactError(&Error{Method: method, Description: err.Error(), Ambiguous: method == "sendMessage"})
 	}
 	if description := responseDescription(dest); description != "" {
 		return &Error{Method: method, Description: description}
@@ -322,6 +329,12 @@ func (c *Client) apiURL(method string) string {
 func (c *Client) redactError(err error) error {
 	if err == nil || c.token == "" {
 		return err
+	}
+	var apiErr *Error
+	if errors.As(err, &apiErr) {
+		safe := *apiErr
+		safe.Description = strings.ReplaceAll(safe.Description, c.token, "<redacted-token>")
+		return &safe
 	}
 	return errors.New(strings.ReplaceAll(err.Error(), c.token, "<redacted-token>"))
 }
