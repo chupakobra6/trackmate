@@ -11,7 +11,8 @@ COPY internal ./internal
 RUN CGO_ENABLED=0 GOOS=linux go build -o /out/migrate ./cmd/migrate \
     && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-api ./cmd/trackmate-api \
     && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-worker ./cmd/trackmate-worker \
-    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-healthcheck ./cmd/trackmate-healthcheck
+    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-healthcheck ./cmd/trackmate-healthcheck \
+    && CGO_ENABLED=0 GOOS=linux go build -o /out/trackmate-report ./cmd/trackmate-report
 
 FROM debian:bookworm-slim
 
@@ -25,6 +26,7 @@ COPY --from=build /out/migrate /usr/local/bin/migrate
 COPY --from=build /out/trackmate-api /usr/local/bin/trackmate-api
 COPY --from=build /out/trackmate-worker /usr/local/bin/trackmate-worker
 COPY --from=build /out/trackmate-healthcheck /usr/local/bin/trackmate-healthcheck
+COPY --from=build /out/trackmate-report /usr/local/bin/trackmate-report
 COPY migrations ./migrations
 
 CMD ["trackmate-api"]

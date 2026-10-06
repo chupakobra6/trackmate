@@ -18,6 +18,9 @@
 - [../internal/messages/messages.md](../internal/messages/messages.md)
   Exact user-visible message text; changes require Igor's explicit request.
 
+- [monthly-reports.md](monthly-reports.md)
+  Ежемесячный отчёт: источники, метрики, независимая проверка, публикация и восстановление.
+
 ## Отложенное ревью текстов
 
 Отложено отдельное ревью вопросов и случайных вставок: goal nudges, обзоры/итоги целей, routine prompts и Today. Проверить пользу, тон, частоту и лишние уточнения вроде «сезонные», когда контекст понятен. Эта запись не разрешает автоматически менять тексты или начинать ревью.

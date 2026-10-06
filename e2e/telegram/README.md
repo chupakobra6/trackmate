@@ -175,8 +175,33 @@ CHAT="$TRACKMATE_CHAT" go run ./cmd/tg-e2e-tool run-scenario \
 - `18-late-task-report.jsonl.tmpl`: auto-fail редактирует исходную задачу без
   кнопки, а `Результат` в alert принимает один поздний отчёт без смены failed-статуса
   и без второго Progress event.
+- Ежемесячный отчёт: адресная проверка CLI с `fixtures/monthly-report.txt`, описанная ниже.
 - `99-cleanup-visible-messages.jsonl.tmpl`: удаляет видимые тестовые сообщения в
   `Сегодня`, `Рутины`, `Цели` и `Прогресс` после прогона.
+
+## Ежемесячный отчёт
+
+Используй локальную БД, тестового бота и готовую тестовую группу с привязанной темой
+`Прогресс`. Выбери завершённый месяц без записи в `monthly_reports`; уже занятый
+месяц не сбрасывай ради повторения теста. Сохрани JSON-квитанции в `tmp/`.
+
+```sh
+go run ./cmd/trackmate-report validate --workspace 1 --month YYYY-MM --file e2e/telegram/fixtures/monthly-report.txt
+go run ./cmd/trackmate-report publish --workspace 1 --month YYYY-MM --file e2e/telegram/fixtures/monthly-report.txt
+go run ./cmd/trackmate-report publish --workspace 1 --month YYYY-MM --file e2e/telegram/fixtures/monthly-report.txt
+```
+
+Оба `publish` должны вернуть `published` и один и тот же `message_id`. Через reader
+общего runner либо Telegram Harvest перечитай тему: сообщение одно, отправитель —
+тестовый бот, чат и тема совпадают с квитанцией, текст совпадает с fixture после
+удаления только внешних пробелов. В Telegram проверь все абзацы, кириллицу, эмодзи,
+буквальные `<`, `>` и `&`. Завершающий перевод строки файла не должен создавать
+ложный `uncertain`. Сохрани readback и результат визуальной проверки.
+
+При `publishing` или `uncertain` сначала сверь фактическую доставку по процедуре
+[восстановления](../../docs/monthly-reports.md#восстановление-неопределённой-отправки),
+без слепого повтора. Отказы, конкурентная отправка и потеря квитанции покрыты
+изолированными Go integration tests; live-проверка не подставляет сбои Telegram.
 
 ## Детерминированные Worker-Сценарии
 

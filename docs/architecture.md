@@ -12,6 +12,7 @@ command.
 - `cmd/trackmate-worker`: runs periodic ticks for task transitions, alert
   dispatch, progress publishing, and non-production E2E control.
 - `cmd/trackmate-healthcheck`: validates local Docker health.
+- `cmd/trackmate-report`: выдаёт снимок завершённого месяца и публикует подготовленный отчёт. Генерация текста выполняется локальной автоматизацией Codex; сервер не вызывает модель. Контракт — [monthly-reports.md](monthly-reports.md).
 
 ## Runtime Boundaries
 
@@ -33,6 +34,8 @@ command.
 - `internal/control`: local-only reset/clock/tick/topics HTTP endpoints.
 
 ## Delivery And Concurrency
+
+Telegram `retry_after` задаёт минимальную задержку повторного запроса. Клиент сохраняет срок ожидания между вызовами, включая повтор обработчика после исчерпания его трёх попыток. Отмена context прерывает ожидание. Ежемесячная публикация использует `SendMessageOnce`: после неопределённого сетевого исхода автоматического повтора нет.
 
 The API handles Telegram updates in the order returned by `getUpdates`. The
 polling offset advances only after an update handler succeeds. A failed update

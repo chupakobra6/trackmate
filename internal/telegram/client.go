@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptrace"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -19,9 +20,11 @@ import (
 )
 
 type Client struct {
-	token  string
-	http   *http.Client
-	logger *slog.Logger
+	token          string
+	http           *http.Client
+	logger         *slog.Logger
+	rateLimitMu    sync.Mutex
+	rateLimitUntil time.Time
 }
 
 type Error struct {
@@ -29,6 +32,7 @@ type Error struct {
 	StatusCode  int
 	Description string
 	Ambiguous   bool
+	RetryAfter  time.Duration
 }
 
 func (e *Error) Error() string {
@@ -93,6 +97,32 @@ func (c *Client) SendMessage(ctx context.Context, request SendMessageRequest) (M
 			"chat_id", request.ChatID,
 			"message_id", response.Result.MessageID,
 			"thread_id", request.MessageThreadID,
+		)...)
+	}
+	return response.Result, nil
+}
+
+// SendMessageOnce sends a message without automatic retries, including HTTP errors.
+// It is intended for commands that require explicit review before another send.
+func (c *Client) SendMessageOnce(ctx context.Context, request SendMessageRequest) (Message, error) {
+	if request.ParseMode == "" {
+		request.ParseMode = "HTML"
+	}
+	encoded, err := json.Marshal(request)
+	if err != nil {
+		return Message{}, err
+	}
+	if err := c.waitRateLimit(ctx); err != nil {
+		return Message{}, err
+	}
+	var response messageResponse
+	if err := c.callJSONOnce(ctx, "sendMessage", encoded, &response); err != nil {
+		c.recordRateLimit(err)
+		return Message{}, err
+	}
+	if c.logger != nil {
+		c.logger.InfoContext(ctx, "telegram_send_message_completed", observability.LogAttrs(ctx,
+			"chat_id", request.ChatID, "message_id", response.Result.MessageID, "thread_id", request.MessageThreadID,
 		)...)
 	}
 	return response.Result, nil
@@ -200,8 +230,12 @@ func (c *Client) callJSON(ctx context.Context, method string, request any, dest 
 				return err
 			}
 		}
+		if err := c.waitRateLimit(ctx); err != nil {
+			return err
+		}
 		if err := c.callJSONOnce(ctx, method, encoded, dest); err != nil {
 			lastErr = err
+			c.recordRateLimit(err)
 		} else {
 			return nil
 		}
@@ -237,7 +271,23 @@ func (c *Client) callJSONOnce(ctx context.Context, method string, encoded []byte
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return c.redactError(&Error{Method: method, StatusCode: resp.StatusCode, Description: string(body)})
+		apiErr := &Error{Method: method, StatusCode: resp.StatusCode, Description: string(body)}
+		if resp.StatusCode == http.StatusTooManyRequests {
+			var response struct {
+				Parameters struct {
+					RetryAfter int64 `json:"retry_after"`
+				} `json:"parameters"`
+			}
+			if json.Unmarshal(body, &response) == nil && response.Parameters.RetryAfter > 0 {
+				seconds := response.Parameters.RetryAfter
+				const maxSeconds = int64((1<<63 - 1) / time.Second)
+				if seconds > maxSeconds {
+					seconds = maxSeconds
+				}
+				apiErr.RetryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		return c.redactError(apiErr)
 	}
 	decoder := json.NewDecoder(resp.Body)
 	if err := decoder.Decode(dest); err != nil {
@@ -247,6 +297,33 @@ func (c *Client) callJSONOnce(ctx context.Context, method string, encoded []byte
 		return &Error{Method: method, Description: description}
 	}
 	return nil
+}
+
+func (c *Client) recordRateLimit(err error) {
+	var apiErr *Error
+	if !errors.As(err, &apiErr) || apiErr.RetryAfter <= 0 {
+		return
+	}
+	c.rateLimitMu.Lock()
+	defer c.rateLimitMu.Unlock()
+	until := time.Now().Add(apiErr.RetryAfter)
+	if until.After(c.rateLimitUntil) {
+		c.rateLimitUntil = until
+	}
+}
+
+func (c *Client) waitRateLimit(ctx context.Context) error {
+	for {
+		c.rateLimitMu.Lock()
+		delay := time.Until(c.rateLimitUntil)
+		c.rateLimitMu.Unlock()
+		if delay <= 0 {
+			return ctx.Err()
+		}
+		if err := sleepContext(ctx, delay); err != nil {
+			return err
+		}
+	}
 }
 
 func responseDescription(dest any) string {
@@ -397,6 +474,10 @@ func IsMissingReplyTarget(err error) bool {
 func IsTransientRequestError(err error) bool {
 	if err == nil {
 		return false
+	}
+	var apiErr *Error
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusTooManyRequests {
+		return true
 	}
 	text := strings.ToLower(err.Error())
 	return strings.Contains(text, "timeout") ||

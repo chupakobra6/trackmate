@@ -159,6 +159,10 @@ and can remove recovery images needed by the running deployment.
 
 ## Schema Checks
 
+После поставки ежемесячных отчётов проверь миграцию `202610060001` и доступность `trackmate-report --help` внутри контейнера. `snapshot`, `status` и `validate` не пишут в БД и не отправляют сообщения. Доставка и восстановление неопределённого исхода описаны в [monthly-reports.md](monthly-reports.md).
+
+Для диагностики Telegram429 ищи `retry_after` и `telegram_request_retrying`. Клиент соблюдает минимум из ответа Telegram даже между повторными вызовами обработчика; context может завершить ожидание раньше, но новый запрос тогда не отправляется.
+
 Useful read-only checks after restore or update:
 
 ```sql

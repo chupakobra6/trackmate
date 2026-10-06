@@ -128,6 +128,7 @@ Use these only with disposable local/test Telegram groups and local databases.
 
 - [docs/architecture.md](docs/architecture.md)
 - [docs/operations.md](docs/operations.md)
+- [Ежемесячные отчёты](docs/monthly-reports.md): снимок источников, подготовка в Codex, независимая проверка и одна публикация в «Прогрессе».
 - [e2e/telegram/README.md](e2e/telegram/README.md)
 - [docs/adr/0001-remove-materials-topic.md](docs/adr/0001-remove-materials-topic.md)
 
