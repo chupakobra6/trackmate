@@ -121,7 +121,7 @@ func (s *Service) handleEditedMessage(ctx context.Context, message telegram.Mess
 		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
 			ChatID:      message.Chat.ID,
 			MessageID:   *task.TodayCardMessageID,
-			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
+			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, "", message.Chat.ID),
 			ReplyMarkup: dailyTaskCardKeyboard(task),
 		}, messages.Text("progress.edit_failed.target_today_card"), optionalInt64(task.TaskMessageThreadID)); err != nil {
 			return err
@@ -349,7 +349,7 @@ func (s *Service) handleTodayAdd(ctx context.Context, callback telegram.Callback
 			card, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 				ChatID:              callback.Message.Chat.ID,
 				MessageThreadID:     callback.Message.MessageThreadID,
-				Text:                ui.FormatDailyTaskCard(summary, telegram.DisplayName(user), user.Username, ""),
+				Text:                ui.FormatDailyTaskCard(summary, telegram.DisplayName(user), user.Username, "", callback.Message.Chat.ID),
 				ReplyMarkup:         ui.DailySummaryStatusKeyboard(summary.ID),
 				DisableNotification: true,
 			})
@@ -453,7 +453,7 @@ func (s *Service) consumeDailyTaskText(ctx context.Context, workspace postgres.W
 		card, err := s.Telegram.SendMessage(ctx, telegram.SendMessageRequest{
 			ChatID:              message.Chat.ID,
 			MessageThreadID:     message.MessageThreadID,
-			Text:                ui.FormatDailyTaskCard(task, telegram.DisplayName(user), user.Username, ""),
+			Text:                ui.FormatDailyTaskCard(task, telegram.DisplayName(user), user.Username, "", message.Chat.ID),
 			ReplyMarkup:         ui.DailyTaskKeyboard(task.ID),
 			DisableNotification: true,
 		})
@@ -534,7 +534,7 @@ func (s *Service) consumeDailyReport(ctx context.Context, workspace postgres.Wor
 		if err := s.editMessageOrQueueProgressAlert(ctx, workspace, telegram.EditMessageTextRequest{
 			ChatID:      message.Chat.ID,
 			MessageID:   *task.TodayCardMessageID,
-			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, ""),
+			Text:        ui.FormatDailyTaskCard(task, telegram.DisplayName(*message.From), message.From.Username, "", message.Chat.ID),
 			ReplyMarkup: replyMarkup,
 		}, messages.Text("progress.edit_failed.target_today_card"), optionalInt64(task.TaskMessageThreadID)); err != nil {
 			return err
@@ -630,8 +630,19 @@ func (s *Service) handleTaskStatus(ctx context.Context, callback telegram.Callba
 				answer.Text = pendingBusyText(previous.Kind)
 				return nil
 			}
-			if !task.Kind.IsSummary() || payloadInt64(previous.Payload, "prompt_message_id") != callback.Message.MessageID {
-				_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, payloadInt64(previous.Payload, "prompt_message_id"))
+			previousPromptID := payloadInt64(previous.Payload, "prompt_message_id")
+			previousCardID := optionalInt64(task.TodayCardMessageID)
+			if previousTaskID := payloadInt64(previous.Payload, "task_id"); previousTaskID != task.ID {
+				previousTask, found, err := q.GetTask(ctx, previousTaskID)
+				if err != nil {
+					return err
+				}
+				if found {
+					previousCardID = optionalInt64(previousTask.TodayCardMessageID)
+				}
+			}
+			if previousPromptID != callback.Message.MessageID && previousPromptID != previousCardID && previousPromptID != optionalInt64(task.TodayCardMessageID) {
+				_ = s.Telegram.DeleteMessage(ctx, callback.Message.Chat.ID, previousPromptID)
 			}
 		}
 		prompt := ""

@@ -97,37 +97,44 @@ func FormatSetupChecklist(ready bool, isSupergroup bool, isForum bool, isAdmin b
 	return appendNotice(lines, notice)
 }
 
-func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string) string {
+func FormatDailyTaskCard(task postgres.DailyTask, displayName string, username string, notice string, chatID int64) string {
 	if task.Kind.IsSummary() {
-		return FormatDailySummaryCard(task, displayName, username, notice)
+		return FormatDailySummaryCard(task, displayName, username, notice, chatID)
 	}
-	lines := []string{
-		dailyTaskCardTitle(task.Status, displayName, username, task.OwnerUserID),
-		"",
-		messages.Text("daily.card.plan"),
-		renderTaskSectionHTML(task.Text),
+	parts := []messagePart{
+		fixedHTML(dailyTaskCardTitle(task.Status, displayName, username, task.OwnerUserID) + "\n\n" + messages.Text("daily.card.plan") + "\n"),
+		previewHTML(renderTaskSectionHTML(task.Text), messages.Text("preview.plan"), dailySourceLink(chatID, task.TaskMessageID, task.TaskMessageThreadID)),
 	}
 	if task.ReportText != nil && *task.ReportText != "" {
-		lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*task.ReportText))
+		parts = append(parts, fixedHTML("\n\n"+messages.Text("daily.card.report")+"\n"), previewHTML(renderSectionHTML(*task.ReportText), messages.Text("preview.report"), dailySourceLink(chatID, task.ReportMessageID, task.ReportMessageThreadID)))
 	}
-	return appendNotice(lines, notice)
+	return renderPreview(append(parts, fixedHTML(noticeHTML(notice)))...)
 }
 
-func FormatDailySummaryCard(task postgres.DailyTask, displayName string, username string, notice string) string {
+func dailySourceLink(chatID int64, messageID, threadID *int64) string {
+	if chatID == 0 || messageID == nil {
+		return ""
+	}
+	return postgres.MessageLink(chatID, *messageID, int64Value(threadID))
+}
+
+func noticeHTML(notice string) string {
+	if notice == "" {
+		return ""
+	}
+	return "\n\n<blockquote>" + html.EscapeString(notice) + "</blockquote>"
+}
+
+func FormatDailySummaryCard(task postgres.DailyTask, displayName string, username string, notice string, chatID int64) string {
 	if task.Status.IsOpen() {
 		person := userLinkLabelCase(displayName, username, task.OwnerUserID, participantNameGenitive)
-		return appendNotice([]string{
-			messages.Format("daily.summary.card.title", "person", person),
-			"",
-			messages.Text("daily.summary.card.awaiting"),
-		}, notice)
+		return appendNotice([]string{messages.Format("daily.summary.card.title", "person", person), "", messages.Text("daily.summary.card.awaiting")}, notice)
 	}
-	person := userLinkLabel(displayName, username, task.OwnerUserID)
-	lines := []string{dailySummaryCardTitle(task, person)}
+	parts := []messagePart{fixedHTML(dailySummaryCardTitle(task, userLinkLabel(displayName, username, task.OwnerUserID)))}
 	if task.ReportText != nil && *task.ReportText != "" {
-		lines = append(lines, "", messages.Text("daily.summary.body"), renderSectionHTML(*task.ReportText))
+		parts = append(parts, fixedHTML("\n\n"+messages.Text("daily.summary.body")+"\n"), previewHTML(renderSectionHTML(*task.ReportText), messages.Text("preview.report"), dailySourceLink(chatID, task.ReportMessageID, task.ReportMessageThreadID)))
 	}
-	return appendNotice(lines, notice)
+	return renderPreview(append(parts, fixedHTML(noticeHTML(notice)))...)
 }
 
 func DailyTaskTextPrompt(nudge string) string {
@@ -193,44 +200,55 @@ func FormatRoutineCheckinFinishedCard(checkin postgres.RoutineCheckin, displayNa
 			),
 			"",
 		}
-		for _, item := range partialItems {
-			lines = append(lines, routineItemLine(item))
-			if item.ReasonText != nil && *item.ReasonText != "" {
-				lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
-			}
-		}
-		return appendNotice(lines, notice)
+		parts := []messagePart{fixedHTML(strings.Join(lines, "\n") + "\n")}
+		parts = append(parts, routineItemParts(partialItems)...)
+		return renderRoutineParts(parts, routineLink, notice)
 	}
 	return FormatRoutineCheckinStatusCard(checkin, displayName, username, routineLink, notice)
 }
 
 func formatRoutineCheckinCard(checkin postgres.RoutineCheckin, displayName string, username string, routineLink string, notice string) string {
 	person := html.EscapeString(participantDisplayName(displayName, username, participantNameGenitive))
-	lines := []string{
-		messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "routine", html.EscapeString("Рутина"), "date", routineDateLabel(checkin.CheckinDate), "person", person),
-	}
+	header := messages.Format("routine.card.title", "emoji", routineHeaderEmoji, "routine", html.EscapeString("Рутина"), "date", routineDateLabel(checkin.CheckinDate), "person", person)
 	if NextRoutineItemIndex(checkin) >= 0 {
-		lines = append(lines, "", messages.Text("routine.card.subtitle"), "")
+		header += "\n\n" + messages.Text("routine.card.subtitle") + "\n"
 	} else {
-		lines = append(lines, "")
+		header += "\n"
 	}
-	for _, item := range checkin.Items {
-		lines = append(lines, routineItemLine(item))
+	if len(checkin.Items) > 0 {
+		header += "\n"
+	}
+	parts := []messagePart{fixedHTML(header)}
+	parts = append(parts, routineItemParts(checkin.Items)...)
+	if checkin.CompletedAt != nil && checkin.ReflectionText != nil && *checkin.ReflectionText != "" {
+		parts = append(parts, fixedHTML("\n\n"+messages.Text("daily.card.report")+"\n"), previewHTML(renderSectionHTML(*checkin.ReflectionText), "", ""))
+	}
+
+	return renderRoutineParts(parts, routineLink, notice)
+}
+
+func routineItemParts(items []postgres.RoutineCheckinItem) []messagePart {
+	var parts []messagePart
+	for i, item := range items {
+		if i > 0 {
+			parts = append(parts, fixedHTML("\n"))
+		}
+		parts = append(parts, fixedHTML(routineItemMarker(item)+" "), previewHTML(html.EscapeString(item.Text), "", ""))
 		if item.ReasonText != nil && *item.ReasonText != "" {
-			lines = append(lines, messages.Format("routine.item.reason_label", "reason", renderInlineHTML(*item.ReasonText)))
+			before, after, _ := strings.Cut(messages.Text("routine.item.reason_label"), "{{reason}}")
+			parts = append(parts, fixedHTML("\n"+before), previewHTML(renderInlineHTML(*item.ReasonText), "", ""), fixedHTML(after))
 		}
 	}
-	if checkin.CompletedAt != nil {
-		if checkin.ReflectionText != nil && *checkin.ReflectionText != "" {
-			lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(*checkin.ReflectionText))
-		}
-		return appendNotice(lines, notice)
-	}
-	return appendNotice(lines, notice)
+	return parts
+}
+
+func renderRoutineParts(parts []messagePart, routineLink, notice string) string {
+	return renderPreview(append(parts, previewHTML("", messages.Text("preview.routine"), routineLink), fixedHTML(noticeHTML(notice)))...)
 }
 
 func FormatRoutineReasonPrompt(itemText string) string {
-	return messages.Format("routine.reason.prompt", "item", html.EscapeString(itemText))
+	before, after, _ := strings.Cut(messages.Text("routine.reason.prompt"), "{{item}}")
+	return renderPreview(fixedHTML(before), previewHTML(html.EscapeString(itemText), "", ""), fixedHTML(after))
 }
 
 func RoutineReminderText(checkin postgres.RoutineCheckin, displayName string, username string, userID int64) string {
@@ -308,7 +326,7 @@ func FormatGoalsSaved(goalsLink string) string {
 	return messages.Format("goals.saved", "link", html.EscapeString(goalsLink))
 }
 
-func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string) string {
+func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string, username string, notice string, chatID int64) string {
 	person := personLabel(username, displayName)
 	lines := []string{
 		messages.Format("goals.card.title", "period", html.EscapeString(strings.ToLower(goalSet.PeriodTitle)), "person", person),
@@ -317,7 +335,7 @@ func FormatSeasonalGoalCard(goalSet postgres.SeasonalGoalSet, displayName string
 		"",
 		renderSectionHTML(goalSet.GoalsText),
 	}
-	return appendNotice(lines, notice)
+	return renderPreview(fixedHTML(strings.Join(lines[:4], "\n")+"\n"), previewHTML(lines[4], messages.Text("preview.goals"), dailySourceLink(chatID, goalSet.SourceMessageID, goalSet.SourceMessageThreadID)), fixedHTML(noticeHTML(notice)))
 }
 
 func FormatGoalWeeklyReviewPrompt(goalSet postgres.SeasonalGoalSet, displayName string, username string, goalsLink string, daysLeft int, reviewsLeft int) string {
@@ -518,35 +536,24 @@ func FormatProgressEvent(event postgres.ProgressEvent) string {
 		action := dailyTaskClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
 		title := dailyTaskClosedTitle(payloadString(payload, "status"), person, action)
 		title = strings.Replace(title, taskLabel, task, 1)
-		return strings.Join([]string{
-			title,
-			"",
-			messages.Text("daily.card.plan"),
-			renderTaskSectionHTML(payloadString(payload, "task_html")),
-			"",
-			messages.Text("daily.card.report"),
-			renderSectionHTML(payloadString(payload, "report_html")),
-		}, "\n")
+		return renderPreview(
+			fixedHTML(title+"\n\n"+messages.Text("daily.card.plan")+"\n"),
+			previewHTML(renderTaskSectionHTML(payloadString(payload, "task_html")), messages.Text("preview.plan"), payloadString(payload, "task_source_link")),
+			fixedHTML("\n\n"+messages.Text("daily.card.report")+"\n"),
+			previewHTML(renderSectionHTML(payloadString(payload, "report_html")), messages.Text("preview.report"), payloadString(payload, "report_link")))
 	case domain.ProgressDailyTaskAutoFail:
 		task := payloadLink(payload, "task_link", messages.Text("progress.daily.task_link"))
-		lines := []string{
-			messages.Format("progress.daily.auto_failed", "person", person, "task", task),
-			"",
-			messages.Text("daily.card.plan"),
-			renderTaskSectionHTML(payloadString(payload, "task_html")),
+		parts := []messagePart{
+			fixedHTML(messages.Format("progress.daily.auto_failed", "person", person, "task", task) + "\n\n" + messages.Text("daily.card.plan") + "\n"),
+			previewHTML(renderTaskSectionHTML(payloadString(payload, "task_html")), messages.Text("preview.plan"), payloadString(payload, "task_source_link")),
 		}
 		if report := payloadString(payload, "report_html"); report != "" {
-			lines = append(lines, "", messages.Text("daily.card.report"), renderSectionHTML(report))
+			parts = append(parts, fixedHTML("\n\n"+messages.Text("daily.card.report")+"\n"), previewHTML(renderSectionHTML(report), messages.Text("preview.report"), payloadString(payload, "report_link")))
 		}
-		return strings.Join(lines, "\n")
+		return renderPreview(parts...)
 	case domain.ProgressDailySummaryClosed:
 		action := dailySummaryClosedAction(payloadString(payload, "status"), payloadString(payload, "report_link"))
-		return strings.Join([]string{
-			dailySummaryClosedProgressTitle(payloadString(payload, "status"), person, action),
-			"",
-			messages.Text("daily.summary.body"),
-			renderSectionHTML(payloadString(payload, "report_html")),
-		}, "\n")
+		return renderPreview(fixedHTML(dailySummaryClosedProgressTitle(payloadString(payload, "status"), person, action)+"\n\n"+messages.Text("daily.summary.body")+"\n"), previewHTML(renderSectionHTML(payloadString(payload, "report_html")), messages.Text("preview.report"), payloadString(payload, "report_link")))
 	case domain.ProgressDailySummaryAutoFail:
 		return messages.Format("progress.summary.auto_failed", "person", person)
 	case domain.ProgressCustomUpdate:
@@ -682,7 +689,7 @@ func dailySummaryCardTitle(task postgres.DailyTask, person string) string {
 	}
 }
 
-func routineItemLine(item postgres.RoutineCheckinItem) string {
+func routineItemMarker(item postgres.RoutineCheckinItem) string {
 	marker := "—"
 	if item.Status != nil {
 		switch *item.Status {
@@ -694,7 +701,7 @@ func routineItemLine(item postgres.RoutineCheckinItem) string {
 			marker = "❌"
 		}
 	}
-	return marker + " " + html.EscapeString(item.Text)
+	return marker
 }
 
 func routineLinkedWord(word string, routineLink string) string {

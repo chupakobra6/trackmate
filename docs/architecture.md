@@ -120,6 +120,8 @@ failed state and removes the card button. The separate overdue alert keeps
 adds it to the failed task card and its existing auto-fail Progress event, but
 does not change the task from `failed` or create a second closed event.
 
+Если Telegram сообщает, что карточка задачи удалена и больше не может быть родителем ответа, worker один раз отправляет alert без reply в ту же тему, сохраняя кнопки и уведомление.
+
 `task:report:<task_id>` opens the report flow by editing the pressed task card
 or alert in place into the status chooser. Replayed callbacks edit that same
 message and never send another chooser, so repeated taps cannot stack duplicate
@@ -152,6 +154,14 @@ report, the Today card, pending progress payloads, and already published
 Progress messages. On the normal path this stays silent. If Telegram refuses to
 edit an old bot message, Trackmate preserves the database update and queues a
 `system_alert` in `Прогресс` with a link to the message and the Telegram error.
+
+## Длина карточек Telegram
+
+Карточки задачи/итога дня в «Сегодня» и их события в «Прогрессе» остаются одним сообщением. Если видимый текст превышает 4096 единиц UTF-16, `internal/ui/preview.go` распределяет доступное место между исходными разделами до сборки HTML: сохраняет заголовок, статус, подписи разделов, уведомление и ссылки, а длинные фрагменты показывает сокращённо. Теги и entities остаются целыми; составные эмодзи не обрываются. HTML-разметка и адреса ссылок не расходуют бюджет видимого текста. Короткий результат остаётся без изменений.
+
+Под сокращённым просмотром показаны `Сокращённый просмотр. Полный текст сохранён.` и ссылки `План`/`Результат` на исходные сообщения. В progress payload `task_link` ведёт на карточку, `task_source_link` – на исходный план, `report_link` – на исходный результат; у источника сохраняется его собственная тема. Создание, закрытие и правка источников используют один renderer. Полные HTML-тексты в `daily_tasks` и progress payload не сокращаются, сообщения-источники сохраняются, IDs карточек не меняются.
+
+Тот же механизм ограничивает тексты пунктов, причин и сохранённой рефлексии рутины, вопрос о причине и представление сезонных целей. В рутине бюджет делится между пунктами и причинами: статус и начало каждого пункта остаются видимыми вместе с существующими кнопками. Длинная карточка рутины ссылается на исходный план, карточка целей – на исходные цели. Обычная настройка целей по-прежнему отвечает коротким подтверждением со ссылкой, без копии полного текста.
 
 ## Routine Flow
 
@@ -198,6 +208,8 @@ the reply fallback. Failed Telegram delivery remains eligible for a later
 worker retry; a delivered alert is not recreated after its temporary message
 is dismissed or cleaned up. Reminder and auto-close alerts are cleaned up after
 about 24 hours if the user does not dismiss them first.
+
+Срок закрытия действует и для карточки, которую не удалось доставить: недостающие пункты становятся `failed`, а повторы доставки карточки и напоминания удаляются. Если карточка ни разу не была отправлена, устаревшая карточка и уведомление о закрытии не создаются; результат учитывается в лидерборде.
 
 В теме «Рутины» находится таблица с долей выполнения за 7 дней, текущей и лучшей сериями и числом пунктов. Завершённый день без `failed` увеличивает стрик: `done` и `partial` учитываются одинаково. День с `failed` или календарный пропуск сбрасывает серию; открытая карточка нейтральна до срока завершения. Рейтинг сначала учитывает долю выполнения, затем стрик, поэтому рутина из одного пункта не получает преимущество только за длину серии. Действующий продуктовый контракт — [Рутины и цели](product/routines-goals.md).
 

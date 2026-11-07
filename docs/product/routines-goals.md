@@ -50,6 +50,8 @@ an old message.
 30. Count routine streaks by completed days without failed items: `done` and `partial` both increase the streak, while `failed` or a calendar gap resets it; an open check-in is neutral until its deadline.
 31. At the noon deadline, finalize the original task card without buttons. Keep `Результат` on the overdue alert so the owner can attach one retrospective report; that report enriches the failed card and existing auto-fail Progress event without changing the task from failed.
 
+32. В «Сегодня» и «Прогрессе» длинный план/результат показывается сокращённо в одной карточке с прежним статусом и кнопками, пометкой `Сокращённый просмотр. Полный текст сохранён.` и ссылками `План`/`Результат` на исходные сообщения. Полные тексты и оригиналы сохраняются. Правка оригинала обновляет ту же карточку; при уменьшении текста сокращённый просмотр снимается. Длинные тексты рутины и целей используют тот же предел 4096 единиц UTF-16 видимого текста, сохраняя статусы пунктов и ссылки на исходный план/цели.
+
 ## Non-goals for MVP
 
 - No complex per-goal parser.

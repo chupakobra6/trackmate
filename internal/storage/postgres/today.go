@@ -216,6 +216,7 @@ WHERE id = $1 AND owner_user_id = $4 AND status IN ('active', 'awaiting_report')
 		payload["task_html"] = task.Text
 	}
 	if workspace.ID != 0 {
+		reportSourceThreadID := threadID
 		var threadID int64
 		if hasToday {
 			threadID = todayBinding.ThreadID
@@ -224,8 +225,9 @@ WHERE id = $1 AND owner_user_id = $4 AND status IN ('active', 'awaiting_report')
 			payload["summary_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
 		} else {
 			payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
+			payload["task_source_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TaskMessageID), optionalInt64(task.TaskMessageThreadID))
 		}
-		payload["report_link"] = MessageLink(workspace.ChatID, messageID, threadID)
+		payload["report_link"] = MessageLink(workspace.ChatID, messageID, reportSourceThreadID)
 	}
 	if _, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, eventType, payload, &task.ParticipantID, &task.ID); err != nil {
 		return false, err
@@ -292,6 +294,7 @@ RETURNING id, workspace_group_id, participant_id, owner_user_id, task_date, entr
 func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyTask) ([]ProgressEvent, error) {
 	cardLink := ""
 	reportLink := ""
+	taskSourceLink := ""
 	workspace, found, err := q.GetWorkspaceByID(ctx, task.WorkspaceGroupID)
 	if err != nil {
 		return nil, err
@@ -306,7 +309,8 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 			threadID = todayBinding.ThreadID
 		}
 		cardLink = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), threadID)
-		reportLink = MessageLink(workspace.ChatID, optionalInt64(task.ReportMessageID), threadID)
+		reportLink = MessageLink(workspace.ChatID, optionalInt64(task.ReportMessageID), optionalInt64(task.ReportMessageThreadID))
+		taskSourceLink = MessageLink(workspace.ChatID, optionalInt64(task.TaskMessageID), optionalInt64(task.TaskMessageThreadID))
 	}
 	reportHTML := ""
 	if task.ReportText != nil {
@@ -316,9 +320,9 @@ func (q *Queries) SyncDailyTaskProgressPayloads(ctx context.Context, task DailyT
 UPDATE progress_events
 SET payload = CASE
     WHEN event_type = 'daily_task.closed'::progresseventtype THEN
-        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text, 'task_source_link', $6::text)
     WHEN event_type = 'daily_task.auto_failed'::progresseventtype THEN
-        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text)
+        payload::jsonb || jsonb_build_object('task_html', $2::text, 'report_html', $3::text, 'task_link', $4::text, 'report_link', $5::text, 'task_source_link', $6::text)
     WHEN event_type = 'daily_summary.closed'::progresseventtype THEN
         payload::jsonb || jsonb_build_object('report_html', $3::text, 'summary_link', $4::text, 'report_link', $5::text)
     WHEN event_type = 'daily_summary.auto_failed'::progresseventtype THEN
@@ -334,7 +338,7 @@ WHERE daily_task_id = $1
   )
 RETURNING id, workspace_group_id, participant_id, daily_task_id, event_type::text,
           publish_status::text, payload, published_message_id, created_at, published_at
-`, task.ID, task.Text, reportHTML, cardLink, reportLink)
+`, task.ID, task.Text, reportHTML, cardLink, reportLink, taskSourceLink)
 	if err != nil {
 		return nil, err
 	}

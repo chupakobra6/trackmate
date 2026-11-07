@@ -129,6 +129,67 @@ func TestWorkerTransitionsDailySummaryWithOwnAlertsAndProgress(t *testing.T) {
 	}
 }
 
+func TestWorkerAlertFallsBackWhenTaskReplyTargetIsMissing(t *testing.T) {
+	for _, hour := range []int{0, 12} {
+		t.Run(time.Date(2026, 5, 28, hour, 1, 0, 0, time.UTC).Format("15:04"), func(t *testing.T) {
+			store, _ := testsupport.OpenMigratedStore(t)
+			ctx := context.Background()
+			q := store.Queries()
+			workspace, err := q.GetOrCreateWorkspace(ctx, -100777000113, "Group", "UTC")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for topic, threadID := range map[domain.TopicKey]int64{domain.TopicToday: 10, domain.TopicProgress: 20} {
+				if _, err := q.UpsertTopicBinding(ctx, workspace.ID, topic, threadID, string(topic)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+			if err != nil {
+				t.Fatal(err)
+			}
+			task, created, err := q.CreateDailyTask(ctx, workspace.ID, participant.ID, participant.UserID, time.Date(2026, 5, 27, 0, 0, 0, 0, time.UTC), "Task", 200, 10)
+			if err != nil || !created {
+				t.Fatalf("task created=%v err=%v", created, err)
+			}
+			if err := q.SetDailyTaskCardMessageID(ctx, task.ID, 555); err != nil {
+				t.Fatal(err)
+			}
+			rejectedReplies := 0
+			tg := &rejectingTelegram{fakeTelegram: fakeTelegram{nextMessageID: 1000}}
+			tg.reject = func(request telegram.SendMessageRequest) error {
+				if request.ReplyToMessageID == 555 {
+					rejectedReplies++
+					return &telegram.Error{StatusCode: 400, Description: "Bad Request: message to be replied not found"}
+				}
+				return nil
+			}
+			runner := &worker.Runner{Store: store, TG: tg}
+			now := time.Date(2026, 5, 28, hour, 1, 0, 0, time.UTC)
+			if err := runner.Tick(ctx, now); err != nil {
+				t.Fatal(err)
+			}
+			if rejectedReplies != 1 || len(tg.sent) == 0 || tg.sent[0].MessageThreadID != 10 || tg.sent[0].ReplyToMessageID != 0 || tg.sent[0].ReplyMarkup == nil || tg.sent[0].DisableNotification {
+				t.Fatalf("alert did not preserve its actions/topic/notification after reply fallback: rejected=%d sent=%+v", rejectedReplies, tg.sent)
+			}
+			var sentAlerts, retries int
+			if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM daily_task_alerts WHERE daily_task_id=$1 AND dispatch_status='sent' AND telegram_message_id IS NOT NULL`, task.ID).Scan(&sentAlerts); err != nil || sentAlerts != 1 {
+				t.Fatalf("fallback send not persisted: sent=%d err=%v", sentAlerts, err)
+			}
+			if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM worker_delivery_retries WHERE operation='alert'`).Scan(&retries); err != nil || retries != 0 {
+				t.Fatalf("successful fallback left delivery retry: retries=%d err=%v", retries, err)
+			}
+			count := len(tg.sent)
+			if err := runner.Tick(ctx, now); err != nil {
+				t.Fatal(err)
+			}
+			if len(tg.sent) != count || rejectedReplies != 1 {
+				t.Fatalf("confirmed fallback alert was sent again: rejected=%d sent=%+v", rejectedReplies, tg.sent)
+			}
+		})
+	}
+}
+
 func TestWorkerDispatchesRoutineAndGoalPromptsToOwnTopics(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	ctx := context.Background()

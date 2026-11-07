@@ -94,7 +94,7 @@ func TestFormatDailySummaryUsesGoodMediumBadWithoutSeparateScore(t *testing.T) {
 		OwnerUserID: 42,
 		Status:      domain.DailyTaskActive,
 	}
-	open := FormatDailyTaskCard(summary, "Игорь", "igor", "")
+	open := FormatDailyTaskCard(summary, "Игорь", "igor", "", 0)
 	for _, part := range []string{`🏁 <b>Итог дня</b> <a href="tg://user?id=42">Игоря</a>`, "<b>Статус:</b> ожидается"} {
 		if !strings.Contains(open, part) {
 			t.Fatalf("open summary missing %q: %s", part, open)
@@ -103,7 +103,7 @@ func TestFormatDailySummaryUsesGoodMediumBadWithoutSeparateScore(t *testing.T) {
 
 	summary.Status = domain.DailyTaskPartial
 	summary.ReportText = &report
-	closed := FormatDailyTaskCard(summary, "Игорь", "igor", "")
+	closed := FormatDailyTaskCard(summary, "Игорь", "igor", "", 0)
 	for _, part := range []string{
 		`🔸 <b><a href="tg://user?id=42">Игорь</a> подвёл итог среднего дня</b>`,
 		"<b>Итог:</b>",
@@ -127,7 +127,7 @@ func TestFormatDailySummaryUsesGoodMediumBadWithoutSeparateScore(t *testing.T) {
 		{status: domain.DailyTaskFailed, phrase: "подвёл итог плохого дня"},
 	} {
 		summary.Status = testCase.status
-		if got := FormatDailyTaskCard(summary, "Игорь", "igor", ""); !strings.Contains(got, testCase.phrase) {
+		if got := FormatDailyTaskCard(summary, "Игорь", "igor", "", 0); !strings.Contains(got, testCase.phrase) {
 			t.Fatalf("summary status %s missing %q: %s", testCase.status, testCase.phrase, got)
 		}
 	}
@@ -165,7 +165,7 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 		Text:        `<a href="https://example.com/task">Подготовить результат по задаче</a>`,
 		Status:      domain.DailyTaskActive,
 	}
-	got := FormatDailyTaskCard(task, "Игорь", "igor", "")
+	got := FormatDailyTaskCard(task, "Игорь", "igor", "", 0)
 	for _, part := range []string{`🎯 <b>Задача дня</b> <a href="tg://user?id=42">Игоря</a>`, "<b>План:</b>", "Подготовить результат по задаче"} {
 		if !strings.Contains(got, part) {
 			t.Fatalf("daily task card missing %q: %s", part, got)
@@ -182,7 +182,7 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	if strings.Contains(got, "https://example.com/task") {
 		t.Fatalf("daily task card should not link task text: %s", got)
 	}
-	if got := FormatDailyTaskCard(task, "Ярослав Севастьянов", "Superssuperior", ""); !strings.Contains(got, `🎯 <b>Задача дня</b> <a href="tg://user?id=42">Ярослава</a>`) {
+	if got := FormatDailyTaskCard(task, "Ярослав Севастьянов", "Superssuperior", "", 0); !strings.Contains(got, `🎯 <b>Задача дня</b> <a href="tg://user?id=42">Ярослава</a>`) {
 		t.Fatalf("daily task card should use short genitive first name: %s", got)
 	}
 
@@ -190,7 +190,7 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	done.Status = domain.DailyTaskDone
 	report := "Результат готов"
 	done.ReportText = &report
-	closed := FormatDailyTaskCard(done, "Игорь", "igor", "")
+	closed := FormatDailyTaskCard(done, "Игорь", "igor", "", 0)
 	for _, part := range []string{`✅ <b><a href="tg://user?id=42">Игорь</a> выполнил задачу дня</b>`, "<b>Результат:</b>", "Результат готов"} {
 		if !strings.Contains(closed, part) {
 			t.Fatalf("closed daily task card missing %q: %s", part, closed)
@@ -205,21 +205,21 @@ func TestFormatDailyTaskCardShowsPlanWithoutExtraBlockquoteGap(t *testing.T) {
 	if strings.Contains(closed, "<b>Состояние:</b>") || strings.Contains(closed, "<b>Статус:</b>") {
 		t.Fatalf("closed daily task card should encode status in title only: %s", closed)
 	}
-	if got := FormatDailyTaskCard(done, "Ковалец Егор", "whysoxxx", ""); !strings.Contains(got, `✅ <b><a href="tg://user?id=42">Егор</a> выполнил задачу дня</b>`) {
+	if got := FormatDailyTaskCard(done, "Ковалец Егор", "whysoxxx", "", 0); !strings.Contains(got, `✅ <b><a href="tg://user?id=42">Егор</a> выполнил задачу дня</b>`) {
 		t.Fatalf("closed daily task card should use short nominative first name: %s", got)
 	}
 
 	partial := task
 	partial.Status = domain.DailyTaskPartial
 	partial.ReportText = &report
-	if got := FormatDailyTaskCard(partial, "Игорь", "igor", ""); !strings.Contains(got, `🔸 <b><a href="tg://user?id=42">Игорь</a> частично выполнил задачу дня</b>`) {
+	if got := FormatDailyTaskCard(partial, "Игорь", "igor", "", 0); !strings.Contains(got, `🔸 <b><a href="tg://user?id=42">Игорь</a> частично выполнил задачу дня</b>`) {
 		t.Fatalf("partial daily task card title mismatch: %s", got)
 	}
 
 	failed := task
 	failed.Status = domain.DailyTaskFailed
 	failed.ReportText = &report
-	if got := FormatDailyTaskCard(failed, "Игорь", "igor", ""); !strings.Contains(got, `❌ <b><a href="tg://user?id=42">Игорь</a> не выполнил задачу дня</b>`) {
+	if got := FormatDailyTaskCard(failed, "Игорь", "igor", "", 0); !strings.Contains(got, `❌ <b><a href="tg://user?id=42">Игорь</a> не выполнил задачу дня</b>`) {
 		t.Fatalf("failed daily task card title mismatch: %s", got)
 	}
 }
@@ -255,7 +255,7 @@ func TestGeneratedMultilineMessagesKeepHeaderGap(t *testing.T) {
 		PeriodTitle:  "Лето 2026",
 		PeriodEndsOn: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		GoalsText:    "1. Работа",
-	}, "Игорь", "igor", "")
+	}, "Игорь", "igor", "", 0)
 	if !strings.Contains(goalCard, "🎯 <b>Цели на лето 2026</b> · Игорь\n\nДо <b>01.09.2026</b>") {
 		t.Fatalf("goals card should keep header gap: %s", goalCard)
 	}

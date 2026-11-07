@@ -79,26 +79,37 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 	}
 	refreshed := map[int64]postgres.Workspace{}
 	for _, item := range checkins {
-		if item.Checkin.CardMessageID == nil || item.Checkin.CardMessageThreadID == nil {
-			continue
-		}
 		autoFailDue, err := domain.RoutineAutoFailDue(item.Checkin.CheckinDate, item.Workspace.Timezone, item.Checkin.CompletedAt, nowUTC)
 		if err != nil {
 			return err
 		}
 		if autoFailDue {
-			pending, pendingFound, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID)
-			if err != nil {
-				return err
+			if item.Checkin.CardMessageThreadID != nil {
+				pending, pendingFound, err := store.Queries().GetPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID)
+				if err != nil {
+					return err
+				}
+				if pendingFound && pending.Kind == domain.PendingRoutineReason && payloadInt64(pending.Payload, "checkin_id") == item.Checkin.ID {
+					deletePendingMessages(ctx, tg, item.Workspace.ChatID, pending.Payload, pending.CreatedAt, nowUTC)
+				}
+				if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
+					return err
+				}
 			}
-			if pendingFound && pending.Kind == domain.PendingRoutineReason && payloadInt64(pending.Payload, "checkin_id") == item.Checkin.ID {
-				deletePendingMessages(ctx, tg, item.Workspace.ChatID, pending.Payload, pending.CreatedAt, nowUTC)
-			}
-			if err := store.Queries().ClearRoutineCheckinPendingInput(ctx, item.Workspace.ID, item.Participant.UserID, *item.Checkin.CardMessageThreadID, item.Checkin.ID); err != nil {
-				return err
-			}
-			_, completed, err := store.Queries().AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
-			if err != nil {
+			completed := false
+			if err := store.InTx(ctx, func(q *postgres.Queries) error {
+				var err error
+				_, completed, err = q.AutoFailRoutineCheckin(ctx, item.Checkin.ID, nowUTC)
+				if err != nil || !completed {
+					return err
+				}
+				for _, operation := range []string{"routine_card", "routine_reminder"} {
+					if err := q.ClearDeliveryRetry(ctx, operation, item.Checkin.ID); err != nil {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
 				return err
 			}
 			if !completed {
@@ -111,6 +122,9 @@ func RunCheckinTransitions(ctx context.Context, store *postgres.Store, tg telegr
 				}
 			}
 			refreshed[item.Workspace.ID] = item.Workspace
+			continue
+		}
+		if item.Checkin.CardMessageID == nil || item.Checkin.CardMessageThreadID == nil {
 			continue
 		}
 		reminderDue, err := domain.RoutineReminderDue(item.Checkin.CheckinDate, item.Workspace.Timezone, item.Checkin.ReminderSentAt, item.Checkin.CompletedAt, nowUTC)

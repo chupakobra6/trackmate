@@ -67,6 +67,72 @@ func TestDispatchDueCheckinsAndRefreshLeaderboard(t *testing.T) {
 	}
 }
 
+func TestUndeliveredRoutineCardExpiresAcrossMidnight(t *testing.T) {
+	store, _ := testsupport.OpenMigratedStore(t)
+	ctx := context.Background()
+	q := store.Queries()
+	workspace, err := q.GetOrCreateWorkspace(ctx, -100888000449, "Group", "UTC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := q.UpsertTopicBinding(ctx, workspace.ID, domain.TopicRoutine, 30, "Рутины"); err != nil {
+		t.Fatal(err)
+	}
+	introID := int64(900)
+	if err := q.SetTopicMessages(ctx, workspace.ID, domain.TopicRoutine, &introID, nil, false, false); err != nil {
+		t.Fatal(err)
+	}
+	participant, err := q.RegisterParticipant(ctx, workspace.ID, 42, "igor", "Игорь")
+	if err != nil {
+		t.Fatal(err)
+	}
+	plan, err := q.UpsertRoutinePlan(ctx, workspace.ID, participant.ID, participant.UserID, []string{"зарядка"}, 5000, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	date := time.Date(2026, 6, 28, 0, 0, 0, 0, time.UTC)
+	if _, err := store.Pool().Exec(ctx, `UPDATE routine_plans SET created_at=$1 WHERE id=$2`, date, plan.ID); err != nil {
+		t.Fatal(err)
+	}
+	fake := &fakeTelegram{sendError: &telegram.Error{StatusCode: 400, Description: "fixture rejected card"}}
+	beforeMidnight := date.Add(47*time.Hour + 59*time.Minute)
+	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, beforeMidnight); err != nil {
+		t.Fatal(err)
+	}
+	checkin, found, err := q.GetRoutineCheckinForDate(ctx, workspace.ID, participant.ID, date)
+	if err != nil || !found || checkin.CardMessageID != nil {
+		t.Fatalf("undelivered checkin: found=%v checkin=%+v err=%v", found, checkin, err)
+	}
+	var retries int
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM worker_delivery_retries WHERE operation='routine_card' AND entity_id=$1`, checkin.ID).Scan(&retries); err != nil || retries != 1 {
+		t.Fatalf("delivery retry was not persisted: retries=%d err=%v", retries, err)
+	}
+	fake.sendError = nil
+	midnight := beforeMidnight.Add(time.Minute)
+	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, midnight); err != nil {
+		t.Fatal(err)
+	}
+	if err := approutine.RunCheckinTransitions(ctx, store, fake, nil, midnight); err != nil {
+		t.Fatal(err)
+	}
+	closed, found, err := q.GetRoutineCheckin(ctx, checkin.ID)
+	if err != nil || !found || closed.CompletedAt == nil || closed.AutoFailedAt == nil || closed.CardMessageID != nil || closed.Items[0].Status == nil || *closed.Items[0].Status != domain.RoutineItemFailed {
+		t.Fatalf("undelivered checkin did not close at deadline: found=%v checkin=%+v err=%v", found, closed, err)
+	}
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM worker_delivery_retries WHERE entity_id=$1 AND operation IN ('routine_card','routine_reminder')`, checkin.ID).Scan(&retries); err != nil || retries != 0 {
+		t.Fatalf("obsolete retry survived deadline: retries=%d err=%v", retries, err)
+	}
+	if len(fake.sent) != 1 {
+		t.Fatalf("expired undelivered card must close without sending an obsolete card or notice: %+v", fake.sent)
+	}
+	if err := approutine.DispatchDueCheckins(ctx, store, fake, nil, midnight.Add(8*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	if len(fake.sent) != 2 || !strings.Contains(fake.sent[1].Text, "29 июня") {
+		t.Fatalf("next day's checkin did not continue independently: %+v", fake.sent)
+	}
+}
+
 func TestRunCheckinTransitionsRemindsAndAutoCloses(t *testing.T) {
 	store, _ := testsupport.OpenMigratedStore(t)
 	ctx := context.Background()

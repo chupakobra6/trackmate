@@ -153,6 +153,7 @@ func (q *Queries) CreateAutoFailProgressEvent(ctx context.Context, task DailyTas
 	} else {
 		payload["task_html"] = task.Text
 		payload["task_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TodayCardMessageID), todayThreadID)
+		payload["task_source_link"] = MessageLink(workspace.ChatID, optionalInt64(task.TaskMessageID), optionalInt64(task.TaskMessageThreadID))
 	}
 	_, err := q.CreateProgressEvent(ctx, task.WorkspaceGroupID, eventType, payload, &task.ParticipantID, &task.ID)
 	return err

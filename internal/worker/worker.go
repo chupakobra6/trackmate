@@ -123,7 +123,7 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			if err := r.TG.EditMessageText(ctx, telegram.EditMessageTextRequest{
 				ChatID:      workspace.ChatID,
 				MessageID:   *task.TodayCardMessageID,
-				Text:        ui.FormatDailyTaskCard(task, displayName, username, ""),
+				Text:        ui.FormatDailyTaskCard(task, displayName, username, "", workspace.ChatID),
 				ReplyMarkup: ui.EmptyKeyboard(),
 			}); err != nil && !telegram.IsNotModifiedError(err) && r.Logger != nil {
 				r.Logger.WarnContext(ctx, "daily_card_auto_close_edit_failed", "task_id", task.ID, "entry_kind", task.Kind, "error", err)
@@ -140,13 +140,18 @@ func (r *Runner) DispatchAlerts(ctx context.Context) error {
 			}
 			continue
 		}
-		message, err := r.TG.SendMessage(ctx, telegram.PingMessage(telegram.SendMessageRequest{
+		request := telegram.PingMessage(telegram.SendMessageRequest{
 			ChatID:           workspace.ChatID,
 			MessageThreadID:  todayTopic.ThreadID,
 			Text:             ui.DailyEntryAlertText(alert.AlertKind, task.Kind, displayName, username, userID, fmt.Sprintf("daily-alert:%d:%s", alert.ID, alert.AlertKind)),
 			ReplyToMessageID: optionalInt64(task.TodayCardMessageID),
 			ReplyMarkup:      ui.AlertKeyboard(task.ID, alert.ID),
-		}))
+		})
+		message, err := r.TG.SendMessage(ctx, request)
+		if err != nil && request.ReplyToMessageID != 0 && telegram.IsMissingReplyTarget(err) {
+			request.ReplyToMessageID = 0
+			message, err = r.TG.SendMessage(ctx, request)
+		}
 		if err != nil {
 			retryErr := appdelivery.Defer(ctx, r.Store.Queries(), "alert", alert.ID, now, err)
 			requeueErr := r.Store.Queries().RequeueAlert(ctx, alert.ID)
