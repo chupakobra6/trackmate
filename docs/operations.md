@@ -149,6 +149,14 @@ multiple holders.
 
 Never run two Telegram polling runtimes for the same bot token at the same time.
 
+### Минорное обновление PostgreSQL
+
+Версия PostgreSQL и digest образа закреплены в `docker-compose.yml`. Для обновления в пределах той же основной версии заранее загрузите новый образ по digest и проверьте восстановление свежей логической копии в отдельном контейнере без опубликованных портов. Сохраните прежний образ локально. Финальную копию снимите со старой версией Compose после остановки `api` и `worker`.
+
+После смены образа в Compose выполните `docker compose up -d --no-deps --pull never --wait postgres`. Проверьте версию, том `postgres-data`, расширения и доступность БД. Запустите прежние контейнеры командой `docker compose start api worker` и проверьте их health и зависшие задачи по запросам выше.
+
+Если проверка БД завершилась ошибкой до запуска `api` и `worker`, верните прежний digest и проверьте запуск с тем же томом. При ошибке целостности оставьте запись остановленной и проверьте восстановление финальной копии в отдельный том.
+
 The small production host also needs bounded Docker storage. Trackmate builds
 three application services from the repository, so repeated
 `docker compose up -d --build` runs can accumulate BuildKit cache. Keep Docker
