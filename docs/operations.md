@@ -62,15 +62,22 @@ Backups are written under `backups/` by default. That directory is ignored by
 git. The backup script uses `umask 077`, so new dump, metadata, and checksum
 files are readable only by the account that creates them.
 
-Production backup policy:
-
-- run the same verified logical-backup script at least weekly;
-- retain dump, metadata, and checksum files for 90 days, pruning them only
-  after a new backup succeeds;
-- keep the hosting-provider backup as an additional recovery layer, not as a
-  replacement for a verified PostgreSQL dump;
-- copy a fresh verified dump off the production host before package, network,
-  storage, or reboot maintenance.
+Production-копии переданы общему контуру `starskyproject/ops/backup`:
+согласованный online `pg_dump` на NL каждые 6 часов, шифрование age, независимая
+доставка на RU и ежедневная точка на Яндекс Диске. 17 ноября 2026 облачная копия
+восстановлена в изолированный PostgreSQL 17.11: 18 таблиц, без сети и портов;
+проверочный контейнер удалён. Эта приёмка включала ручные запуски штатных заданий
+systemd на обоих VPS и проверку включённых таймеров с ближайшим календарным
+запуском; сам первый запуск по расписанию ещё оставался будущим событием.
+Источник текущего состояния и процедур –
+[общий backup owner](../../starskyproject/ops/backup/README.md), частоты и сроки
+хранения – его [единый реестр](../../starskyproject/ops/backup/retention.json).
+Прежний `trackmate-db-backup.timer` выключен после включения нового NL timer;
+старые NL-архивы сохранены, правило weekly/90 days больше не задаёт новую
+production-ротацию. Команды локального dump, финального снимка с остановкой
+записи и восстановления ниже сохраняются. Backup провайдера остаётся
+дополнительным слоем. Перед обслуживанием пакетов, сети, хранилища или reboot
+по-прежнему нужна свежая проверенная копия вне production-хоста.
 
 ## Restore
 
